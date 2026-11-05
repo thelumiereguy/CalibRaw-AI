@@ -15,11 +15,19 @@ import com.google.ai.edge.litertlm.ConversationConfig;
 import com.google.ai.edge.litertlm.Engine;
 import com.google.ai.edge.litertlm.EngineConfig;
 import com.google.ai.edge.litertlm.ExperimentalFlags;
+import com.google.ai.edge.litertlm.JsonConvertersKt;
 import com.google.ai.edge.litertlm.Message;
 import com.google.ai.edge.litertlm.MessageCallback;
+import com.google.ai.edge.litertlm.OpenApiTool;
 import com.google.ai.edge.litertlm.ResponseFormat;
 import com.google.ai.edge.litertlm.SamplerConfig;
 import com.google.ai.edge.litertlm.ThinkingConfig;
+import com.google.ai.edge.litertlm.ToolCall;
+import com.google.ai.edge.litertlm.ToolKt;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -30,7 +38,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,9 +49,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Runs Gemma 4 E4B on the device through LiteRT-LM. Rust calls the public methods synchronously
- * from its worker threads. The engine is kept for the process and shared by every activity, and
- * one call uses it at a time.
+ * Runs Gemma 4 E4B on the device through LiteRT-LM: the triage of each opened photo and the AI
+ * editor's chat about it. Rust calls the public methods synchronously from its worker threads,
+ * except {@link #closeEditor}, which returns at once. The engine is kept for the process and
+ * shared by every activity, and one call uses it at a time.
  */
 final class GemmaBridge {
     private static final String LOG_TAG = "CalibRaw";
@@ -56,6 +67,10 @@ final class GemmaBridge {
             Pattern.compile("\"genre\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
     private static final Pattern EMOJI_FIELD =
             Pattern.compile("\"emoji\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+    // The editor's replies are short, so greedy decoding keeps them predictable.
+    private static final SamplerConfig EDITOR_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
+    // An editor turn normally takes a few seconds.
+    private static final long EDITOR_TURN_TIMEOUT_SECONDS = 120;
 
     // Guarded by GemmaBridge.class.
     private static Engine engine;
@@ -63,6 +78,9 @@ final class GemmaBridge {
     // conversation keeps its history, so each triage takes this one and a new one is made after.
     // Guarded by GemmaBridge.class.
     private static Conversation nextTriage;
+    // The open photo's editor chat, or null. Written under GemmaBridge.class; volatile so
+    // closeEditor can cancel its running turn without waiting for that lock.
+    private static volatile Conversation editor;
 
     private final Context context;
 
@@ -229,6 +247,198 @@ final class GemmaBridge {
         Log.i(LOG_TAG, "Gemma triage conversation created in "
                 + (SystemClock.elapsedRealtime() - started) + " ms");
         return conversation;
+    }
+
+    /**
+     * Starts the editor chat for the open photo with {@code systemPrompt}, replacing any earlier
+     * one. Gemma gets the set_sliders tool from assets/gemma/set_sliders_tool.json, and its calls
+     * come back to the caller to run instead of being run here.
+     */
+    public void startEditor(String systemPrompt) throws Exception {
+        synchronized (GemmaBridge.class) {
+            Conversation previous = editor;
+            editor = null;
+            if (previous != null) {
+                previous.close();
+            }
+            Engine loaded = engine(context);
+            String setSliders = asset(context, "gemma/set_sliders_tool.json");
+            long started = SystemClock.elapsedRealtime();
+            editor = loaded.createConversation(new ConversationConfig(
+                    Contents.Companion.of(systemPrompt),
+                    Collections.emptyList(),
+                    Collections.singletonList(ToolKt.tool(new DeclaredTool(setSliders))),
+                    EDITOR_SAMPLER,
+                    false,
+                    null,
+                    Collections.emptyMap(),
+                    null,
+                    false,
+                    null,
+                    new ThinkingConfig(false, 0),
+                    false));
+            Log.i(LOG_TAG, "Gemma editor conversation created in "
+                    + (SystemClock.elapsedRealtime() - started) + " ms");
+        }
+    }
+
+    /**
+     * Sends the photographer's turn, {@code text} with the JPEG at {@code imagePath} before it
+     * when that is not empty, and returns Gemma's reply as {@code {"text": ..., "tool_calls":
+     * [{"name": ..., "arguments": {...}}]}}. The reply's text also streams through
+     * {@link #nativeOnEditorText}, tagged with {@code requestId}.
+     */
+    public String editorSend(long requestId, String text, String imagePath) throws Exception {
+        Contents contents = imagePath == null || imagePath.isEmpty()
+                ? Contents.Companion.of(text)
+                : Contents.Companion.of(new Content.ImageFile(imagePath), new Content.Text(text));
+        return editorTurn(requestId, Message.Companion.user(contents));
+    }
+
+    /**
+     * Answers Gemma's tool calls with {@code responsesJson}, an array of {@code {"name": ...,
+     * "response": {...}}} in the order of the calls, and returns its reply as
+     * {@link #editorSend} does.
+     */
+    public String editorToolResponses(long requestId, String responsesJson) throws Exception {
+        List<Content> responses = new ArrayList<>();
+        for (JsonElement element : JsonParser.parseString(responsesJson).getAsJsonArray()) {
+            JsonObject response = element.getAsJsonObject();
+            responses.add(new Content.ToolResponse(
+                    response.get("name").getAsString(), response.get("response")));
+        }
+        return editorTurn(requestId, Message.Companion.tool(Contents.Companion.of(responses)));
+    }
+
+    /**
+     * Ends the editor chat, cancelling its running turn, which then fails. Returns at once; the
+     * conversation is closed on a background thread once no call uses it.
+     */
+    public void closeEditor() {
+        Conversation closing = editor;
+        if (closing == null) {
+            return;
+        }
+        try {
+            closing.cancelProcess();
+        } catch (IllegalStateException alreadyClosed) {
+            // startEditor replaced and closed it meanwhile.
+            return;
+        }
+        Thread closer = new Thread(() -> {
+            synchronized (GemmaBridge.class) {
+                // A chat started meanwhile is not this one and stays open.
+                if (editor == closing) {
+                    editor = null;
+                    closing.close();
+                }
+            }
+        }, "Gemma editor close");
+        closer.setDaemon(true);
+        closer.start();
+    }
+
+    private String editorTurn(long requestId, Message message) throws Exception {
+        synchronized (GemmaBridge.class) {
+            Conversation conversation = editor;
+            if (conversation == null) {
+                throw new IOException("The AI editor chat is closed");
+            }
+            long started = SystemClock.elapsedRealtime();
+            StringBuilder reply = new StringBuilder();
+            List<ToolCall> toolCalls = Collections.synchronizedList(new ArrayList<>());
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            CountDownLatch finished = new CountDownLatch(1);
+            conversation.sendMessageAsync(
+                    message,
+                    new MessageCallback() {
+                        @Override
+                        public void onMessage(Message message) {
+                            // Text arrives in pieces; tool calls arrive whole.
+                            toolCalls.addAll(message.getToolCalls());
+                            String text = message.toString();
+                            if (text.isEmpty()) {
+                                return;
+                            }
+                            synchronized (reply) {
+                                reply.append(text);
+                            }
+                            nativeOnEditorText(requestId, text);
+                        }
+
+                        @Override
+                        public void onDone() {
+                            finished.countDown();
+                        }
+
+                        @Override
+                        public void onError(Throwable error) {
+                            failure.set(error);
+                            finished.countDown();
+                        }
+                    },
+                    Collections.emptyMap(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+            if (!finished.await(EDITOR_TURN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                conversation.cancelProcess();
+                throw new IOException(
+                        "Gemma did not reply in " + EDITOR_TURN_TIMEOUT_SECONDS + " s");
+            }
+            if (failure.get() != null) {
+                throw new IOException("Gemma could not reply", failure.get());
+            }
+            // Gson, not org.json: argument numbers arrive as Gson's LazilyParsedNumber, which
+            // Android's JSONObject writes as null.
+            JsonArray calls = new JsonArray();
+            synchronized (toolCalls) {
+                for (ToolCall call : toolCalls) {
+                    JsonObject json = new JsonObject();
+                    json.addProperty("name", call.getName());
+                    json.add("arguments", JsonConvertersKt.toJsonObject(call.getArguments()));
+                    calls.add(json);
+                }
+            }
+            JsonObject json = new JsonObject();
+            synchronized (reply) {
+                json.addProperty("text", reply.toString());
+            }
+            json.add("tool_calls", calls);
+            String result = json.toString();
+            Log.i(LOG_TAG, "Gemma editor turn took " + (SystemClock.elapsedRealtime() - started)
+                    + " ms: " + result);
+            Log.i(LOG_TAG, "Gemma editor benchmark: " + conversation.getBenchmarkInfo());
+            return result;
+        }
+    }
+
+    /** Reports the next piece of an editor reply's text while Gemma writes it. */
+    private static native void nativeOnEditorText(long requestId, String text);
+
+    /**
+     * A tool Gemma may call, declared by its JSON description. The conversation hands the calls
+     * back to the app, which runs them, so {@link #execute} is never reached.
+     */
+    private static final class DeclaredTool implements OpenApiTool {
+        private final String description;
+
+        DeclaredTool(String description) {
+            this.description = description;
+        }
+
+        @Override
+        public String getToolDescriptionJsonString() {
+            return description;
+        }
+
+        @Override
+        public String execute(String paramsJsonString) {
+            throw new UnsupportedOperationException("the app runs Gemma's tool calls itself");
+        }
     }
 
     /**

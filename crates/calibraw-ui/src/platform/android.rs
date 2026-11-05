@@ -480,6 +480,35 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::render_emoji(&self.app, emoji, size_px)
     }
 
+    fn gemma_editor_start(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::gemma_editor_start(&self.app, system_prompt)
+    }
+
+    fn gemma_editor_send(
+        &self,
+        request_id: u64,
+        text: &str,
+        image_path: Option<&Path>,
+    ) -> Result<String, String> {
+        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, image_path)
+    }
+
+    fn gemma_editor_tool_responses(
+        &self,
+        request_id: u64,
+        responses_json: &str,
+    ) -> Result<String, String> {
+        calibraw_ffi::gemma_editor_tool_responses(&self.app, request_id, responses_json)
+    }
+
+    fn gemma_editor_close(&self) -> Result<(), String> {
+        calibraw_ffi::gemma_editor_close(&self.app)
+    }
+
+    fn take_editor_text(&self) -> Option<(u64, String)> {
+        calibraw_ffi::take_editor_text().map(|text| (text.request_id, text.text))
+    }
+
     fn prepare_direct_export(
         &self,
         display_name: &str,

@@ -27,16 +27,19 @@ pub(super) fn ai_mask_source_proxy_edge(width: u32, height: u32) -> u32 {
 }
 
 mod consent;
+mod editor;
 mod generated;
 mod models;
 mod object;
 mod people;
+mod sliders;
 mod source;
 mod state;
 mod tasks;
 mod triage;
 mod update;
 
+pub(crate) use editor::{ChatRole, EditorState};
 pub(crate) use people::PeopleState;
 pub(crate) use triage::TriageState;
 pub(crate) use update::AiUpdate;

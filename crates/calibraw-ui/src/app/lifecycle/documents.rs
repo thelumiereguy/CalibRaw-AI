@@ -319,6 +319,7 @@ impl CalibRawApp {
         self.masks.reset_transient_state();
         self.ai.people.forget();
         self.ai.triage.forget();
+        self.forget_ai_editor();
         self.ai.update_needed = false;
         self.reset_ai_update_state();
         self.preview.pending_stage = None;

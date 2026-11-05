@@ -1,6 +1,7 @@
 //! Refreshing the library's developed thumbnail after edits are saved.
 
 use super::*;
+use crate::app::preview_capture::PreviewSnapshot;
 use crate::i18n::{tr, tr_fmt};
 
 impl CalibRawApp {
@@ -145,44 +146,16 @@ impl CalibRawApp {
             self.persistence.developed_thumbnail_pending = None;
             return;
         }
-        if self.preview.quality_dirty
-            || self.develop.lens_correction_dirty
-            || self.lens_correction_busy()
-        {
-            self.egui_ctx.request_repaint();
-            return;
-        }
-
-        if !edited_preview_is_current_for_thumbnail(
-            self.preview.original_requested,
-            self.preview.original_rendered_state,
-            self.preview.revision,
-        ) {
-            self.egui_ctx.request_repaint();
-            return;
-        }
-
+        let snapshot = match self.current_preview_snapshot(frame) {
+            PreviewSnapshot::Ready(snapshot) => snapshot,
+            PreviewSnapshot::Rendering => return,
+            PreviewSnapshot::NoGpu => {
+                self.persistence.developed_thumbnail_pending = None;
+                log::warn!("cannot cache developed thumbnail without the wgpu backend");
+                return;
+            }
+        };
         let Some(render_state) = frame.wgpu_render_state() else {
-            self.persistence.developed_thumbnail_pending = None;
-            log::warn!("cannot cache developed thumbnail without the wgpu backend");
-            return;
-        };
-        let snapshot = if self.preview.pending_stage.is_none() {
-            self.preview
-                .pipeline()
-                .map(|pipeline| pipeline.output_snapshot(&render_state.device, &render_state.queue))
-        } else if self.preview.navigation_pending_stage.is_none() {
-            self.preview.navigation.as_ref().map(|preview| {
-                preview
-                    .pipeline
-                    .gpu()
-                    .output_snapshot(&render_state.device, &render_state.queue)
-            })
-        } else {
-            None
-        };
-        let Some(snapshot) = snapshot else {
-            self.egui_ctx.request_repaint();
             return;
         };
         let device = render_state.device.clone();

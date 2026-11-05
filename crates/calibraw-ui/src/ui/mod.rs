@@ -1,3 +1,4 @@
+pub(crate) mod ai_chat;
 pub(crate) mod background_tasks;
 pub(crate) mod capture_format;
 pub(crate) mod components;

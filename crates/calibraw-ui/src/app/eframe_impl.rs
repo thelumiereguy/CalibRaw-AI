@@ -139,6 +139,8 @@ impl CalibRawApp {
                 // Back left a menu's submenu page, or closed the menu.
             } else if self.android_foreground_task_active() {
                 ui.ctx().request_repaint();
+            } else if self.ui.active_tab == AppTab::Develop && self.ai.editor.open {
+                self.set_ai_editor_open(false);
             } else if self.ui.active_tab == AppTab::Library && self.library.folder_sidebar_open() {
                 self.set_library_folder_sidebar_open(false);
             } else if self.ui.active_tab == AppTab::Library && self.library.is_selecting() {
@@ -215,6 +217,7 @@ impl CalibRawApp {
         self.poll_people_composes();
         if caps.on_device_gemma {
             self.poll_photo_triage();
+            self.poll_ai_editor(frame);
         }
         self.poll_library_ai_mask_refresh(frame);
         self.poll_merge();
@@ -397,11 +400,15 @@ impl eframe::App for CalibRawApp {
                     .frame(moduwu_design::panel_frame(ui))
                     .show(ui, |ui| {
                         crate::ui::layout::docked_panel_contents(ui, |ui| {
-                            Sidebar::show(ui, self, layout, frame)
+                            if self.ai.editor.open {
+                                crate::ui::ai_chat::show(ui, self);
+                            } else {
+                                Sidebar::show(ui, self, layout, frame);
+                            }
                         })
                     });
 
-                if self.ui.sidebar_tab == SidebarTab::Masks {
+                if self.ui.sidebar_tab == SidebarTab::Masks && !self.ai.editor.open {
                     egui::Panel::right(crate::ui::layout::DEVELOP_MASK_STRIP_ID)
                         .resizable(false)
                         .exact_size(Sidebar::HORIZONTAL_MASK_STRIP_WIDTH)

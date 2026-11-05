@@ -516,6 +516,43 @@ pub(crate) trait Platform: Send + Sync {
     fn render_emoji(&self, _emoji: &str, _size_px: u32) -> Result<Option<Vec<u8>>, String> {
         Ok(None)
     }
+    /// Starts the AI editor's chat with `system_prompt`, replacing any
+    /// earlier one. Blocks for seconds, so only workers call it.
+    fn gemma_editor_start(&self, _system_prompt: &str) -> Result<(), String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Sends the photographer's `text`, after the JPEG at `image_path` when
+    /// there is one, and returns Gemma's reply as JSON: `{"text": ...,
+    /// "tool_calls": [{"name": ..., "arguments": {...}}]}`. Blocks for the
+    /// whole reply, so only workers call it; the reply's text arrives earlier
+    /// through [`Self::take_editor_text`], tagged with `request_id`.
+    fn gemma_editor_send(
+        &self,
+        _request_id: u64,
+        _text: &str,
+        _image_path: Option<&Path>,
+    ) -> Result<String, String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Answers Gemma's tool calls with `responses_json`, an array of
+    /// `{"name": ..., "response": {...}}` in call order, and returns its reply
+    /// as [`Self::gemma_editor_send`] does.
+    fn gemma_editor_tool_responses(
+        &self,
+        _request_id: u64,
+        _responses_json: &str,
+    ) -> Result<String, String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Ends the editor chat and cancels its running reply. Returns at once.
+    fn gemma_editor_close(&self) -> Result<(), String> {
+        Ok(())
+    }
+    /// The newest editor reply's request id and the text it gained since
+    /// the last call.
+    fn take_editor_text(&self) -> Option<(u64, String)> {
+        None
+    }
 
     // --- Publishing exports to the shared media store ---
 

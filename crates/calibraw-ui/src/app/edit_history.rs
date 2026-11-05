@@ -493,7 +493,9 @@ impl CalibRawApp {
     }
 
     pub(crate) fn observe_edit_history(&mut self, ctx: &egui::Context) {
-        let interaction_active = edit_history_interaction_active(ctx);
+        // The nudges of one AI editor request become one undo step.
+        let interaction_active =
+            edit_history_interaction_active(ctx) || self.ai.editor.request_running();
         self.persistence.history.observe(
             &self.develop.exposure,
             self.develop.geometry,

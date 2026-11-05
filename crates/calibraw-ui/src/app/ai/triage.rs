@@ -12,8 +12,8 @@ use std::path::Path;
 
 /// Longest edge of the image Gemma sees; its vision encoder scales it down
 /// further, so a larger one only costs encode time.
-const TRIAGE_IMAGE_EDGE: u32 = 1024;
-const TRIAGE_JPEG_QUALITY: u8 = 90;
+pub(super) const GEMMA_IMAGE_EDGE: u32 = 1024;
+const GEMMA_JPEG_QUALITY: u8 = 90;
 const TRIAGE_IMAGE_FILE: &str = "gemma-triage.jpg";
 /// Shown when Gemma's emoji is missing.
 const FALLBACK_EMOJI: &str = "📷";
@@ -264,27 +264,33 @@ fn fill_triage_card(
     jpeg_path: &Path,
     request_id: u64,
 ) -> Result<TriageCard, String> {
+    write_gemma_jpeg(image, jpeg_path)?;
+    let body = platform.gemma_triage(jpeg_path, "", request_id, BADGE_PX)?;
+    serde_json::from_str::<TriageCard>(&body)
+        .map_err(|error| format!("Gemma's triage card is not the expected JSON ({error}): {body}"))?
+        .clamped()
+}
+
+/// Writes `image` to `path` as the JPEG Gemma reads, scaled down to
+/// [`GEMMA_IMAGE_EDGE`].
+pub(super) fn write_gemma_jpeg(image: image::RgbaImage, path: &Path) -> Result<(), String> {
     let mut image = image::DynamicImage::ImageRgba8(image);
-    if image.width().max(image.height()) > TRIAGE_IMAGE_EDGE {
+    if image.width().max(image.height()) > GEMMA_IMAGE_EDGE {
         image = image.resize(
-            TRIAGE_IMAGE_EDGE,
-            TRIAGE_IMAGE_EDGE,
+            GEMMA_IMAGE_EDGE,
+            GEMMA_IMAGE_EDGE,
             image::imageops::FilterType::Triangle,
         );
     }
     let image = image::DynamicImage::ImageRgb8(image.to_rgb8());
     let mut encoded = Vec::new();
-    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, TRIAGE_JPEG_QUALITY)
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, GEMMA_JPEG_QUALITY)
         .encode_image(&image)
-        .map_err(|error| format!("could not encode the triage image: {error}"))?;
-    calibraw_core::file_ops::write_bytes_atomically(jpeg_path, &encoded).map_err(|error| {
+        .map_err(|error| format!("could not encode the image for Gemma: {error}"))?;
+    calibraw_core::file_ops::write_bytes_atomically(path, &encoded).map_err(|error| {
         format!(
-            "could not write the triage image {}: {error}",
-            jpeg_path.display()
+            "could not write the image for Gemma {}: {error}",
+            path.display()
         )
-    })?;
-    let body = platform.gemma_triage(jpeg_path, "", request_id, BADGE_PX)?;
-    serde_json::from_str::<TriageCard>(&body)
-        .map_err(|error| format!("Gemma's triage card is not the expected JSON ({error}): {body}"))?
-        .clamped()
+    })
 }

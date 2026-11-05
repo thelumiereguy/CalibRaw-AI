@@ -320,6 +320,7 @@ mod full_resolution;
 mod interaction;
 mod interactive_preview;
 mod lifecycle;
+mod preview_capture;
 mod preview_clipping;
 mod preview_dispatch_gate;
 mod preview_histogram;
@@ -342,8 +343,8 @@ mod sidecar_persistence;
 #[cfg(test)]
 mod ui_review_tests;
 
-pub(crate) use ai::TriageState;
 use ai::{AiUpdate, PeopleState};
+pub(crate) use ai::{ChatRole, EditorState, TriageState};
 use lifecycle::needs_canonical_mask_source;
 pub(crate) use lifecycle::{
     install_missing_range_sources, masks_have_missing_range_sources, DocumentSource,
