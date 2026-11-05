@@ -21,6 +21,9 @@ pub(crate) struct PlatformCaps {
     /// The app can start itself again, so a lost GPU device ends in a
     /// native notice and a restart.
     pub(crate) can_restart: bool,
+    /// Gemma runs on the device ([`super::Platform::gemma_triage`]), so an
+    /// opened photo gets a triage card and the AI editor is offered.
+    pub(crate) on_device_gemma: bool,
 }
 
 /// How the person works with the app.
@@ -74,6 +77,7 @@ impl PlatformCaps {
         configurable_ai_runtime: true,
         video_encoder: VideoEncoder::Ffmpeg,
         can_restart: true,
+        on_device_gemma: false,
     };
 
     pub(crate) const ANDROID: Self = Self {
@@ -84,6 +88,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
+        on_device_gemma: true,
     };
 
     #[cfg(target_os = "ios")]
@@ -95,6 +100,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
+        on_device_gemma: false,
     };
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

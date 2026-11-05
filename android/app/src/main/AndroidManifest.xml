@@ -18,6 +18,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
+        <!-- GPU and DSP libraries LiteRT-LM loads for on-device Gemma when the device has them. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
         <activity
             android:name=".CalibRawActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|uiMode|density"

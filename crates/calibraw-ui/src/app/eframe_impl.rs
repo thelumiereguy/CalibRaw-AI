@@ -213,6 +213,9 @@ impl CalibRawApp {
         }
         self.poll_foreground_operation(frame);
         self.poll_people_composes();
+        if caps.on_device_gemma {
+            self.poll_photo_triage();
+        }
         self.poll_library_ai_mask_refresh(frame);
         self.poll_merge();
         self.poll_library_review_saves();

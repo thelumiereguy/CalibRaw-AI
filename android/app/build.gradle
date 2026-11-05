@@ -156,7 +156,7 @@ android {
 
     sourceSets {
         main.jniLibs.srcDirs = ["src/main/jniLibs"]
-        main.assets.srcDirs = [lensfunAssets]
+        main.assets.srcDirs = [lensfunAssets, "src/main/assets"]
     }
 
     // AGP 8.5.1+ page-aligns uncompressed JNI libraries for 16 KiB-page devices.
@@ -209,6 +209,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    // On-device Gemma for the AI editor (GemmaBridge).
+    implementation "com.google.ai.edge.litertlm:litertlm-android:0.19.0"
 }
 
 tasks.withType(JavaCompile).configureEach {

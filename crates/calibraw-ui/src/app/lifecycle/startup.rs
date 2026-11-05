@@ -231,6 +231,7 @@ impl CalibRawApp {
                 object_pending_target: None,
                 object_cache: None,
                 people: PeopleState::default(),
+                triage: TriageState::default(),
                 denoise_resume_pending: false,
             },
             inpaint: InpaintState {

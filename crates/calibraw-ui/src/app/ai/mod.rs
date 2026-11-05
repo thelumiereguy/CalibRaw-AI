@@ -34,7 +34,9 @@ mod people;
 mod source;
 mod state;
 mod tasks;
+mod triage;
 mod update;
 
 pub(crate) use people::PeopleState;
+pub(crate) use triage::TriageState;
 pub(crate) use update::AiUpdate;

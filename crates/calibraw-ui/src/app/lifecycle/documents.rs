@@ -318,6 +318,7 @@ impl CalibRawApp {
         self.reset_inpainting_state();
         self.masks.reset_transient_state();
         self.ai.people.forget();
+        self.ai.triage.forget();
         self.ai.update_needed = false;
         self.reset_ai_update_state();
         self.preview.pending_stage = None;
@@ -486,6 +487,9 @@ impl CalibRawApp {
                     loaded.document_generation,
                     loaded.sidecar_needs_rewrite,
                 );
+                if self.caps().on_device_gemma && !self.document_load_is_background() {
+                    self.start_photo_triage(frame, loaded.document_generation);
+                }
                 self.cancel_document_bound_foreground_operation();
                 self.resume_persisted_ai_denoise(frame);
                 if loaded.starts_unedited && !self.document_load_is_background() {

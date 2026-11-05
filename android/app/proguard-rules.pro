@@ -13,3 +13,8 @@
 -keep class de.duecki.calibraw.ExportPublisher { *; }
 
 -keep class de.duecki.calibraw.ReplayVideoEncoder { *; }
+-keep class de.duecki.calibraw.GemmaBridge { *; }
+
+# LiteRT-LM's native library calls back into its Kotlin classes, and its AAR
+# ships no consumer rules.
+-keep class com.google.ai.edge.litertlm.** { *; }

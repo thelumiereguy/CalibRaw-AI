@@ -342,6 +342,7 @@ mod sidecar_persistence;
 #[cfg(test)]
 mod ui_review_tests;
 
+pub(crate) use ai::TriageState;
 use ai::{AiUpdate, PeopleState};
 use lifecycle::needs_canonical_mask_source;
 pub(crate) use lifecycle::{
