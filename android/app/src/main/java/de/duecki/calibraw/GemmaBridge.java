@@ -16,18 +16,15 @@ import com.google.ai.edge.litertlm.Engine;
 import com.google.ai.edge.litertlm.EngineConfig;
 import com.google.ai.edge.litertlm.ExperimentalFlags;
 import com.google.ai.edge.litertlm.JsonConvertersKt;
+import com.google.ai.edge.litertlm.LiteRtLmJniException;
 import com.google.ai.edge.litertlm.Message;
 import com.google.ai.edge.litertlm.MessageCallback;
-import com.google.ai.edge.litertlm.OpenApiTool;
 import com.google.ai.edge.litertlm.ResponseFormat;
 import com.google.ai.edge.litertlm.SamplerConfig;
 import com.google.ai.edge.litertlm.ThinkingConfig;
 import com.google.ai.edge.litertlm.ToolCall;
-import com.google.ai.edge.litertlm.ToolKt;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -40,7 +37,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,10 +66,17 @@ final class GemmaBridge {
             Pattern.compile("\"genre\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
     private static final Pattern EMOJI_FIELD =
             Pattern.compile("\"emoji\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+    // The reply LiteRT-LM quotes in its message when it cannot parse a tool call.
+    private static final Pattern FULL_RESPONSE = Pattern.compile("full response: (.*)");
     // The editor's replies are short, so greedy decoding keeps them predictable.
     private static final SamplerConfig EDITOR_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
     // An editor turn normally takes a few seconds.
     private static final long EDITOR_TURN_TIMEOUT_SECONDS = 120;
+    // Tokens a conversation holds. A phase of an editor request took up to 2,447 (its system
+    // prompt, a preview per message). LiteRT-LM's GPU backend reserves the whole context in every
+    // layer, sliding-window ones included (LiteRT-LM #4096), so the reservation grows with this:
+    // 16384 ran the phone out of memory after a triage, and 8192 left it swapping.
+    private static final int MAX_NUM_TOKENS = 4096;
 
     // Guarded by GemmaBridge.class.
     private static Engine engine;
@@ -78,7 +84,16 @@ final class GemmaBridge {
     // conversation keeps its history, so each triage takes this one and a new one is made after.
     // Guarded by GemmaBridge.class.
     private static Conversation nextTriage;
-    // The open photo's editor chat, or null. Written under GemmaBridge.class; volatile so
+    // The editor's system prompts, each already read by Gemma, by prompt: a request interprets
+    // the photographer's words in one and edits in another. They name no photo, so they are
+    // kept for the process, and opening a photo costs only its triage.
+    // Each phase runs on a clone of its prompt's: a clone took milliseconds, while a new
+    // conversation's first prefill took 16-23 s after the process's first one. Guarded by
+    // GemmaBridge.class.
+    private static final Map<String, Conversation> editorBases = new LinkedHashMap<>();
+    // Base conversations kept, one per phase; each reserves MAX_NUM_TOKENS.
+    private static final int MAX_EDITOR_BASES = 2;
+    // The running phase's conversation, or null. Written under GemmaBridge.class; volatile so
     // closeEditor can cancel its running turn without waiting for that lock.
     private static volatile Conversation editor;
 
@@ -250,43 +265,85 @@ final class GemmaBridge {
     }
 
     /**
-     * Starts the editor chat for the open photo with {@code systemPrompt}, replacing any earlier
-     * one. Gemma gets the set_sliders tool from assets/gemma/set_sliders_tool.json, and its calls
-     * come back to the caller to run instead of being run here.
+     * Has Gemma read the editor's {@code systemPrompt} on a background thread, so the open
+     * photo's first request does not wait for it. Returns at once; a request that arrives
+     * meanwhile waits for it.
      */
-    public void startEditor(String systemPrompt) throws Exception {
+    public void prepareEditor(String systemPrompt) {
+        Thread preparer = new Thread(() -> {
+            try {
+                synchronized (GemmaBridge.class) {
+                    editorBase(context, systemPrompt);
+                }
+            } catch (Exception error) {
+                Log.w(LOG_TAG, "Could not prepare the Gemma editor", error);
+            }
+        }, "Gemma editor preparation");
+        preparer.setDaemon(true);
+        preparer.start();
+    }
+
+    /**
+     * Starts a phase of a request on a fresh conversation that holds only {@code systemPrompt},
+     * replacing the earlier phase's. Blocks while Gemma reads a prompt it has not read yet.
+     */
+    public void startEditorRequest(String systemPrompt) throws Exception {
         synchronized (GemmaBridge.class) {
             Conversation previous = editor;
             editor = null;
             if (previous != null) {
                 previous.close();
             }
-            Engine loaded = engine(context);
-            String setSliders = asset(context, "gemma/set_sliders_tool.json");
+            Conversation base = editorBase(context, systemPrompt);
             long started = SystemClock.elapsedRealtime();
-            editor = loaded.createConversation(new ConversationConfig(
-                    Contents.Companion.of(systemPrompt),
-                    Collections.emptyList(),
-                    Collections.singletonList(ToolKt.tool(new DeclaredTool(setSliders))),
-                    EDITOR_SAMPLER,
-                    false,
-                    null,
-                    Collections.emptyMap(),
-                    null,
-                    false,
-                    null,
-                    new ThinkingConfig(false, 0),
-                    false));
-            Log.i(LOG_TAG, "Gemma editor conversation created in "
+            editor = base.clone();
+            Log.i(LOG_TAG, "Gemma editor request conversation cloned in "
                     + (SystemClock.elapsedRealtime() - started) + " ms");
         }
     }
 
+    // Caller holds GemmaBridge.class.
+    private static Conversation editorBase(Context context, String systemPrompt)
+            throws IOException {
+        Conversation known = editorBases.get(systemPrompt);
+        if (known != null) {
+            return known;
+        }
+        // A prompt the app no longer sends, such as one from before an update.
+        while (editorBases.size() >= MAX_EDITOR_BASES) {
+            String oldest = editorBases.keySet().iterator().next();
+            editorBases.remove(oldest).close();
+        }
+        Engine loaded = engine(context);
+        long started = SystemClock.elapsedRealtime();
+        // No tools are declared: the prompt lists them and Gemma writes its calls as text lines,
+        // which the app parses (app/ai/calls.rs). The preface is read now, not at the first
+        // request.
+        Conversation base = loaded.createConversation(new ConversationConfig(
+                Contents.Companion.of(systemPrompt),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                EDITOR_SAMPLER,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                true,
+                null,
+                new ThinkingConfig(false, 0),
+                false));
+        Log.i(LOG_TAG, "Gemma editor prompt read in " + (SystemClock.elapsedRealtime() - started)
+                + " ms, " + base.getTokenCount() + " tokens");
+        editorBases.put(systemPrompt, base);
+        return base;
+    }
+
     /**
      * Sends the photographer's turn, {@code text} with the JPEG at {@code imagePath} before it
-     * when that is not empty, and returns Gemma's reply as {@code {"text": ..., "tool_calls":
-     * [{"name": ..., "arguments": {...}}]}}. The reply's text also streams through
-     * {@link #nativeOnEditorText}, tagged with {@code requestId}.
+     * when that is not empty, and returns Gemma's reply as
+     * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}, the calls being
+     * those Gemma wrote in its own call syntax that LiteRT-LM parsed. The reply's text also
+     * streams through {@link #nativeOnEditorText}, tagged with {@code requestId}.
      */
     public String editorSend(long requestId, String text, String imagePath) throws Exception {
         Contents contents = imagePath == null || imagePath.isEmpty()
@@ -296,39 +353,24 @@ final class GemmaBridge {
     }
 
     /**
-     * Answers Gemma's tool calls with {@code responsesJson}, an array of {@code {"name": ...,
-     * "response": {...}}} in the order of the calls, and returns its reply as
-     * {@link #editorSend} does.
-     */
-    public String editorToolResponses(long requestId, String responsesJson) throws Exception {
-        List<Content> responses = new ArrayList<>();
-        for (JsonElement element : JsonParser.parseString(responsesJson).getAsJsonArray()) {
-            JsonObject response = element.getAsJsonObject();
-            responses.add(new Content.ToolResponse(
-                    response.get("name").getAsString(), response.get("response")));
-        }
-        return editorTurn(requestId, Message.Companion.tool(Contents.Companion.of(responses)));
-    }
-
-    /**
-     * Ends the editor chat, cancelling its running turn, which then fails. Returns at once; the
-     * conversation is closed on a background thread once no call uses it.
+     * Ends the editor's request, cancelling a running turn, which then fails: when a request
+     * finishes, so its conversation does not hold memory until the next, and when another photo
+     * opens. Returns at once; the request's conversation is closed on a background thread once no
+     * call uses it, and the prompts' are kept for the next request.
      */
     public void closeEditor() {
         Conversation closing = editor;
-        if (closing == null) {
-            return;
-        }
-        try {
-            closing.cancelProcess();
-        } catch (IllegalStateException alreadyClosed) {
-            // startEditor replaced and closed it meanwhile.
-            return;
+        if (closing != null) {
+            try {
+                closing.cancelProcess();
+            } catch (IllegalStateException alreadyClosed) {
+                // startEditorRequest replaced and closed it meanwhile.
+            }
         }
         Thread closer = new Thread(() -> {
             synchronized (GemmaBridge.class) {
-                // A chat started meanwhile is not this one and stays open.
-                if (editor == closing) {
+                // A request started meanwhile is not this one and stays open.
+                if (closing != null && editor == closing) {
                     editor = null;
                     closing.close();
                 }
@@ -390,7 +432,19 @@ final class GemmaBridge {
                         "Gemma did not reply in " + EDITOR_TURN_TIMEOUT_SECONDS + " s");
             }
             if (failure.get() != null) {
-                throw new IOException("Gemma could not reply", failure.get());
+                Log.w(LOG_TAG, "Gemma editor turn failed after "
+                        + conversation.getTokenCount() + " tokens", failure.get());
+                String unreadable = unreadableToolCall(failure.get());
+                if (unreadable == null) {
+                    throw new IOException(
+                            "Gemma could not reply: " + failure.get(), failure.get());
+                }
+                // Gemma wrote its own call syntax and LiteRT-LM could not parse it, such as a
+                // call with a brace too many; the caller reads it from the text as it reads
+                // the calls it asked for (calls.rs).
+                synchronized (reply) {
+                    reply.append('\n').append(unreadable);
+                }
             }
             // Gson, not org.json: argument numbers arrive as Gson's LazilyParsedNumber, which
             // Android's JSONObject writes as null.
@@ -410,36 +464,29 @@ final class GemmaBridge {
             json.add("tool_calls", calls);
             String result = json.toString();
             Log.i(LOG_TAG, "Gemma editor turn took " + (SystemClock.elapsedRealtime() - started)
-                    + " ms: " + result);
+                    + " ms, " + conversation.getTokenCount() + " tokens: " + result);
             Log.i(LOG_TAG, "Gemma editor benchmark: " + conversation.getBenchmarkInfo());
             return result;
         }
     }
 
+    /**
+     * What Gemma wrote when {@code failure} is LiteRT-LM rejecting a tool call it could not
+     * parse, such as one with an extra closing brace, or null for any other failure. LiteRT-LM
+     * reports it only in the message: "Failed to parse tool calls ... full response: ...".
+     */
+    private static String unreadableToolCall(Throwable failure) {
+        String message = failure.getMessage();
+        if (!(failure instanceof LiteRtLmJniException) || message == null
+                || !message.contains("Failed to parse tool calls")) {
+            return null;
+        }
+        Matcher response = FULL_RESPONSE.matcher(message);
+        return response.find() ? response.group(1).trim() : "";
+    }
+
     /** Reports the next piece of an editor reply's text while Gemma writes it. */
     private static native void nativeOnEditorText(long requestId, String text);
-
-    /**
-     * A tool Gemma may call, declared by its JSON description. The conversation hands the calls
-     * back to the app, which runs them, so {@link #execute} is never reached.
-     */
-    private static final class DeclaredTool implements OpenApiTool {
-        private final String description;
-
-        DeclaredTool(String description) {
-            this.description = description;
-        }
-
-        @Override
-        public String getToolDescriptionJsonString() {
-            return description;
-        }
-
-        @Override
-        public String execute(String paramsJsonString) {
-            throw new UnsupportedOperationException("the app runs Gemma's tool calls itself");
-        }
-    }
 
     /**
      * Draws {@code emoji} centred in a {@code sizePx} square with the system's colour emoji font,
@@ -484,7 +531,7 @@ final class GemmaBridge {
                 new Backend.GPU(),
                 new Backend.GPU(),
                 null,
-                null,
+                MAX_NUM_TOKENS,
                 null,
                 cacheDir.getAbsolutePath()));
         created.initialize();

@@ -98,24 +98,41 @@ pub struct EditorText {
 /// The pieces of the newest reply since the last take, joined.
 static EDITOR_TEXT: Mutex<Option<EditorText>> = Mutex::new(None);
 
-/// Starts the AI editor's chat with `system_prompt`, replacing any earlier
-/// one. Blocks for seconds, so run it on a worker.
-pub fn gemma_editor_start(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
+/// Has Gemma read the AI editor's `system_prompt` in the background, so the
+/// open photo's first request does not wait for it. Returns at once.
+pub fn gemma_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
     with_gemma_bridge(app, |env, gemma_bridge| {
         let system_prompt = env.new_string(system_prompt)?;
         env.call_method(
             gemma_bridge,
-            jni::jni_str!("startEditor"),
+            jni::jni_str!("prepareEditor"),
             jni::jni_sig!((JString) -> void),
             &[JValue::Object(&system_prompt)],
         )?;
         Ok(())
     })
-    .map_err(|error| format!("Gemma could not start the editor chat: {error:#}"))
+    .map_err(|error| format!("Gemma could not prepare the editor: {error:#}"))
 }
 
-/// Sends the photographer's `text`, after the JPEG at `image_path` when there
-/// is one, and returns Gemma's reply as JSON (`GemmaBridge.editorSend`).
+/// Starts an AI editor request on a fresh conversation that holds only
+/// `system_prompt`, replacing the earlier request's. Blocks while Gemma reads
+/// a prompt it has not read yet, so run it on a worker.
+pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
+    with_gemma_bridge(app, |env, gemma_bridge| {
+        let system_prompt = env.new_string(system_prompt)?;
+        env.call_method(
+            gemma_bridge,
+            jni::jni_str!("startEditorRequest"),
+            jni::jni_sig!((JString) -> void),
+            &[JValue::Object(&system_prompt)],
+        )?;
+        Ok(())
+    })
+    .map_err(|error| format!("Gemma could not start the request: {error:#}"))
+}
+
+/// Sends `text` to the running request, after the JPEG at `image_path` when
+/// there is one, and returns Gemma's reply as JSON (`GemmaBridge.editorSend`).
 /// Blocks for the whole reply, whose text arrives earlier through
 /// [`take_editor_text`], tagged with `request_id`.
 pub fn gemma_editor_send(
@@ -146,31 +163,8 @@ pub fn gemma_editor_send(
     .map_err(|error| format!("Gemma could not reply: {error:#}"))
 }
 
-/// Answers Gemma's tool calls with `responses_json`
-/// (`GemmaBridge.editorToolResponses`) and returns its reply as
-/// [`gemma_editor_send`] does.
-pub fn gemma_editor_tool_responses(
-    app: &AndroidApp,
-    request_id: u64,
-    responses_json: &str,
-) -> Result<String, String> {
-    with_gemma_bridge(app, |env, gemma_bridge| {
-        let responses_json = env.new_string(responses_json)?;
-        let value = env.call_method(
-            gemma_bridge,
-            jni::jni_str!("editorToolResponses"),
-            jni::jni_sig!((i64, JString) -> JString),
-            &[
-                JValue::Long(request_id as i64),
-                JValue::Object(&responses_json),
-            ],
-        )?;
-        java_string(env, value)
-    })
-    .map_err(|error| format!("Gemma could not reply: {error:#}"))
-}
-
-/// Ends the editor chat and cancels its running reply. Returns at once.
+/// Closes the AI editor request's conversation and cancels its running reply.
+/// Returns at once.
 pub fn gemma_editor_close(app: &AndroidApp) -> Result<(), String> {
     with_gemma_bridge(app, |env, gemma_bridge| {
         env.call_method(

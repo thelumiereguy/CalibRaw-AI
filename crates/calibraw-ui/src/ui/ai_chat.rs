@@ -132,16 +132,6 @@ fn triage_heading(ui: &mut Ui, triage: &TriageState) {
         .default_open(false)
         .show(ui, |ui| {
             ui.add(egui::Label::new(&card.role).wrap());
-            for (heading, items) in [
-                (tr("Priorities"), &card.editing_priorities),
-                (tr("Observations"), &card.observations),
-            ] {
-                ui.add_space(moduwu_design::SPACE_SM);
-                ui.label(egui::RichText::new(heading).strong());
-                for item in items {
-                    ui.add(egui::Label::new(format!("• {item}")).wrap());
-                }
-            }
         });
 }
 

@@ -34,10 +34,9 @@ pub(crate) struct TriageCard {
     pub(crate) genre: String,
     pub(crate) emoji: String,
     /// What a specialist in the genre knows and protects, in the second person.
+    /// The card asks for no editing priorities or observations: given either,
+    /// Gemma edited towards them instead of the photographer's request.
     pub(crate) role: String,
-    pub(crate) editing_priorities: Vec<String>,
-    /// Facts about this photo's exposure, light and colour, by region.
-    pub(crate) observations: Vec<String>,
 }
 
 impl TriageCard {
@@ -50,8 +49,6 @@ impl TriageCard {
             genre,
             emoji: clamp_emoji(&self.emoji),
             role: clamp_text(&self.role, 300),
-            editing_priorities: clamp_list(self.editing_priorities, 5, 80),
-            observations: clamp_list(self.observations, 5, 80),
         })
     }
 }
@@ -67,15 +64,6 @@ fn clamp_emoji(emoji: &str) -> String {
     } else {
         emoji
     }
-}
-
-fn clamp_list(items: Vec<String>, max_items: usize, max_chars: usize) -> Vec<String> {
-    items
-        .iter()
-        .map(|item| clamp_text(item, max_chars))
-        .filter(|item| !item.is_empty())
-        .take(max_items)
-        .collect()
 }
 
 /// The open photo's triage card and the triage that makes it.
@@ -217,6 +205,7 @@ impl CalibRawApp {
                 }
                 self.ai.triage.headline = None;
                 self.ai.triage.card = Some(card);
+                self.prepare_ai_editor();
             }
             Err(error) => {
                 log::warn!("Gemma triage failed: {error}");

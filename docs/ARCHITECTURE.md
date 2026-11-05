@@ -81,20 +81,54 @@ change that establishes a boundary, not in advance.
   `DecodedRawCache` entry therefore serves every camera-profile request; only
   a decode with the embedded matrix alone, which did not read the RAW's
   calibration signature, cannot serve requests that match DCPs.
-- On-device Gemma (Android, `app/ai/`) never touches pixels; it reads the
-  preview and moves the editor's sliders. Opening a photo triages it
-  (`triage.rs`): Gemma names its genre, an emoji, a role and its editing
-  priorities and observations (the triage card). The AI editor (`editor.rs`) is
-  a chat whose system prompt (`assets/gemma/editor_system.md`) is filled from
-  that card. Gemma edits through one tool, `set_sliders` (`sliders.rs`), which
-  the app applies itself (LiteRT-LM's manual tool calling), clamping each call
-  to one nudge (±0.5 exposure, ±20 otherwise) and to the slider's range; on a
-  RAW, Warmth is the white balance in mired around the as-shot value. Gemma 4's
-  chat template renders only text in a tool response, so the preview that
-  shows a nudge goes to Gemma as a user message of its own, once
-  `current_preview_snapshot` reports the render current. A request makes at
-  most four nudges, and all of them form one undo step
-  (`observe_edit_history`).
+- On-device Gemma (Android, `app/ai/gemma/`) never touches pixels; it reads the
+  preview and sets the edit's values. Opening a photo triages it
+  (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
+  card); it asks for no editing priorities or observations, since
+  Gemma edited towards them instead of the photographer's request. The AI
+  editor (`editor.rs`) is a chat in which each request runs in two phases,
+  whose first messages name that card's genre and role; the system prompts
+  name no photo, so Gemma reads them once per process and keeps them across
+  photos, so opening a photo costs only its triage.
+  First Gemma interprets the
+  photographer's words and the preview into a brief of tone, colour, finish
+  and what to keep (`assets/gemma/interpret_system.md`, which names no tools).
+  Then, in a second conversation that never sees the photographer's words,
+  it carries out the brief (`assets/gemma/editor_system.md`); asked to plan a
+  look and write its values in one reply, it crushed a photo to black. Gemma
+  edits through six tools, which the second prompt lists; no tools
+  are declared to LiteRT-LM. Gemma writes each call as a text line, the tool's
+  name and `name=value` pairs (`set_sliders shadows=15`), and the app reads
+  them itself (`calls.rs`), also in Gemma 4's own call syntax and with its
+  slips, such as a brace too many. The declared tools' schemas cost about
+  2,700 tokens of preface where the text list costs about 1,550. The tools are `set_sliders`
+  (`sliders.rs`; on a RAW, Warmth is the white balance in mired around the
+  as-shot value and Tint the shown tint less the as-shot one),
+  `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
+  (`tone_curve.rs`, five outputs at fixed inputs), `set_effect` (`effects.rs`,
+  the global Vignette, Grain, Glow and Halation, by slider label) and
+  `set_ai_denoise`. A request is one nudge, the calls of the second phase's
+  first reply, each value sent to the tool that owns its name: each value goes
+  where Gemma writes it within its range (`tools.rs`). A cap
+  per nudge kept Gemma from reaching black and white or a strong effect, and
+  with four nudges every one after the first undid or overdid it, so the
+  photographer steers with follow-ups. Each message to Gemma carries the
+  edit's values away from their defaults. Once `current_preview_snapshot`
+  reports the render current and no AI denoise job or consent holds it, the
+  preview that shows the nudge goes to Gemma with what the app set, as
+  `name=before→after`, and Gemma says what it changed. The nudge is one undo
+  step (`observe_edit_history`). The chat is kept in the app only: each phase
+  runs on a clone of a conversation that holds just its system prompt
+  (`GemmaBridge.startEditorRequest`), both read once, when the first card
+  comes (`prepareEditor`), since a clone takes milliseconds and a new conversation's
+  first prefill took 16–23 s after the process's first. Each phase's first
+  message says what the previous request changed, in the `before→after`
+  syntax, so a follow-up such as "a bit more" or "undo that" works. A
+  request's conversation is closed when it ends, since an open one keeps its
+  memory. The engine holds 4,096 tokens per conversation
+  (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
+  context for every layer up front (LiteRT-LM issue 4096), the largest
+  conversation used about 2,700, and 8,192 left the phone swapping.
 
 ## Inside `calibraw-ui`
 

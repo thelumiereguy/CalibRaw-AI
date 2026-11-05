@@ -3,20 +3,8 @@
   "properties": {
     "genre": { "type": "string", "minLength": 2, "maxLength": 40 },
     "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
-    "role": { "type": "string", "minLength": 20, "maxLength": 300 },
-    "editing_priorities": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 3, "maxLength": 80 },
-      "minItems": 3,
-      "maxItems": 5
-    },
-    "observations": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 3, "maxLength": 80 },
-      "minItems": 2,
-      "maxItems": 5
-    }
+    "role": { "type": "string", "minLength": 20, "maxLength": 300 }
   },
-  "required": ["genre", "emoji", "role", "editing_priorities", "observations"],
+  "required": ["genre", "emoji", "role"],
   "additionalProperties": false
 }

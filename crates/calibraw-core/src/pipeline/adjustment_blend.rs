@@ -233,6 +233,15 @@ impl Blend for PointCurve {
     }
 }
 
+impl PointCurve {
+    /// The output (0–1) at input `x` (0–1), between the points linearly, as
+    /// fades sample curves. The rendered curve passes through the same
+    /// points but bends smoothly between them.
+    pub fn polyline_value(&self, x: f32) -> f32 {
+        curve_value(curve_points(self), x)
+    }
+}
+
 /// The points of `curve` in use.
 fn curve_points(curve: &PointCurve) -> &[[f32; 2]] {
     &curve.points[..(curve.len as usize).clamp(2, MAX_POINT_CURVE_POINTS)]
