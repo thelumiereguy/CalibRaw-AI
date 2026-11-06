@@ -24,7 +24,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -85,11 +87,33 @@ final class GemmaBridge implements AiModel {
     // again after release.
     private static volatile boolean active;
 
+    // Experiment (edit-quality runs): the phone's log quota drops most of the app's lines while
+    // LiteRT logs, so the editor's messages, replies and request ends, and each triage card, are
+    // also appended to files/gemma-trace.txt.
+    private static volatile File traceFile;
+
     private final Context context;
 
     GemmaBridge(Context context) {
         this.context = context.getApplicationContext();
+        traceFile = new File(this.context.getFilesDir(), "gemma-trace.txt");
     }
+
+    private static void trace(String line) {
+        File file = traceFile;
+        if (file == null) {
+            return;
+        }
+        synchronized (TRACE_LOCK) {
+            try (PrintWriter out = new PrintWriter(new FileWriter(file, true))) {
+                out.println(SystemClock.elapsedRealtime() + " " + line.replace('\n', '|'));
+            } catch (IOException error) {
+                Log.w(LOG_TAG, "Could not write the Gemma trace", error);
+            }
+        }
+    }
+
+    private static final Object TRACE_LOCK = new Object();
 
     /**
      * Loads the engine and the first triage's conversation on a background thread, so the first
@@ -237,6 +261,7 @@ final class GemmaBridge implements AiModel {
             }
             Log.i(LOG_TAG, "Gemma triage took " + (SystemClock.elapsedRealtime() - started)
                     + " ms: " + text);
+            trace("TRIAGE " + (SystemClock.elapsedRealtime() - started) + " ms " + text);
             Log.i(LOG_TAG, "Gemma triage benchmark: " + conversation.getBenchmarkInfo());
             return text;
         }
@@ -330,6 +355,7 @@ final class GemmaBridge implements AiModel {
             editor = base.clone();
             Log.i(LOG_TAG, "Gemma editor request conversation cloned in "
                     + (SystemClock.elapsedRealtime() - started) + " ms");
+            trace("PHASE " + systemPrompt.substring(0, Math.min(60, systemPrompt.length())));
         }
     }
 
@@ -392,6 +418,7 @@ final class GemmaBridge implements AiModel {
                 ? Contents.Companion.of(text)
                 : Contents.Companion.of(
                         new Content.ImageFile(paths.get(0)), new Content.Text(text));
+        trace("SEND " + text);
         return editorTurn(requestId, Message.Companion.user(contents));
     }
 
@@ -403,6 +430,7 @@ final class GemmaBridge implements AiModel {
      */
     @Override
     public void closeEditor() {
+        trace("CLOSE");
         Conversation closing = editor;
         if (closing != null) {
             try {
@@ -479,6 +507,7 @@ final class GemmaBridge implements AiModel {
             if (failure.get() != null) {
                 Log.w(LOG_TAG, "Gemma editor turn failed after "
                         + conversation.getTokenCount() + " tokens", failure.get());
+                trace("FAILED " + failure.get());
                 String unreadable = unreadableToolCall(failure.get());
                 if (unreadable == null) {
                     throw new IOException(
@@ -510,6 +539,8 @@ final class GemmaBridge implements AiModel {
             String result = json.toString();
             Log.i(LOG_TAG, "Gemma editor turn took " + (SystemClock.elapsedRealtime() - started)
                     + " ms, " + conversation.getTokenCount() + " tokens: " + result);
+            trace("REPLY " + (SystemClock.elapsedRealtime() - started) + " ms "
+                    + conversation.getTokenCount() + " tok " + result);
             Log.i(LOG_TAG, "Gemma editor benchmark: " + conversation.getBenchmarkInfo());
             return result;
         }

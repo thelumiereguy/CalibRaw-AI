@@ -1,6 +1,8 @@
 //! The Color Mixer and Color Grading values Gemma's `set_color_mixer` and
 //! `set_color_grading` tools move, and Claude's `set_mask` moves in a mask.
-//! Their names and ranges are those editor_system.md gives the model.
+//! Gemma's editor_system.md gives it the mixer's names and ranges and the
+//! grading's shadow and highlight tints; the other grading values stay
+//! settable. Claude's gives it every name and range.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ColorGradeWheel, ColorGrading, ExposureParams};

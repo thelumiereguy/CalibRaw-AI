@@ -1,5 +1,6 @@
 //! The sliders Gemma's `set_sliders` tool moves, read from and written to the
-//! edit. Their names and ranges are those editor_system.md gives Gemma.
+//! edit. editor_system.md gives Gemma the names and ranges of those a brief
+//! asks for; hue and the sharpening and noise details stay settable.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, LoadedRaw, HUE_ROTATION_LIMIT_DEGREES};

@@ -3,7 +3,8 @@
 //! (sliders.rs), `set_color_mixer` and `set_color_grading` (color.rs),
 //! `set_tone_curve` (tone_curve.rs), `set_effect` (effects.rs) and
 //! `set_ai_denoise`. Gemma writes its calls as text lines, which the app reads
-//! itself (calls.rs).
+//! itself (calls.rs). editor_system.md no longer lists `set_tone_curve` or
+//! `set_ai_denoise`, which Gemma misused; the app still applies them.
 //!
 //! A request runs in two phases, each on a fresh conversation that holds its
 //! system prompt and nothing else, a clone of one Gemma read when the card
@@ -14,10 +15,11 @@
 //! conversation, whose prompt (assets/gemma/editor_system.md) lists the tools
 //! and their syntax, carries out the brief without the photographer's words:
 //! asked for both at once, Gemma planned a look and then wrote values that
-//! crushed the photo black. Each phase's first message names the photo's
-//! genre and role from its triage card (triage.rs) and says what the previous
-//! request changed, as `name=before→after`, so "a bit more" and "undo that"
-//! work.
+//! crushed the photo black. The first phase's message names the photo's
+//! genre and role from its triage card (triage.rs); the second gets the brief
+//! without them or its Keep line (`without_keep`). Each says what the
+//! previous request changed, as `name=before→after`, so "a bit more" and
+//! "undo that" work.
 //!
 //! The edit is one nudge: the tool lines of the second phase's reply, each
 //! applied to the edit, each value anywhere in its range. Once the preview
@@ -61,7 +63,7 @@ const CLAUDE_EDITOR_PROMPT: &str =
 /// How a brief that answers a question instead starts.
 const ANSWER: &str = "Answer:";
 const EDITOR_IMAGE_FILE: &str = "gemma-editor.jpg";
-/// The tools editor_system.md describes.
+/// The tools the app applies.
 const SET_SLIDERS: &str = "set_sliders";
 const SET_COLOR_MIXER: &str = "set_color_mixer";
 const SET_COLOR_GRADING: &str = "set_color_grading";
@@ -293,7 +295,7 @@ impl CalibRawApp {
                 if *replying == request_id {
                     raw.push_str(&text);
                     if let Some(message) = editor.messages.get_mut(*shown) {
-                        message.text = read_reply(raw).0;
+                        message.text = read_reply(raw, is_value_name).0;
                     }
                 }
             }
@@ -412,7 +414,8 @@ impl CalibRawApp {
                         request.text
                     ),
                     Outgoing::Brief { brief } => {
-                        format!("{photo}\n{previous}Brief:\n{brief}\n\nCurrent values: {edit}")
+                        let brief = without_keep(brief);
+                        format!("{previous}Brief:\n{brief}\n\nCurrent values: {edit}")
                     }
                     Outgoing::Nudged { results } => format!(
                         "The app set:\n{results}\n\nThe preview after your nudge. Current values: {edit}\nSay what you changed and why, without a tool line."
@@ -577,7 +580,7 @@ impl CalibRawApp {
             self.handle_ai_editor_brief(reply.text.trim(), shown);
             return;
         }
-        let (said, mut calls) = read_reply(&reply.text);
+        let (said, mut calls) = read_reply(&reply.text, is_value_name);
         calls.extend(reply.tool_calls.into_iter().map(|call| Call {
             name: call.name,
             arguments: call.arguments,
@@ -844,6 +847,10 @@ fn owner(name: &str) -> Option<&'static str> {
     .find_map(|(tool, owns)| owns(name).then_some(tool))
 }
 
+fn is_value_name(name: &str) -> bool {
+    owner(name).is_some()
+}
+
 /// `calls` with each value moved to the call of the tool that sets it, in the
 /// order the tools are first written: Gemma wrote `vignette_amount` in its
 /// `set_sliders` line, which set nothing.
@@ -993,7 +1000,18 @@ fn change_summary(text: &str, changes: &[Change]) -> String {
     format!("Previous request: \"{text}\". It changed:\n{changed}")
 }
 
-/// The photo `card` describes, for each phase's first message. It is not in
+/// `brief` without its Keep line, for the second phase. What to keep guides
+/// the first phase's choice of changes; the second read it, and the genre's
+/// role, as more changes: sharpening for "Keep: rotor blades sharp".
+fn without_keep(brief: &str) -> String {
+    brief
+        .lines()
+        .filter(|line| !line.trim_start().to_lowercase().starts_with("keep"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The photo `card` describes, for the first phase's message. It is not in
 /// the system prompts, so Gemma reads them once for every photo and opening a
 /// photo costs only its triage.
 fn photo_line(card: &TriageCard) -> String {

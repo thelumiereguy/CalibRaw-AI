@@ -5,7 +5,8 @@
 //! calls itself and reads them forgivingly: Gemma 4 also writes pairs without
 //! the `=` (`shadows 15`), its own call syntax (`call:set_sliders{shadows:15}`,
 //! at times with a brace too many), `:` for `=`, `[…]` lists, quotes and list
-//! markers.
+//! markers, and lines of pairs without the tool's name (`sharpen_amount=80`),
+//! whose values the editor routes to their tools.
 
 use serde_json::{Map, Value};
 
@@ -17,8 +18,9 @@ pub(super) struct Call {
 
 /// `text` split into what Gemma said, for the chat, and the calls it wrote.
 /// A call starts at a word beginning `set_`, anywhere in a line, and runs to
-/// the next such word or the line's end.
-pub(super) fn read_reply(text: &str) -> (String, Vec<Call>) {
+/// the next such word or the line's end. A line without one that starts with
+/// a word `is_value_name` knows is a call with no tool's name.
+pub(super) fn read_reply(text: &str, is_value_name: fn(&str) -> bool) -> (String, Vec<Call>) {
     let mut said = Vec::new();
     let mut calls = Vec::new();
     for line in text.lines() {
@@ -27,6 +29,12 @@ pub(super) fn read_reply(text: &str) -> (String, Vec<Call>) {
             .replace("<tool_call|>", " ")
             .replace("<|\"|>", "\"");
         let starts = call_starts(&line);
+        if starts.is_empty() {
+            if let Some(call) = unnamed_call(&line, is_value_name) {
+                calls.push(call);
+                continue;
+            }
+        }
         let words = line[..starts.first().copied().unwrap_or(line.len())]
             .trim()
             .trim_end_matches("call:")
@@ -57,6 +65,22 @@ fn call_starts(line: &str) -> Vec<usize> {
                 .is_none_or(|before| !before.is_alphanumeric() && before != '_')
         })
         .collect()
+}
+
+/// `line` as a call with no tool's name, when its first word is a value
+/// name: Gemma wrote `sharpen_amount=80`, which set nothing, despite the
+/// prompt saying each line starts with its tool's name.
+fn unnamed_call(line: &str, is_value_name: fn(&str) -> bool) -> Option<Call> {
+    let line =
+        line.trim_start_matches(|c: char| c == '`' || c == '-' || c == '*' || c.is_whitespace());
+    let first_end = line
+        .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .unwrap_or(line.len());
+    if !is_value_name(&line[..first_end].to_lowercase()) {
+        return None;
+    }
+    // The leading space leaves the call's name empty.
+    read_call(&format!(" {line}"))
 }
 
 /// One call, `name` then its pairs; `None` without a pair.
