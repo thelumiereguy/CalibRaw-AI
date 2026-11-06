@@ -1296,8 +1296,12 @@ impl Settings {
                     if moduwu_design::secondary_button(ui, tr("Copy command")).clicked() {
                         match app.copy_text_to_clipboard("Termux command", TERMUX_ALLOW_COMMAND) {
                             None => ui.ctx().copy_text(TERMUX_ALLOW_COMMAND.to_owned()),
-                            Some(Ok(())) => {}
-                            Some(Err(error)) => log::warn!("{error}"),
+                            Some(Ok(())) => calibraw_core::diagnostics::record(
+                                "Termux command copied to Android clipboard",
+                            ),
+                            Some(Err(error)) => calibraw_core::diagnostics::record(format!(
+                                "Android Termux-command clipboard copy failed: {error}"
+                            )),
                         }
                     }
                 }
@@ -1326,7 +1330,10 @@ impl Settings {
             }
         }
         if let Some(failure) = &app.ai.claude_setup.failure {
-            ui.colored_label(ui.visuals().error_fg_color, failure);
+            ui.colored_label(
+                ui.visuals().error_fg_color,
+                tr_fmt("Claude Code setup failed: {error}", &[("error", failure)]),
+            );
         }
         if moduwu_design::secondary_button_enabled(
             ui,

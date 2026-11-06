@@ -55,6 +55,7 @@ use super::tools::{
 use super::triage::{write_model_jpeg, TriageCard, MODEL_IMAGE_EDGE};
 use super::*;
 use crate::app::preview_capture::PreviewSnapshot;
+use crate::i18n::tr_fmt;
 use crate::platform::AiEditorModel;
 use serde_json::{json, Value};
 
@@ -759,7 +760,7 @@ impl CalibRawApp {
         }
         self.ai.editor.messages.push(ChatMessage {
             role: ChatRole::Failure,
-            text: error,
+            text: tr_fmt("The request stopped: {error}", &[("error", &error)]),
         });
     }
 }
