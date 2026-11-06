@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edit Ratings</title>
+<style>
+:root {
+  --bg: #f6f5f2; --surface: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e3e0da;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --warn: #a2580b; --warn-bg: #fdf1e2;
+  --bad: #b3261e; --good: #1f7a3d; --chip: #eeece7;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --surface: #1d1d1b; --ink: #ecebe7; --muted: #9a978f; --line: #2e2d2a;
+    --accent: #7c9cff; --accent-ink: #0d0d0c; --warn: #f0a85a; --warn-bg: #33240f;
+    --bad: #ff8a80; --good: #6fd391; --chip: #272725;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --surface: #1d1d1b; --ink: #ecebe7; --muted: #9a978f; --line: #2e2d2a;
+  --accent: #7c9cff; --accent-ink: #0d0d0c; --warn: #f0a85a; --warn-bg: #33240f;
+  --bad: #ff8a80; --good: #6fd391; --chip: #272725;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--bg);
+  border-bottom: 1px solid var(--line); padding: 12px 16px; }
+.bar { max-width: 1000px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+h1 { font-size: 18px; margin: 0; }
+.progress { color: var(--muted); font-variant-numeric: tabular-nums; }
+.status { color: var(--warn); font-size: 13px; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.filters button { border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+  border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.card.rated { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.prompt { font-weight: 600; font-size: 16px; }
+.photo { color: var(--muted); font-size: 13px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+figure { margin: 0; }
+figure img { width: 100%; display: block; border-radius: 8px; background: #000; cursor: zoom-in; aspect-ratio: 3 / 4; object-fit: contain; }
+figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.flag { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
+.flag.ok { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+.rate { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rate button { width: 44px; height: 40px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--chip); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+.rate button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.rate button:disabled { opacity: .5; cursor: default; }
+.scale { font-size: 12px; color: var(--muted); margin-left: 4px; }
+textarea { width: 100%; margin-top: 8px; min-height: 40px; resize: vertical; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; padding: 8px; }
+details { margin-top: 8px; font-size: 13px; }
+summary { cursor: pointer; color: var(--muted); }
+pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px; margin: 6px 0; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.label { font-weight: 600; margin-top: 8px; }
+.saved { font-size: 12px; color: var(--muted); min-height: 1em; margin-top: 4px; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; z-index: 10;
+  flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; }
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 100%; max-height: calc(100vh - 90px); object-fit: contain; }
+.lightbox .lb-bar { display: flex; gap: 8px; }
+.lightbox button { background: #2a2a2a; color: #fff; border: 1px solid #444; border-radius: 8px; padding: 6px 14px; font: inherit; cursor: pointer; }
+.lightbox button[aria-pressed="true"] { background: #fff; color: #000; }
+.empty { color: var(--muted); text-align: center; padding: 40px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Edit Ratings</h1>
+    <span class="progress" id="progress"></span>
+    <span class="status" id="status"></span>
+    <div class="filters" id="filters" role="group" aria-label="Filter"></div>
+  </div>
+</header>
+<main id="list"><p class="empty">Loading…</p></main>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Before and after">
+  <img id="lb-img" alt="">
+  <div class="lb-bar">
+    <button id="lb-before" aria-pressed="false">Before</button>
+    <button id="lb-after" aria-pressed="true">After</button>
+    <button id="lb-close">Close</button>
+  </div>
+</div>
+
+<script>
+const PHOTO_NAMES = { concert: "Concert", mountains: "Mountains", selfie: "Selfie", helicopter: "Helicopter" };
+const SCALE = "1 worse than before · 3 OK · 5 great";
+let data = null, run = "", ratings = {}, filter = "all", db = null, canWrite = true;
+const writing = {};      // doc id -> promise of the write in flight
+const pending = {};      // doc id -> latest body waiting to be written
+
+const $ = (id) => document.getElementById(id);
+const docId = (r) => run + "." + r.id;
+
+function flags(r) {
+  // An eval run's records carry check.py's verdicts; the first baseline's do not.
+  if (r.failed) return r.failed;
+  const out = [];
+  if (r.failures.length) out.push("Gemma failed");
+  if (!r.applied) out.push("no edit applied");
+  if (r.applied.includes("not set")) out.push("some values not set");
+  if (r.before && r.after && r.before.median === r.after.median && r.before.black === r.after.black) out.push("no visible brightness change");
+  if (r.after && r.before && r.after.black - r.before.black >= 10) out.push("crushed shadows");
+  if (r.after && r.before && r.after.white - r.before.white >= 5) out.push("clipped highlights");
+  return out;
+}
+
+function stats(b) {
+  return b ? `median ${b.median} · ${b.black}% near black · ${b.white}% near white` : "missing";
+}
+
+function renderFilters() {
+  const options = [["all", "All"], ...Object.entries(PHOTO_NAMES), ["failing", "Failing checks"], ["unrated", "Unrated"]];
+  const box = $("filters");
+  box.replaceChildren(...options.map(([key, label]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String(filter === key));
+    b.onclick = () => { filter = key; renderFilters(); render(); };
+    return b;
+  }));
+}
+
+function renderProgress() {
+  if (!data) return;
+  const done = data.requests.filter((r) => ratings[docId(r)]?.score).length;
+  $("progress").textContent = `${done} of ${data.requests.length} rated`;
+}
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  e.append(...kids.filter(Boolean));
+  return e;
+}
+
+function card(r) {
+  const id = docId(r);
+  const mine = ratings[id] || {};
+  const c = el("article", { class: "card" + (mine.score ? " rated" : ""), id: "card-" + r.id });
+  c.append(el("div", { class: "head" },
+    el("span", { class: "prompt", text: r.prompt || "(no request recorded)" }),
+    el("span", { class: "photo", text: `${PHOTO_NAMES[r.photo] || r.photo} · ${r.n}` })));
+
+  const pair = el("div", { class: "pair" });
+  for (const side of ["before", "after"]) {
+    const img = el("img", { src: `img/${r.id}/${side}.jpg`, alt: `${side} – ${r.prompt}`, loading: "lazy" });
+    img.onclick = () => openLightbox(r, side);
+    pair.append(el("figure", {}, img, el("figcaption", { text: `${side === "before" ? "Before" : "After"} · ${stats(r[side])}` })));
+  }
+  c.append(pair);
+
+  const f = flags(r);
+  if (f.length) c.append(el("div", { class: "flags" }, ...f.map((t) => el("span", { class: "flag", text: t }))));
+  else if (r.failed) c.append(el("div", { class: "flags" }, el("span", { class: "flag ok", text: "all checks pass" })));
+
+  const rate = el("div", { class: "rate", role: "group", "aria-label": "Rating" });
+  for (let n = 1; n <= 5; n++) {
+    const b = el("button", { text: String(n), "aria-pressed": String(mine.score === n), "aria-label": `Rate ${n}` });
+    b.disabled = !db || !canWrite;
+    b.onclick = () => save(r, { score: mine.score === n ? null : n });
+    rate.append(b);
+  }
+  rate.append(el("span", { class: "scale", text: SCALE }));
+  c.append(rate);
+
+  const note = el("textarea", { placeholder: "What's wrong or right (optional)", "aria-label": "Note" });
+  note.value = mine.note || "";
+  note.disabled = !db || !canWrite;
+  let timer = null;
+  note.oninput = () => { clearTimeout(timer); timer = setTimeout(() => save(r, { note: note.value }), 700); };
+  note.onblur = () => { clearTimeout(timer); if ((ratings[id]?.note || "") !== note.value) save(r, { note: note.value }); };
+  c.append(note, el("div", { class: "saved", id: "saved-" + r.id }));
+
+  const d = el("details");
+  d.append(el("summary", { text: "What Gemma wrote" }),
+    el("div", { class: "label", text: "Brief (phase 2)" }), el("pre", { text: r.brief || "—" }),
+    el("div", { class: "label", text: "Edit (phase 3)" }), el("pre", { text: r.edit || "—" }),
+    el("div", { class: "label", text: "What the app applied" }), el("pre", { text: r.applied || "—" }),
+    el("div", { class: "label", text: "Gemma's summary" }), el("pre", { text: r.summary || "—" }),
+    el("div", { class: "label", text: "Timing" }),
+    el("pre", { text: r.replies.map((x, i) => `reply ${i + 1}: ${(x.ms / 1000).toFixed(1)} s, ${x.tokens} tokens`).join("\n") || "—" }));
+  if (r.failures.length) d.append(el("div", { class: "label", text: "Failures" }), el("pre", { text: r.failures.join("\n") }));
+  c.append(d);
+  return c;
+}
+
+function render() {
+  if (!data) return;
+  const list = data.requests.filter((r) =>
+    filter === "all" ? true
+      : filter === "unrated" ? !ratings[docId(r)]?.score
+      : filter === "failing" ? flags(r).length > 0
+      : r.photo === filter);
+  const focused = document.activeElement;
+  const keep = focused && focused.tagName === "TEXTAREA" ? focused.closest(".card")?.id : null;
+  if (keep) { renderProgress(); return; }   // don't replace a note being typed
+  $("list").replaceChildren(...(list.length ? list.map(card) : [el("p", { class: "empty", text: "Nothing here." })]));
+  renderProgress();
+}
+
+async function save(r, change) {
+  if (!db) return;
+  const id = docId(r);
+  const body = { ...(ratings[id] || {}), ...change, run, request: r.id, prompt: r.prompt, updated: new Date().toISOString() };
+  if (body.score == null) delete body.score;
+  ratings[id] = body;
+  render();
+  pending[id] = body;
+  if (writing[id]) return;
+  writing[id] = (async () => {
+    while (pending[id]) {
+      const next = pending[id]; delete pending[id];
+      try {
+        await db.collection("ratings").doc(id).set(next);
+        const s = $("saved-" + r.id); if (s) s.textContent = "Saved";
+      } catch (e) {
+        if (e && e.code === "invalid_argument") { canWrite = false; $("status").textContent = "Read-only: ratings can't be saved for you."; render(); }
+        else if (e && e.code === "quota_exceeded") { $("status").textContent = "Storage is full; this rating wasn't saved."; }
+        else { $("status").textContent = "Couldn't save just now; try again."; }
+        break;
+      }
+    }
+    delete writing[id];
+  })();
+}
+
+let lbRecord = null, lbSide = "after";
+function openLightbox(r, side) { lbRecord = r; lbSide = side; showLb(); $("lightbox").classList.add("open"); $("lb-close").focus(); }
+function showLb() {
+  $("lb-img").src = `img/${lbRecord.id}/${lbSide}.jpg`;
+  $("lb-img").alt = `${lbSide} – ${lbRecord.prompt}`;
+  $("lb-before").setAttribute("aria-pressed", String(lbSide === "before"));
+  $("lb-after").setAttribute("aria-pressed", String(lbSide === "after"));
+}
+$("lb-before").onclick = () => { lbSide = "before"; showLb(); };
+$("lb-after").onclick = () => { lbSide = "after"; showLb(); };
+$("lb-img").onclick = () => { lbSide = lbSide === "before" ? "after" : "before"; showLb(); };
+$("lb-close").onclick = () => $("lightbox").classList.remove("open");
+document.addEventListener("keydown", (e) => {
+  if (!$("lightbox").classList.contains("open")) return;
+  if (e.key === "Escape") $("lightbox").classList.remove("open");
+  if (e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); lbSide = lbSide === "before" ? "after" : "before"; showLb(); }
+});
+
+async function start() {
+  renderFilters();
+  try {
+    data = await (await fetch("data.json")).json();
+    run = data.run;
+  } catch (e) {
+    $("list").replaceChildren(el("p", { class: "empty", text: "The edits couldn't be loaded." }));
+    return;
+  }
+  render();
+  db = await window.claude?.use?.("db") ?? null;
+  const user = await window.claude?.use?.("user") ?? null;
+  if (!db) { $("status").textContent = "Ratings can't be saved in this view."; render(); return; }
+  const may = user ? await user.can("data.write") : null;
+  if (may === false) { canWrite = false; $("status").textContent = "Read-only: you can see ratings but not change them."; }
+  render();
+  const slow = setTimeout(() => { $("status").textContent = "Saved ratings can't be reached yet."; }, 10000);
+  db.collection("ratings").onSnapshot((snap) => {
+    if (!snap.metadata.fromCache) { clearTimeout(slow); if ($("status").textContent.startsWith("Saved ratings")) $("status").textContent = ""; }
+    const next = {};
+    for (const d of snap.docs) next[d.id] = d.data();
+    for (const id of Object.keys(pending)) next[id] = pending[id];
+    ratings = next;
+    render();
+  }, (e) => { clearTimeout(slow); $("status").textContent = "Saved ratings couldn't be loaded."; });
+}
+start();
+</script>
+</body>
+</html>
