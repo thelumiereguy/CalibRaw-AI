@@ -18,9 +18,10 @@ pub(crate) struct PlatformCaps {
     /// built into the app and GPU AI is always allowed.
     pub(crate) configurable_ai_runtime: bool,
     pub(crate) video_encoder: VideoEncoder,
-    /// Gemma runs on the device ([`super::Platform::gemma_triage`]), so an
-    /// opened photo gets a triage card and the AI editor is offered.
-    pub(crate) on_device_gemma: bool,
+    /// The device offers photo triage ([`super::Platform::ai_triage`]) and the
+    /// AI editor, through on-device Gemma or Claude Code: an opened photo gets
+    /// a triage card and the AI editor is offered.
+    pub(crate) ai_editor: bool,
 }
 
 /// How the person works with the app.
@@ -73,7 +74,7 @@ impl PlatformCaps {
         tasks_need_foreground: false,
         configurable_ai_runtime: true,
         video_encoder: VideoEncoder::Ffmpeg,
-        on_device_gemma: false,
+        ai_editor: false,
     };
 
     pub(crate) const ANDROID: Self = Self {
@@ -83,7 +84,7 @@ impl PlatformCaps {
         tasks_need_foreground: true,
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
-        on_device_gemma: true,
+        ai_editor: true,
     };
 
     #[cfg(target_os = "ios")]
@@ -94,7 +95,7 @@ impl PlatformCaps {
         tasks_need_foreground: false,
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
-        on_device_gemma: false,
+        ai_editor: false,
     };
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

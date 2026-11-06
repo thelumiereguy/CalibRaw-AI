@@ -1,13 +1,13 @@
-//! What Gemma's editing tools share: reading a requested value, keeping it
+//! What the editing tools share: reading a requested value, keeping it
 //! within its control's range, answering the call, and how
-//! values are written to Gemma. Each tool is described to Gemma by
+//! values are written to the model. Each tool is described to Gemma by
 //! android/app/src/main/assets/gemma/editor_system.md, whose value names and
 //! ranges its module follows.
 
 use serde_json::{json, Map, Value};
 use std::ops::RangeInclusive;
 
-/// A requested value: a number, or a number Gemma wrote as a string.
+/// A requested value: a number, or a number the model wrote as a string.
 pub(super) fn number(value: &Value) -> Option<f32> {
     value
         .as_f64()
@@ -120,7 +120,7 @@ impl Outcome {
     }
 }
 
-/// `value` as Gemma writes it: a number, `true`, or a curve's outputs joined
+/// `value` as the model writes it: a number, `true`, or a curve's outputs joined
 /// by `/`.
 pub(super) fn written(value: &Value) -> String {
     match value {
@@ -135,7 +135,7 @@ pub(super) fn written(value: &Value) -> String {
 }
 
 /// `values` as `name value` pairs, a curve's outputs apart, for the edit's
-/// current values in a message to Gemma. Not the call syntax: Gemma copied
+/// current values in a message to the model. Not the call syntax: Gemma copied
 /// values shown in it back as calls, and garbled the curves it copied.
 pub(super) fn describe(values: &Map<String, Value>) -> String {
     values

@@ -1,14 +1,15 @@
-//! The AI editor, the second phase of on-device Gemma: a chat about the open
-//! photo in which Gemma edits it through six tools: `set_sliders`
+//! The AI editor, the second phase after the triage: a chat about the open
+//! photo in which the model edits it through six tools: `set_sliders`
 //! (sliders.rs), `set_color_mixer` and `set_color_grading` (color.rs),
 //! `set_tone_curve` (tone_curve.rs), `set_effect` (effects.rs) and
-//! `set_ai_denoise`. Gemma writes its calls as text lines, which the app reads
-//! itself (calls.rs). editor_system.md no longer lists `set_tone_curve` or
-//! `set_ai_denoise`, which Gemma misused; the app still applies them.
+//! `set_ai_denoise`. The model writes its calls as text lines, which the app
+//! reads itself (calls.rs). Gemma's editor_system.md no longer lists
+//! `set_tone_curve` or `set_ai_denoise`, which Gemma misused; the app still
+//! applies them.
 //!
-//! A request runs in two phases, each on a fresh conversation that holds its
-//! system prompt and nothing else, a clone of one Gemma read when the card
-//! came (`Platform::gemma_editor_start_request`), so a request costs the same
+//! With Gemma, a request runs in two phases, each on a fresh conversation that
+//! holds its system prompt and nothing else, a clone of one Gemma read when the
+//! card came (`Platform::ai_editor_start_request`), so a request costs the same
 //! however long the chat is. First Gemma interprets the photographer's words
 //! with the preview into a brief of tone, colour, finish and what to keep
 //! (assets/gemma/interpret_system.md), a prompt without tools. Then a second
@@ -88,7 +89,8 @@ const CLAUDE_MAX_NUDGES: u32 = 10;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ChatRole {
     Photographer,
-    Gemma,
+    /// The selected model, Gemma or Claude Code.
+    Model,
     /// What one nudge set.
     Progress,
     /// Why a request stopped.
@@ -109,7 +111,7 @@ pub(crate) struct EditorState {
     /// The photographer's message being typed.
     pub(crate) draft: String,
     messages: Vec<ChatMessage>,
-    /// The document generation Gemma was given the system prompt for.
+    /// The document generation the model was given the system prompt for.
     prepared_for: Option<u64>,
     /// What the last request asked and changed, for the next one's first
     /// message.
@@ -147,7 +149,7 @@ struct Change {
 enum Step {
     /// Waiting for the preview to show every edit, then sending it.
     Capturing(Outgoing),
-    /// Gemma is replying; `raw` is its text so far, of which what it says
+    /// The model is replying; `raw` is its text so far, of which what it says
     /// streams into `messages[shown]`. `interpreting` while it writes the
     /// brief.
     Replying {
@@ -159,7 +161,7 @@ enum Step {
     },
 }
 
-/// What goes to Gemma with the preview.
+/// What goes to the model with the preview.
 enum Outgoing {
     /// The photographer's words, to the first phase.
     Request,
@@ -169,7 +171,7 @@ enum Outgoing {
     Nudged { results: String },
 }
 
-/// Gemma's reply as `Platform::gemma_editor_send` returns it.
+/// The model's reply as `Platform::ai_editor_send` returns it.
 #[derive(serde::Deserialize)]
 struct Reply {
     text: String,
@@ -190,7 +192,7 @@ impl EditorState {
         &self.messages
     }
 
-    /// Whether Gemma is working on a request.
+    /// Whether the model is working on a request.
     pub(crate) fn request_running(&self) -> bool {
         self.request.is_some()
     }
@@ -219,8 +221,8 @@ impl CalibRawApp {
             && !self.ai.editor.draft.trim().is_empty()
     }
 
-    /// Has Gemma read the open photo's editor prompt in the background once
-    /// its triage card is done, so the first request does not wait for it.
+    /// Has the model read the open photo's editor prompt in the background
+    /// once its triage card is done, so the first request does not wait for it.
     pub(super) fn prepare_ai_editor(&mut self) {
         let generation = self.persistence.document_generation;
         if self.ai.triage.card.is_none() || self.ai.editor.prepared_for == Some(generation) {
@@ -229,9 +231,9 @@ impl CalibRawApp {
         let prepared = match self.ai.editor_model {
             AiEditorModel::Gemma => self
                 .platform
-                .gemma_editor_prepare(INTERPRET_PROMPT)
-                .and_then(|()| self.platform.gemma_editor_prepare(EDITOR_PROMPT)),
-            AiEditorModel::ClaudeCode => self.platform.gemma_editor_prepare(CLAUDE_EDITOR_PROMPT),
+                .ai_editor_prepare(INTERPRET_PROMPT)
+                .and_then(|()| self.platform.ai_editor_prepare(EDITOR_PROMPT)),
+            AiEditorModel::ClaudeCode => self.platform.ai_editor_prepare(CLAUDE_EDITOR_PROMPT),
         };
         match prepared {
             Ok(()) => self.ai.editor.prepared_for = Some(generation),
@@ -263,7 +265,7 @@ impl CalibRawApp {
     /// Ends the chat when another photo opens, cancelling a running reply.
     pub(in crate::app) fn forget_ai_editor(&mut self) {
         if self.ai.editor.prepared_for.is_some() {
-            if let Err(error) = self.platform.gemma_editor_close() {
+            if let Err(error) = self.platform.ai_editor_close() {
                 log::warn!("{error}");
             }
         }
@@ -275,7 +277,7 @@ impl CalibRawApp {
         };
     }
 
-    /// Moves the running request on: streams what Gemma says, applies its
+    /// Moves the running request on: streams what the model says, applies its
     /// nudges and sends the preview once it shows them.
     pub(in crate::app) fn poll_ai_editor(&mut self, frame: &eframe::Frame) {
         // Taken every frame, so text of an earlier reply is dropped.
@@ -466,7 +468,7 @@ impl CalibRawApp {
         let request_id = self.ai.editor.next_request_id();
         let receiver = spawn_ui_worker(&self.egui_ctx, move || {
             if let Some(system_prompt) = system_prompt {
-                platform.gemma_editor_start_request(system_prompt)?;
+                platform.ai_editor_start_request(system_prompt)?;
             }
             let preview = snapshot
                 .read_thumbnail_blocking(&device, &queue, GEMMA_IMAGE_EDGE)
@@ -495,7 +497,7 @@ impl CalibRawApp {
                 images.push(path);
             }
             let images: Vec<&Path> = images.iter().map(PathBuf::as_path).collect();
-            let body = platform.gemma_editor_send(request_id, &message, &images)?;
+            let body = platform.ai_editor_send(request_id, &message, &images)?;
             serde_json::from_str::<Reply>(&body).map_err(|error| {
                 format!("the model's reply is not the expected JSON ({error}): {body}")
             })
@@ -504,7 +506,7 @@ impl CalibRawApp {
 
         let editor = &mut self.ai.editor;
         editor.messages.push(ChatMessage {
-            role: ChatRole::Gemma,
+            role: ChatRole::Model,
             text: String::new(),
         });
         let shown = editor.messages.len() - 1;
@@ -520,7 +522,7 @@ impl CalibRawApp {
     }
 
     /// The edit's values away from their defaults, by the tool that sets
-    /// them, for a message to Gemma; `tools::describe` says why not in the
+    /// them, for a message to the model; `tools::describe` says why not in the
     /// call syntax.
     fn ai_edit_summary(&self) -> String {
         let exposure = &self.develop.exposure;
@@ -731,7 +733,7 @@ impl CalibRawApp {
 
     /// Applies a `set_ai_denoise` call. Turning it on starts the RawNIND job,
     /// which may first ask the photographer to allow it; the response says
-    /// which, since the app's notices never reach Gemma.
+    /// which, since the app's notices never reach the model.
     fn apply_set_ai_denoise(&mut self, arguments: &Value, frame: &eframe::Frame) -> Value {
         let Some(enabled) = arguments.get("enabled").and_then(Value::as_bool) else {
             return json!({ "error": "enabled must be true or false" });
@@ -799,7 +801,7 @@ impl CalibRawApp {
 
     fn close_ai_editor_conversation(&mut self) {
         self.ai.editor.claude_conversation = false;
-        if let Err(error) = self.platform.gemma_editor_close() {
+        if let Err(error) = self.platform.ai_editor_close() {
             log::warn!("{error}");
         }
     }
@@ -895,7 +897,7 @@ fn routed(calls: Vec<Call>) -> Vec<Call> {
     routed
 }
 
-/// A tool's `response` to a call of `tool`, as a line for Gemma in the call
+/// A tool's `response` to a call of `tool`, as a line for the model in the call
 /// syntax: `tool name=before→after …`, then what it kept in range or could
 /// not set.
 fn result_line(tool: &str, response: &Value) -> String {

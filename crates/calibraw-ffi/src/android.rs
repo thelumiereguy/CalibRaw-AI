@@ -20,17 +20,17 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod ai_models;
 mod callbacks;
 mod export;
-mod gemma;
 mod keyboard;
 mod library;
 mod notifications;
 mod sidecars;
 mod thumbnail_cache;
+pub use ai_models::*;
 pub use callbacks::*;
 pub use export::*;
-pub use gemma::*;
 pub use keyboard::*;
 pub use library::*;
 pub use notifications::*;

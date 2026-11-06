@@ -223,7 +223,7 @@ impl CalibRawApp {
         }
         self.poll_foreground_operation(frame);
         self.poll_people_composes();
-        if caps.on_device_gemma {
+        if caps.ai_editor {
             self.poll_claude_code_check();
             self.start_waiting_photo_triage(frame);
             self.poll_photo_triage();

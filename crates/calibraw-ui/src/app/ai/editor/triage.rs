@@ -1,10 +1,10 @@
-//! Gemma's triage of the open photo, the first phase of the AI editor. When a
-//! photo opens, its rendered preview goes to on-device Gemma in a session of
-//! its own (`Platform::gemma_triage`), which names the photo's genre and
+//! The triage of the open photo, the first phase of the AI editor. When a
+//! photo opens, its rendered preview goes to the selected model in a session
+//! of its own (`Platform::ai_triage`), which names the photo's genre and
 //! fills the triage card that the AI editor's system prompt is built from
 //! (android/app/src/main/assets/gemma/editor_system.md). The genre and emoji
 //! come first, so the badge shows them (`Platform::take_triage_headline`)
-//! while Gemma still writes the rest of the card. Claude Code triages a photo
+//! while the model still writes the rest of the card. Claude Code triages a photo
 //! only once the AI editor's chat opens, so a photo goes to Anthropic only
 //! when the photographer asks Claude about it.
 
@@ -19,7 +19,7 @@ use std::path::Path;
 pub(super) const GEMMA_IMAGE_EDGE: u32 = 1024;
 const GEMMA_JPEG_QUALITY: u8 = 90;
 const TRIAGE_IMAGE_FILE: &str = "gemma-triage.jpg";
-/// Shown when Gemma's emoji is missing.
+/// Shown when the model's emoji is missing.
 const FALLBACK_EMOJI: &str = "📷";
 /// Pixel size of the colour badge the platform draws; the toolbar shows it
 /// at about 14 points, so this stays sharp up to 4.5 pixels per point.
@@ -29,7 +29,7 @@ const BADGE_PX: u32 = 64;
 /// platform, when it can.
 type TriageResult = Result<(TriageCard, Option<Vec<u8>>), String>;
 
-/// What Gemma made of the photo. The limits mirror
+/// What the model made of the photo. The limits mirror
 /// assets/gemma/triage_schema.json; [`TriageCard::clamped`] enforces them,
 /// since constrained decoding may not.
 #[derive(Clone, Debug, Deserialize)]
@@ -74,7 +74,7 @@ fn clamp_emoji(emoji: &str) -> String {
 #[derive(Default)]
 pub(crate) struct TriageState {
     pub(crate) card: Option<TriageCard>,
-    /// The genre and emoji Gemma wrote first, while the card is not done.
+    /// The genre and emoji the model wrote first, while the card is not done.
     headline: Option<(String, String)>,
     /// The card's emoji in colour; `None` where the platform cannot draw it,
     /// and the badge falls back to egui's monochrome glyph.
@@ -109,7 +109,7 @@ impl TriageState {
     }
 
     /// The photo's genre and emoji, from the card or, while it is not done,
-    /// from what Gemma wrote first.
+    /// from what the model wrote first.
     pub(crate) fn headline(&self) -> Option<(&str, &str)> {
         match (&self.card, &self.headline) {
             (Some(card), _) => Some((&card.genre, &card.emoji)),
@@ -151,7 +151,7 @@ impl CalibRawApp {
     /// Starts the waiting triage of the open photo once Develop shows its
     /// preview with every edit, and with Claude Code once the AI editor's
     /// chat is open. The preview is read back, cropped and sent on a worker,
-    /// as the AI editor sends it (editor.rs).
+    /// as the AI editor sends it (chat.rs).
     pub(in crate::app) fn start_waiting_photo_triage(&mut self, frame: &eframe::Frame) {
         if !self.ai.triage.waiting
             || self.ui.active_tab != AppTab::Develop
@@ -290,8 +290,8 @@ fn badge_texture(ctx: &egui::Context, rgba: Option<Vec<u8>>) -> Option<egui::Tex
         })
 }
 
-/// Runs on a worker: writes `image` as a JPEG to `jpeg_path`, where Gemma
-/// reads it, and returns the card Gemma fills for it with its emoji drawn.
+/// Runs on a worker: writes `image` as a JPEG to `jpeg_path`, where the model
+/// reads it, and returns the card the model fills for it with its emoji drawn.
 fn triage_photo(
     platform: &dyn Platform,
     image: image::RgbaImage,
@@ -315,7 +315,7 @@ fn fill_triage_card(
     request_id: u64,
 ) -> Result<TriageCard, String> {
     write_gemma_jpeg(image, jpeg_path)?;
-    let body = platform.gemma_triage(jpeg_path, "", request_id, BADGE_PX)?;
+    let body = platform.ai_triage(jpeg_path, "", request_id, BADGE_PX)?;
     serde_json::from_str::<TriageCard>(&body)
         .map_err(|error| format!("Gemma's triage card is not the expected JSON ({error}): {body}"))?
         .clamped()

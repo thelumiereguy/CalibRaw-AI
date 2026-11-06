@@ -5,7 +5,7 @@
 //! - `model` — which model it is, chosen in Settings, and Claude Code's setup.
 //! - `triage` — when a photo opens, the model names its genre and fills the
 //!   triage card.
-//! - `editor` — the AI editor's chat, in which the model edits the photo.
+//! - `chat` — the AI editor's chat, in which the model edits the photo.
 //!
 //! Beneath them, with no app state: `calls` reads the tool lines the model
 //! writes, and the tools, `sliders`, `color` (mixer and grading),
@@ -19,9 +19,9 @@
 use super::*;
 
 mod calls;
+mod chat;
 mod color;
 mod crop;
-mod editor;
 mod effects;
 mod masks;
 mod model;
@@ -30,6 +30,6 @@ mod tone_curve;
 mod tools;
 mod triage;
 
-pub(crate) use editor::{ChatRole, EditorState};
+pub(crate) use chat::{ChatRole, EditorState};
 pub(crate) use model::ClaudeSetupState;
 pub(crate) use triage::TriageState;

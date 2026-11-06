@@ -1,4 +1,4 @@
-//! Gemma's tool calls, which it writes as text lines in its reply, as
+//! The model's tool calls, which it writes as text lines in its reply, as
 //! editor_system.md describes them: the tool's name, then `name=value` pairs,
 //! such as `set_sliders shadows=15 exposure=0.3`, with a curve's outputs
 //! joined by `/`. No tools are declared to LiteRT-LM, so the app reads the
@@ -10,13 +10,13 @@
 
 use serde_json::{Map, Value};
 
-/// A call Gemma wrote.
+/// A call the model wrote.
 pub(super) struct Call {
     pub(super) name: String,
     pub(super) arguments: Value,
 }
 
-/// `text` split into what Gemma said, for the chat, and the calls it wrote.
+/// `text` split into what the model said, for the chat, and the calls it wrote.
 /// A call starts at a word beginning `set_`, anywhere in a line, and runs to
 /// the next such word or the line's end. A line without one that starts with
 /// a word `is_value_name` knows is a call with no tool's name.
@@ -145,7 +145,7 @@ fn looks_like_value(text: &str) -> bool {
         || text.chars().any(|c| c.is_ascii_digit())
 }
 
-/// A value as Gemma wrote it: `true`/`false`, a `/`-joined list, a number,
+/// A value as the model wrote it: `true`/`false`, a `/`-joined list, a number,
 /// or else the text, which the tool then reports as not set. A `was→now`
 /// pair, copied from the app's own messages, is its new value.
 fn value(text: &str) -> Value {

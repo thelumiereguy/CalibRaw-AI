@@ -81,12 +81,12 @@ change that establishes a boundary, not in advance.
   `DecodedRawCache` entry therefore serves every camera-profile request; only
   a decode with the embedded matrix alone, which did not read the RAW's
   calibration signature, cannot serve requests that match DCPs.
-- On-device Gemma (Android, `app/ai/gemma/`) never touches pixels; it reads the
+- On-device Gemma (Android, `app/ai/editor/`) never touches pixels; it reads the
   preview and sets the edit's values. Opening a photo triages it
   (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
   card); it asks for no editing priorities or observations, since
   Gemma edited towards them instead of the photographer's request. The AI
-  editor (`editor.rs`) is a chat in which each request runs in two phases,
+  editor (`chat.rs`) is a chat in which each request runs in two phases,
   whose first messages name that card's genre and role; the system prompts
   name no photo, so Gemma reads them once per process and keeps them across
   photos, so opening a photo costs only its triage.
@@ -133,7 +133,7 @@ change that establishes a boundary, not in advance.
   context for every layer up front (LiteRT-LM issue 4096), the largest
   conversation used about 2,700, and 8,192 left the phone swapping.
 - Claude Code in Termux (Android) is the other model behind the same triage
-  and AI editor, chosen in Settings (`AiEditorModel`, `app/ai/gemma/model.rs`).
+  and AI editor, chosen in Settings (`AiEditorModel`, `app/ai/editor/model.rs`).
   Java holds one `AiModel` at a time, `GemmaBridge` or `ClaudeBridge`, which
   Rust reaches through `AiModels` (`AiModels.select`). Each Claude
   conversation is one `claude -p` process that Termux starts through its
@@ -399,7 +399,7 @@ production `ShaderManager` composes.
 
 - Android: `calibraw-ffi` exposes content-URI storage, document pickers,
   MediaStore publishing, background-task notifications, the MediaCodec replay
-  encoder and the AI editor's models behind `AiModels` (`android/gemma.rs`):
+  encoder and the AI editor's models behind `AiModels` (`android/ai_models.rs`):
   on-device Gemma through LiteRT-LM (`GemmaBridge`) and Claude Code in Termux
   (`ClaudeBridge`).
   Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
@@ -407,7 +407,7 @@ production `ShaderManager` composes.
   else compiles on every target and branches at run time:
   - `PlatformCaps` (`form_factor`, `storage`, `memory`,
     `tasks_need_foreground`, `configurable_ai_runtime`, `video_encoder`,
-    `on_device_gemma`) is what views and handlers read. Views take it, or
+    `ai_editor`) is what views and handlers read. Views take it, or
     `app.caps()`, and return actions; leaf widgets without the app use
     `PlatformCaps::CURRENT`. Data that already names its kind is matched
     instead: `LibraryLocator`, `SidecarTarget` and `ExportDestination`.

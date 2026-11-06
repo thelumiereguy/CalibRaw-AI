@@ -1,4 +1,4 @@
-//! The sliders Gemma's `set_sliders` tool moves, read from and written to the
+//! The sliders the `set_sliders` tool moves, read from and written to the
 //! edit. editor_system.md gives Gemma the names and ranges of those a brief
 //! asks for; hue and the sharpening and noise details stay settable.
 
@@ -246,7 +246,7 @@ pub(super) fn is_slider(name: &str) -> bool {
     SLIDERS.iter().any(|slider| slider.name() == name)
 }
 
-/// The sliders away from their defaults, as Gemma reads them.
+/// The sliders away from their defaults, as the model reads them.
 pub(super) fn changed_sliders(
     exposure: &ExposureParams,
     raw: Option<&LoadedRaw>,

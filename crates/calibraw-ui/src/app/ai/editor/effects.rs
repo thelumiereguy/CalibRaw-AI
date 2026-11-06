@@ -1,4 +1,4 @@
-//! The finish effects Gemma's `set_effect` tool moves: the sliders of the
+//! The finish effects the `set_effect` tool moves: the sliders of the
 //! global Vignette, Grain, Glow and Halation, named `effect_setting` after
 //! each slider's label (Preserve highlights is `vignette_preserve_highlights`).
 //! editor_system.md lists only each effect's amount; Gemma left the rest at
@@ -94,7 +94,7 @@ pub(super) fn is_effect_value(name: &str) -> bool {
 }
 
 /// The enabled effects' amounts and their other sliders away from where a
-/// new effect starts, as Gemma reads them.
+/// new effect starts, as the model reads them.
 pub(super) fn changed_effects(effects: &[EffectComponent]) -> Map<String, Value> {
     let mut values = Map::new();
     for (effect, effect_name) in EFFECTS {

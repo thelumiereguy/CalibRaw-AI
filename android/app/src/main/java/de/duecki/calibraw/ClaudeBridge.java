@@ -318,7 +318,7 @@ final class ClaudeBridge implements AiModel {
     /**
      * Sends {@code text}, after the JPEGs at {@code imagePaths}, one path per line, and returns
      * Claude's reply as {@code {"text": ..., "tool_calls": []}}: Claude writes its tool lines in
-     * the text, which the app parses (app/ai/gemma/calls.rs). The text also streams through
+     * the text, which the app parses (app/ai/editor/calls.rs). The text also streams through
      * {@link AiModels#reportEditorText}, tagged with {@code requestId}.
      */
     @Override

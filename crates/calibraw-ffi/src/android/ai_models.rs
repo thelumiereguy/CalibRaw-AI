@@ -1,6 +1,6 @@
 //! The AI editor's model through `AiModels`, which forwards each call to the
 //! selected one: on-device Gemma (`GemmaBridge`, LiteRT-LM) or Claude Code in
-//! Termux (`ClaudeBridge`). The `gemma_` functions serve either model.
+//! Termux (`ClaudeBridge`).
 
 use super::*;
 use jni::objects::JByteArray;
@@ -8,7 +8,7 @@ use jni::objects::JByteArray;
 /// Makes `name` ("gemma" or "claude") the model the later calls go to,
 /// releasing the one selected before. Returns at once.
 pub fn select_ai_model(app: &AndroidApp, name: &str) -> Result<(), String> {
-    with_gemma_bridge(app, |env, ai_models| {
+    with_ai_models(app, |env, ai_models| {
         let name = env.new_string(name)?;
         env.call_method(
             ai_models,
@@ -24,7 +24,7 @@ pub fn select_ai_model(app: &AndroidApp, name: &str) -> Result<(), String> {
 /// How far Claude Code in Termux is set up, as `ClaudeBridge`'s status code.
 /// Blocks while Termux starts, up to about a minute, so run it on a worker.
 pub fn claude_code_status(app: &AndroidApp) -> Result<String, String> {
-    with_gemma_bridge(app, |env, ai_models| {
+    with_ai_models(app, |env, ai_models| {
         let value = env.call_method(
             ai_models,
             jni::jni_str!("claudeStatus"),
@@ -39,7 +39,7 @@ pub fn claude_code_status(app: &AndroidApp) -> Result<String, String> {
 /// Runs the Claude Code setup `step` ("permission", "install" or "sign_in").
 /// Returns once Termux has the command.
 pub fn claude_code_setup(app: &AndroidApp, step: &str) -> Result<(), String> {
-    with_gemma_bridge(app, |env, ai_models| {
+    with_ai_models(app, |env, ai_models| {
         let step = env.new_string(step)?;
         env.call_method(
             ai_models,
@@ -73,7 +73,7 @@ static TRIAGE_HEADLINE: Mutex<Option<TriageHeadline>> = Mutex::new(None);
 /// worker; the card's genre and emoji arrive earlier through
 /// [`take_triage_headline`], tagged with `request_id` and with the emoji
 /// drawn in a `badge_px` square.
-pub fn gemma_triage(
+pub fn ai_triage(
     app: &AndroidApp,
     image_path: &Path,
     hint: &str,
@@ -82,11 +82,11 @@ pub fn gemma_triage(
 ) -> Result<String, String> {
     let image_path = image_path.to_string_lossy().into_owned();
     let badge_px = i32::try_from(badge_px).map_err(|_| "badge size is too large".to_owned())?;
-    with_gemma_bridge(app, |env, gemma_bridge| {
+    with_ai_models(app, |env, ai_models| {
         let image_path = env.new_string(&image_path)?;
         let hint = env.new_string(hint)?;
         let value = env.call_method(
-            gemma_bridge,
+            ai_models,
             jni::jni_str!("triage"),
             jni::jni_sig!((JString, JString, i64, i32) -> JString),
             &[
@@ -150,11 +150,11 @@ static EDITOR_TEXT: Mutex<Option<EditorText>> = Mutex::new(None);
 /// Has the model ready a conversation with the AI editor's `system_prompt` in
 /// the background, so the open photo's first request does not wait for it.
 /// Returns at once.
-pub fn gemma_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
-    with_gemma_bridge(app, |env, gemma_bridge| {
+pub fn ai_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
+    with_ai_models(app, |env, ai_models| {
         let system_prompt = env.new_string(system_prompt)?;
         env.call_method(
-            gemma_bridge,
+            ai_models,
             jni::jni_str!("prepareEditor"),
             jni::jni_sig!((JString) -> void),
             &[JValue::Object(&system_prompt)],
@@ -168,11 +168,11 @@ pub fn gemma_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(),
 /// `system_prompt`, replacing the earlier request's. Blocks while the model
 /// reads a prompt it has not read yet or Claude Code starts, so run it on a
 /// worker.
-pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
-    with_gemma_bridge(app, |env, gemma_bridge| {
+pub fn ai_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
+    with_ai_models(app, |env, ai_models| {
         let system_prompt = env.new_string(system_prompt)?;
         env.call_method(
-            gemma_bridge,
+            ai_models,
             jni::jni_str!("startEditorRequest"),
             jni::jni_sig!((JString) -> void),
             &[JValue::Object(&system_prompt)],
@@ -186,7 +186,7 @@ pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Resu
 /// returns the model's reply as JSON (`AiModel.editorSend`, which takes the
 /// paths one per line). Blocks for the whole reply, whose text arrives
 /// earlier through [`take_editor_text`], tagged with `request_id`.
-pub fn gemma_editor_send(
+pub fn ai_editor_send(
     app: &AndroidApp,
     request_id: u64,
     text: &str,
@@ -197,11 +197,11 @@ pub fn gemma_editor_send(
         .map(|path| path.to_string_lossy())
         .collect::<Vec<_>>()
         .join("\n");
-    with_gemma_bridge(app, |env, gemma_bridge| {
+    with_ai_models(app, |env, ai_models| {
         let text = env.new_string(text)?;
         let image_paths = env.new_string(&image_paths)?;
         let value = env.call_method(
-            gemma_bridge,
+            ai_models,
             jni::jni_str!("editorSend"),
             jni::jni_sig!((i64, JString, JString) -> JString),
             &[
@@ -218,10 +218,10 @@ pub fn gemma_editor_send(
 
 /// Closes the AI editor request's conversation and cancels its running reply.
 /// Returns at once.
-pub fn gemma_editor_close(app: &AndroidApp) -> Result<(), String> {
-    with_gemma_bridge(app, |env, gemma_bridge| {
+pub fn ai_editor_close(app: &AndroidApp) -> Result<(), String> {
+    with_ai_models(app, |env, ai_models| {
         env.call_method(
-            gemma_bridge,
+            ai_models,
             jni::jni_str!("closeEditor"),
             jni::jni_sig!(() -> void),
             &[],
@@ -269,11 +269,11 @@ pub fn render_emoji(
     size_px: u32,
 ) -> Result<Option<Vec<u8>>, String> {
     let size = i32::try_from(size_px).map_err(|_| "emoji size is too large".to_owned())?;
-    let rgba = with_gemma_bridge(app, |env, gemma_bridge| {
+    let rgba = with_ai_models(app, |env, ai_models| {
         let emoji = env.new_string(emoji)?;
         let value = env
             .call_method(
-                gemma_bridge,
+                ai_models,
                 jni::jni_str!("renderEmoji"),
                 jni::jni_sig!((JString, i32) -> byte[]),
                 &[JValue::Object(&emoji), JValue::Int(size)],
@@ -286,7 +286,7 @@ pub fn render_emoji(
     Ok((!rgba.is_empty()).then_some(rgba))
 }
 
-fn with_gemma_bridge<T>(
+fn with_ai_models<T>(
     app: &AndroidApp,
     operation: impl FnOnce(&mut jni::Env<'_>, &JObject) -> jni::errors::Result<T>,
 ) -> jni::errors::Result<T> {

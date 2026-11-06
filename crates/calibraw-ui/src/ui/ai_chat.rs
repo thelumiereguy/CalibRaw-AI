@@ -16,7 +16,7 @@ enum ChatAction {
     RetryTriage,
 }
 
-/// The first emoji of Gemma's `emoji`, for the AI editor's badge: egui draws
+/// The first emoji of the triage card's `emoji`, for the AI editor's badge: egui draws
 /// emoji one glyph at a time and in monochrome, so presentation selectors
 /// and the rest of a joined sequence would draw as boxes.
 pub(crate) fn badge_glyph(emoji: &str) -> String {
@@ -191,7 +191,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
             visuals.selection.bg_fill.gamma_multiply(0.35),
             egui::RichText::new(text),
         ),
-        ChatRole::Gemma => (
+        ChatRole::Model => (
             egui::Layout::left_to_right(egui::Align::Min),
             visuals.faint_bg_color,
             egui::RichText::new(text),
@@ -208,7 +208,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
         ),
     };
     if text.text().is_empty() {
-        // A reply Gemma has not started writing.
+        // A reply the model has not started writing.
         ui.with_layout(layout, |ui| ui.add(egui::Spinner::new()));
         return;
     }

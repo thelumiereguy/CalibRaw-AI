@@ -374,8 +374,8 @@ final class GemmaBridge implements AiModel {
         Engine loaded = engine(context);
         long started = SystemClock.elapsedRealtime();
         // No tools are declared: the prompt lists them and Gemma writes its calls as text lines,
-        // which the app parses (app/ai/calls.rs). The preface is read now, not at the first
-        // request.
+        // which the app parses (app/ai/editor/calls.rs). The preface is read now, not at the
+        // first request.
         Conversation base = loaded.createConversation(new ConversationConfig(
                 Contents.Companion.of(systemPrompt),
                 Collections.emptyList(),

@@ -1,5 +1,5 @@
-//! The tone curves Gemma's `set_tone_curve` tool shapes, as five outputs
-//! (0–255) at fixed inputs. editor_system.md no longer lists the tool: the
+//! The tone curves the `set_tone_curve` tool shapes, as five outputs
+//! (0–255) at fixed inputs. Gemma's editor_system.md no longer lists the tool: the
 //! curves Gemma wrote clipped or cast the photo. Gemma still reads the curves
 //! set by hand, and the tool stays settable.
 
@@ -7,7 +7,7 @@ use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, PointCurve, MAX_POINT_CURVE_POINTS};
 use serde_json::{json, Map, Value};
 
-/// The inputs Gemma sets the outputs at, in 0–255.
+/// The inputs the model sets the outputs at, in 0–255.
 const INPUTS: [f32; 5] = [0.0, 64.0, 128.0, 192.0, 255.0];
 const LEVELS: f32 = 255.0;
 const OUTPUT_LIMITS: Limits = Limits::new(0.0, LEVELS, 0);
@@ -35,7 +35,7 @@ pub(super) fn is_curve(name: &str) -> bool {
     CURVES.contains(&name)
 }
 
-/// The curves that are not straight, as Gemma reads them.
+/// The curves that are not straight, as the model reads them.
 pub(super) fn changed_curves(exposure: &ExposureParams) -> Map<String, Value> {
     let mut exposure = *exposure;
     CURVES

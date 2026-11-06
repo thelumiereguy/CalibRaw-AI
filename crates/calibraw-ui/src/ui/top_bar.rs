@@ -270,7 +270,7 @@ impl TopBar {
     /// triaged the open photo as, or a spinner while it looks. A tap opens
     /// or closes the editor's chat in place of the tools.
     fn show_ai_editor_control(ui: &mut Ui, app: &mut CalibRawApp) {
-        if !app.caps().on_device_gemma || app.develop.loaded_raw.is_none() {
+        if !app.caps().ai_editor || app.develop.loaded_raw.is_none() {
             return;
         }
         let triage = &app.ai.triage;

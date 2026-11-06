@@ -406,7 +406,7 @@ impl Settings {
             moduwu_design::content_card(ui, |ui| Self::show_ai_models_card(ui, app));
         }
 
-        if app.caps().on_device_gemma {
+        if app.caps().ai_editor {
             moduwu_design::card_gap(ui);
             moduwu_design::content_card(ui, |ui| Self::show_ai_editor_card(ui, app));
         }

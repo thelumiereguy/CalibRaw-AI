@@ -24,7 +24,7 @@ impl ClaudeSetupState {
 impl CalibRawApp {
     /// Hands the triage and the AI editor to the model the app starts with.
     pub(in crate::app) fn select_initial_ai_model(&mut self) {
-        if !self.caps().on_device_gemma {
+        if !self.caps().ai_editor {
             return;
         }
         if let Err(error) = self.platform.select_ai_model(self.ai.editor_model) {

@@ -1,4 +1,4 @@
-//! The Color Mixer and Color Grading values Gemma's `set_color_mixer` and
+//! The Color Mixer and Color Grading values the `set_color_mixer` and
 //! `set_color_grading` tools move, and Claude's `set_mask` moves in a mask.
 //! Gemma's editor_system.md gives it the mixer's names and ranges and the
 //! grading's shadow and highlight tints; the other grading values stay
@@ -13,7 +13,7 @@ const MIXER_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
 ];
 const MIXER_LIMITS: Limits = Limits::new(-100.0, 100.0, 0);
-/// Stored mixer hue per unit Gemma reads, which are Lightroom's: the stored
+/// Stored mixer hue per unit the model reads, which are Lightroom's: the stored
 /// hue spans ±`HSL_HUE_LIMIT` (200), as presets/xmp.rs reads Lightroom's.
 const MIXER_HUE_SCALE: f32 = 2.0;
 
@@ -71,7 +71,7 @@ pub(super) fn is_grading_value(name: &str) -> bool {
     grading_value(&mut ColorGrading::default(), name).is_some()
 }
 
-/// The edit's mixer values away from zero, as Gemma reads them.
+/// The edit's mixer values away from zero, as the model reads them.
 pub(super) fn changed_mixer(exposure: &ExposureParams) -> Map<String, Value> {
     changed_mixer_values(edit_mixer(exposure))
 }
@@ -166,7 +166,7 @@ fn grading_value<'a>(grading: &'a mut ColorGrading, name: &str) -> Option<(&'a m
     })
 }
 
-/// The edit's grading values away from their defaults, as Gemma reads them.
+/// The edit's grading values away from their defaults, as the model reads them.
 pub(super) fn changed_grading(exposure: &ExposureParams) -> Map<String, Value> {
     changed_grading_values(exposure.color_grading)
 }

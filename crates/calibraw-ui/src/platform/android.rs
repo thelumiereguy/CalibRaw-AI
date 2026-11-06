@@ -512,14 +512,14 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::claude_code_setup(&self.app, step)
     }
 
-    fn gemma_triage(
+    fn ai_triage(
         &self,
         image_path: &Path,
         hint: &str,
         request_id: u64,
         badge_px: u32,
     ) -> Result<String, String> {
-        calibraw_ffi::gemma_triage(&self.app, image_path, hint, request_id, badge_px)
+        calibraw_ffi::ai_triage(&self.app, image_path, hint, request_id, badge_px)
     }
 
     fn take_triage_headline(&self) -> Option<TriageHeadline> {
@@ -535,25 +535,25 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::render_emoji(&self.app, emoji, size_px)
     }
 
-    fn gemma_editor_prepare(&self, system_prompt: &str) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_prepare(&self.app, system_prompt)
+    fn ai_editor_prepare(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::ai_editor_prepare(&self.app, system_prompt)
     }
 
-    fn gemma_editor_start_request(&self, system_prompt: &str) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_start_request(&self.app, system_prompt)
+    fn ai_editor_start_request(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::ai_editor_start_request(&self.app, system_prompt)
     }
 
-    fn gemma_editor_send(
+    fn ai_editor_send(
         &self,
         request_id: u64,
         text: &str,
         images: &[&Path],
     ) -> Result<String, String> {
-        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, images)
+        calibraw_ffi::ai_editor_send(&self.app, request_id, text, images)
     }
 
-    fn gemma_editor_close(&self) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_close(&self.app)
+    fn ai_editor_close(&self) -> Result<(), String> {
+        calibraw_ffi::ai_editor_close(&self.app)
     }
 
     fn take_editor_text(&self) -> Option<(u64, String)> {

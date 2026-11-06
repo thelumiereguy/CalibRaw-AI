@@ -583,14 +583,14 @@ pub(crate) trait Platform: Send + Sync {
     /// call, so only workers call it. The card's genre and emoji arrive
     /// earlier through [`Self::take_triage_headline`], tagged with
     /// `request_id` and with the emoji drawn in a `badge_px` square.
-    fn gemma_triage(
+    fn ai_triage(
         &self,
         _image_path: &Path,
         _hint: &str,
         _request_id: u64,
         _badge_px: u32,
     ) -> Result<String, String> {
-        Err(unavailable("on-device Gemma"))
+        Err(unavailable("the AI editor"))
     }
     /// The newest triage headline reported since the last call.
     fn take_triage_headline(&self) -> Option<TriageHeadline> {
@@ -604,15 +604,15 @@ pub(crate) trait Platform: Send + Sync {
     /// Has the model ready a conversation with the AI editor's
     /// `system_prompt` in the background, so the open photo's first request
     /// does not wait for it. Returns at once.
-    fn gemma_editor_prepare(&self, _system_prompt: &str) -> Result<(), String> {
-        Err(unavailable("on-device Gemma"))
+    fn ai_editor_prepare(&self, _system_prompt: &str) -> Result<(), String> {
+        Err(unavailable("the AI editor"))
     }
     /// Starts an AI editor request on a fresh conversation that holds only
     /// `system_prompt`, replacing the earlier request's. Blocks while Gemma
     /// reads a prompt it has not read yet or Claude Code starts, so only
     /// workers call it.
-    fn gemma_editor_start_request(&self, _system_prompt: &str) -> Result<(), String> {
-        Err(unavailable("on-device Gemma"))
+    fn ai_editor_start_request(&self, _system_prompt: &str) -> Result<(), String> {
+        Err(unavailable("the AI editor"))
     }
     /// Sends `text` to the running request, after the JPEGs at `images`, and
     /// returns the model's reply as JSON: `{"text": ..., "tool_calls":
@@ -620,17 +620,17 @@ pub(crate) trait Platform: Send + Sync {
     /// syntax. Gemma is sent one image at most. Blocks for the whole reply,
     /// so only workers call it; the reply's text arrives earlier through
     /// [`Self::take_editor_text`], tagged with `request_id`.
-    fn gemma_editor_send(
+    fn ai_editor_send(
         &self,
         _request_id: u64,
         _text: &str,
         _images: &[&Path],
     ) -> Result<String, String> {
-        Err(unavailable("on-device Gemma"))
+        Err(unavailable("the AI editor"))
     }
     /// Closes the AI editor request's conversation and cancels its running
     /// reply, when the request ends or another photo opens. Returns at once.
-    fn gemma_editor_close(&self) -> Result<(), String> {
+    fn ai_editor_close(&self) -> Result<(), String> {
         Ok(())
     }
     /// The newest editor reply's request id and the text it gained since

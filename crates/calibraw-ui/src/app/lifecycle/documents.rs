@@ -488,7 +488,7 @@ impl CalibRawApp {
                     loaded.document_generation,
                     loaded.sidecar_needs_rewrite,
                 );
-                if self.caps().on_device_gemma && !self.document_load_is_background() {
+                if self.caps().ai_editor && !self.document_load_is_background() {
                     self.start_photo_triage(frame, loaded.document_generation);
                 }
                 self.cancel_document_bound_foreground_operation();
