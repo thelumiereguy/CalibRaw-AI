@@ -37,6 +37,6 @@ mod state;
 mod tasks;
 mod update;
 
-pub(crate) use gemma::{ChatRole, EditorState, TriageState};
+pub(crate) use gemma::{ChatRole, ClaudeSetupState, EditorState, TriageState};
 pub(crate) use people::PeopleState;
 pub(crate) use update::AiUpdate;

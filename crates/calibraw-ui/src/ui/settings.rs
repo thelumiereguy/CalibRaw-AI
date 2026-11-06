@@ -3,6 +3,7 @@ use crate::app::OnnxRuntimeMode;
 use crate::app::{CalibRawApp, PreviewQuality, GITHUB_UPDATE_CHECKS_AVAILABLE, UPDATE_STORE_NAME};
 use crate::i18n::{tr, tr_fmt};
 use crate::pipeline::CameraProfileMode;
+use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus};
 use crate::ui::components::adjustment_slider::AdjustmentSlider;
 use crate::ui::library::maximum_thumbnail_worker_count;
 use eframe::egui::{self, Ui};
@@ -14,6 +15,19 @@ const PROJECT_REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const THIRD_PARTY_NOTICES: &str = include_str!("../../../../THIRD_PARTY_NOTICES.md");
 const RUST_DEPENDENCY_LICENSES: &str =
     include_str!(concat!(env!("OUT_DIR"), "/THIRD_PARTY_LICENSES.md"));
+/// Termux's own builds, which run commands for other apps; its Google Play
+/// build does not.
+const TERMUX_RELEASES: &str = "https://github.com/termux/termux-app/releases";
+/// Lets other apps run commands in Termux, typed into Termux once.
+const TERMUX_ALLOW_COMMAND: &str = "mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties && termux-reload-settings";
+
+/// The model's name in Settings.
+fn ai_editor_model_label(model: AiEditorModel) -> &'static str {
+    match model {
+        AiEditorModel::Gemma => tr("Gemma (on this phone)"),
+        AiEditorModel::ClaudeCode => tr("Claude Code (in Termux)"),
+    }
+}
 
 mod card_order;
 mod lut_library;
@@ -390,6 +404,11 @@ impl Settings {
         if app.caps().configurable_ai_runtime {
             moduwu_design::card_gap(ui);
             moduwu_design::content_card(ui, |ui| Self::show_ai_models_card(ui, app));
+        }
+
+        if app.caps().on_device_gemma {
+            moduwu_design::card_gap(ui);
+            moduwu_design::content_card(ui, |ui| Self::show_ai_editor_card(ui, app));
         }
 
         moduwu_design::card_gap(ui);
@@ -1212,6 +1231,111 @@ impl Settings {
                     }
                 });
             }
+        }
+    }
+
+    /// The model behind the triage and the AI editor, and Claude Code's setup
+    /// one missing step at a time.
+    fn show_ai_editor_card(ui: &mut Ui, app: &mut CalibRawApp) {
+        moduwu_design::heading_with_help(
+            ui,
+            tr("AI editor"),
+            tr("Choose the model that triages each photo you open and edits it from the chat. Gemma runs on this phone. Claude Code runs in the Termux app and needs a Claude account; the photo's preview is sent to Anthropic."),
+        );
+        let mut model = app.ai.editor_model;
+        moduwu_design::form_combo_with_help(
+            ui,
+            tr("Model"),
+            "settings-ai-editor-model",
+            ai_editor_model_label(model),
+            220.0,
+            tr("Changing the model ends the open photo's chat and triages the photo again."),
+            |ui| {
+                for option in [AiEditorModel::Gemma, AiEditorModel::ClaudeCode] {
+                    ui.selectable_value(&mut model, option, ai_editor_model_label(option));
+                }
+            },
+        );
+        if model != app.ai.editor_model {
+            app.set_ai_editor_model(model);
+        }
+        if app.ai.editor_model != AiEditorModel::ClaudeCode {
+            return;
+        }
+
+        moduwu_design::section_separator(ui);
+        moduwu_design::strong_with_help(
+            ui,
+            tr("Claude Code setup"),
+            tr("CalibRaw starts Claude Code in Termux for each photo. Each step below appears once the step before it is done."),
+        );
+        if app.ai.claude_setup.checking() {
+            ui.small(tr("Checking Claude Code…"));
+        } else {
+            match app.ai.claude_setup.status {
+                Some(ClaudeCodeStatus::NoTermux) => {
+                    ui.label(tr("Install Termux from GitHub or F-Droid."));
+                    ui.hyperlink_to(tr("Termux releases"), TERMUX_RELEASES);
+                }
+                Some(ClaudeCodeStatus::NoRunCommand) => {
+                    ui.label(tr("This Termux cannot run commands for other apps. Install Termux from GitHub or F-Droid instead of Google Play."));
+                    ui.hyperlink_to(tr("Termux releases"), TERMUX_RELEASES);
+                }
+                Some(ClaudeCodeStatus::NoPermission) => {
+                    ui.label(tr("Allow CalibRaw to run commands in Termux."));
+                    if moduwu_design::secondary_button(ui, tr("Allow")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::Permission);
+                    }
+                }
+                Some(ClaudeCodeStatus::Blocked) => {
+                    ui.label(tr("Termux does not accept commands from CalibRaw yet. Open Termux, paste this command and run it, then check again."));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(TERMUX_ALLOW_COMMAND).monospace())
+                            .wrap(),
+                    );
+                    if moduwu_design::secondary_button(ui, tr("Copy command")).clicked() {
+                        match app.copy_text_to_clipboard("Termux command", TERMUX_ALLOW_COMMAND) {
+                            None => ui.ctx().copy_text(TERMUX_ALLOW_COMMAND.to_owned()),
+                            Some(Ok(())) => {}
+                            Some(Err(error)) => log::warn!("{error}"),
+                        }
+                    }
+                }
+                Some(ClaudeCodeStatus::NotInstalled) => {
+                    ui.label(tr("Install Claude Code in Termux. It takes a few minutes."));
+                    if moduwu_design::secondary_button(ui, tr("Install Claude Code")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::Install);
+                    }
+                }
+                Some(ClaudeCodeStatus::SignedOut) => {
+                    ui.label(tr(
+                        "Sign in to Claude Code with your Claude account in Termux.",
+                    ));
+                    if moduwu_design::secondary_button(ui, tr("Sign in")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::SignIn);
+                    }
+                }
+                Some(ClaudeCodeStatus::Ready) => {
+                    ui.label(tr("Claude Code is ready."));
+                }
+                Some(ClaudeCodeStatus::Failed) | None => {
+                    ui.label(tr(
+                        "Could not check Claude Code. The diagnostic log says why.",
+                    ));
+                }
+            }
+        }
+        if let Some(failure) = &app.ai.claude_setup.failure {
+            ui.colored_label(ui.visuals().error_fg_color, failure);
+        }
+        if moduwu_design::secondary_button_enabled(
+            ui,
+            !app.ai.claude_setup.checking(),
+            tr("Check again"),
+        )
+        .clicked()
+        {
+            app.check_claude_code();
         }
     }
 

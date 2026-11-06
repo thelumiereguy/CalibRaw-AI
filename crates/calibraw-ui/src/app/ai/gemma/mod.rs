@@ -1,16 +1,19 @@
-//! On-device Gemma's edit of the open photo (Android). Gemma never touches
-//! pixels: it reads the preview and sets the edit's values.
+//! The AI editor's edit of the open photo (Android), by on-device Gemma or by
+//! Claude Code in Termux. The model never touches pixels: it reads the
+//! preview and sets the edit's values.
 //!
-//! - `triage` — when a photo opens, Gemma names its genre and fills the
+//! - `model` — which model it is, chosen in Settings, and Claude Code's setup.
+//! - `triage` — when a photo opens, the model names its genre and fills the
 //!   triage card.
-//! - `editor` — the AI editor's chat, in which Gemma edits the photo.
+//! - `editor` — the AI editor's chat, in which the model edits the photo.
 //!
-//! Beneath them, with no app state: `calls` reads the tool lines Gemma
+//! Beneath them, with no app state: `calls` reads the tool lines the model
 //! writes, and the tools, `sliders`, `color` (mixer and grading),
 //! `tone_curve` and `effects`, read and write the edit, keeping each value in
 //! its control's range (`tools`).
 //!
-//! Prompts live in android/app/src/main/assets/gemma/.
+//! Prompts live in android/app/src/main/assets/gemma/ and, for Claude's
+//! editor, assets/claude/.
 
 use super::*;
 
@@ -18,10 +21,12 @@ mod calls;
 mod color;
 mod editor;
 mod effects;
+mod model;
 mod sliders;
 mod tone_curve;
 mod tools;
 mod triage;
 
 pub(crate) use editor::{ChatRole, EditorState};
+pub(crate) use model::ClaudeSetupState;
 pub(crate) use triage::TriageState;

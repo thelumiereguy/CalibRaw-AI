@@ -231,6 +231,8 @@ impl CalibRawApp {
                 object_pending_target: None,
                 object_cache: None,
                 people: PeopleState::default(),
+                editor_model: performance.ai_editor_model,
+                claude_setup: ClaudeSetupState::default(),
                 triage: TriageState::default(),
                 editor: EditorState::default(),
                 denoise_resume_pending: false,
@@ -558,6 +560,7 @@ impl CalibRawApp {
         if let Some(activity) = interrupted_gpu_ai {
             app.handle_interrupted_gpu_ai(&activity);
         }
+        app.select_initial_ai_model();
         app
     }
 }

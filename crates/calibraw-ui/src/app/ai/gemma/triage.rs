@@ -80,6 +80,9 @@ pub(crate) struct TriageState {
     /// Why the open photo has no card. Logged, never shown as an error: the
     /// photo stays editable without one.
     pub(crate) failure: Option<String>,
+    /// The open photo is triaged again once Develop shows it, since the
+    /// photographer chose another model in Settings.
+    pub(in crate::app) restart_pending: bool,
 }
 
 impl TriageState {
@@ -133,6 +136,21 @@ impl CalibRawApp {
                 self.ai.triage.failure = Some(error);
             }
         }
+    }
+
+    /// Triages the open photo again with the newly chosen model once Develop
+    /// shows it with its preview.
+    pub(in crate::app) fn restart_photo_triage(&mut self, frame: &eframe::Frame) {
+        if !self.ai.triage.restart_pending
+            || self.ui.active_tab != AppTab::Develop
+            || self.develop.loaded_raw.is_none()
+            || self.preview.pipeline().is_none()
+            || self.document_load_is_background()
+        {
+            return;
+        }
+        self.ai.triage.restart_pending = false;
+        self.start_photo_triage(frame, self.persistence.document_generation);
     }
 
     /// The preview as shown, read back from the GPU.

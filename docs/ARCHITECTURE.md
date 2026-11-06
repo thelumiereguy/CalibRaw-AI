@@ -129,6 +129,22 @@ change that establishes a boundary, not in advance.
   (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
   context for every layer up front (LiteRT-LM issue 4096), the largest
   conversation used about 2,700, and 8,192 left the phone swapping.
+- Claude Code in Termux (Android) is the other model behind the same triage
+  and AI editor, chosen in Settings (`AiEditorModel`, `app/ai/gemma/model.rs`).
+  Java holds one `AiModel` at a time, `GemmaBridge` or `ClaudeBridge`, which
+  Rust reaches through `AiModels` (`AiModels.select`). Each Claude
+  conversation is one `claude -p` process that Termux starts through its
+  `RUN_COMMAND` intent (`assets/claude/connect.sh`); it connects back to a
+  loopback port of the app, proves itself with a one-time token and speaks
+  stream-json over that connection. The triage uses Gemma's prompt and
+  schema (`--json-schema`). The editor needs no phases: one conversation per
+  photo holds the whole chat, plans and writes its tool lines in the same
+  reply (`assets/claude/editor_system.md`), and looks at the preview after
+  each nudge to correct it, up to four nudges a request. Switching models
+  forgets the open photo's chat and card, and the photo is triaged again by
+  the new model when Develop next shows it (`TriageState::restart_pending`).
+  Settings checks how far Claude Code is set up (`claude auth status`) and
+  runs each missing step.
 
 ## Inside `calibraw-ui`
 
@@ -168,7 +184,8 @@ job records the value it started with.
 | egui-wgpu renderer (texture registration and release) | UI thread, through `frame.wgpu_render_state()`. `PreviewPipeline` owns a registration; dropping it queues the texture in `TextureRetirement`, which the UI thread releases at the start of the next frame, after the current frame can no longer paint it |
 | JNI environment | the calling thread; `with_activity` attaches it for the call's duration. Java→Rust callbacks run on Java threads and only enqueue results and request a repaint |
 | ONNX Runtime sessions | one process-wide slot in `calibraw-ai::slot`, locked by the running job; every AI job runs on its own `jobs::spawn_job` thread |
-| LiteRT-LM engine and Gemma conversations (Android) | one process-wide engine in `GemmaBridge`; triage and AI editor turns run on UI worker threads (`spawn_ui_worker`) and hold `GemmaBridge`'s class lock, so one turn runs at a time. Streamed text arrives on LiteRT's callback thread (`nativeOnTriageHeadline`, `nativeOnEditorText`), which only fills an FFI slot and requests a repaint |
+| LiteRT-LM engine and Gemma conversations (Android) | one process-wide engine in `GemmaBridge`; triage and AI editor turns run on UI worker threads (`spawn_ui_worker`) and hold `GemmaBridge`'s class lock, so one turn runs at a time. Streamed text arrives on LiteRT's callback thread (`AiModels.nativeOnTriageHeadline`, `nativeOnEditorText`), which only fills an FFI slot and requests a repaint |
+| Claude Code conversations (Android) | `ClaudeBridge`; each conversation's connection is read on a daemon thread of its own, which streams text through the same `AiModels` callbacks. Triage and AI editor turns run on UI worker threads, one triage at a time (`triageLock`) and one editor turn at a time (`editorLock`); a triage may run beside an editor turn |
 
 ### Background jobs
 
@@ -181,8 +198,9 @@ job records the value it started with.
 | Full-resolution preview (desktop) | one `RunningRender` in `PreviewState::full_resolution`, started after the editor has been idle; no second one starts until its result arrives | `AtomicBool`, set by `FullResolutionState::observe` when the fitted preview shows another `FittedOutput` (texture and `output_revision`), and at once by an edit, a moved view or a pressed pointer. The worker renders one stage at a time and waits for the GPU between them (`wait_for_gpu`), so a cancel is noticed before the next stage | the result is installed only when `FittedOutput` and `document_generation` still match | a photo whose graph does not fit the adapter's free memory or texture limit is skipped with a diagnostics line; a failed render is an error dialog; neither is retried for the document |
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
-| Gemma triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed | none; it ends with Gemma's reply or a 120 s timeout | the receiver is dropped when another photo opens (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
-| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and Gemma replying, one receiver per turn | another photo opening closes the conversation (`forget_ai_editor`, LiteRT's `cancelProcess`) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat; a turn times out after 120 s |
+| Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed, or when Develop shows the photo after a model switch (`restart_pending`) | none; it ends with the model's reply or a 120 s timeout | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or ending Claude's process) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s |
+| Claude Code setup check (Android) | one receiver in `ClaudeSetupState`; no second check starts while one runs | none; it ends when `claude auth status` exits or after 60 s | none; the setup is an app setting | the failure is shown in Settings; Termux not running the check reads as blocked |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |
 | Export watermark image | one receiver in `WatermarkState`: the saved image read at start-up, or a newly chosen one decoded and kept as `watermark.png` beside the settings | none; the card cannot choose another image while a load runs, and a picker result that arrives meanwhile replaces it | none; the watermark is an app setting, not part of a document, and each export takes the image it holds when it starts | error dialog; a saved image that cannot be read turns the watermark off |
@@ -360,7 +378,9 @@ production `ShaderManager` composes.
 
 - Android: `calibraw-ffi` exposes content-URI storage, document pickers,
   MediaStore publishing, background-task notifications, the MediaCodec replay
-  encoder and on-device Gemma through LiteRT-LM (`GemmaBridge`, `android/gemma.rs`).
+  encoder and the AI editor's models behind `AiModels` (`android/gemma.rs`):
+  on-device Gemma through LiteRT-LM (`GemmaBridge`) and Claude Code in Termux
+  (`ClaudeBridge`).
   Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
 - `calibraw-ui/src/platform/` decides platform differences once. Everything
   else compiles on every target and branches at run time:

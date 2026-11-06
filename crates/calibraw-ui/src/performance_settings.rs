@@ -89,6 +89,8 @@ pub(crate) struct PerformanceSettings {
     pub ai_gpu_acceleration: bool,
     /// Where the AI runtime is configurable.
     pub onnx_runtime_mode: crate::app::OnnxRuntimeMode,
+    /// The model behind the triage and the AI editor, where it runs (Android).
+    pub ai_editor_model: crate::platform::AiEditorModel,
     /// Where Discord can be reached.
     pub discord_rich_presence: bool,
     /// Serialize photo file reads for libraries on rotational disks; folder
@@ -316,6 +318,7 @@ impl Default for PerformanceSettings {
             scene_depth_quality: calibraw_ai::models::scene_geometry::SceneDepthQuality::default(),
             ai_gpu_acceleration: true,
             onnx_runtime_mode: crate::app::OnnxRuntimeMode::default(),
+            ai_editor_model: crate::platform::AiEditorModel::default(),
             discord_rich_presence: false,
             hdd_mode: false,
             camera_profile_mode: CameraProfileMode::default(),

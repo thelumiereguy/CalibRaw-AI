@@ -161,7 +161,12 @@ pub(crate) struct AiState {
     pub(crate) object_pending_target: Option<(usize, usize)>,
     pub(crate) object_cache: Option<((usize, usize), ObjectInferenceCache)>,
     pub(crate) people: PeopleState,
-    /// Gemma's triage card for the open photo.
+    /// The model behind the triage and the AI editor. Persisted as
+    /// `ai_editor_model`.
+    pub(crate) editor_model: crate::platform::AiEditorModel,
+    /// How far Claude Code is set up, as Settings last checked.
+    pub(crate) claude_setup: ClaudeSetupState,
+    /// The selected model's triage card for the open photo.
     pub(crate) triage: TriageState,
     /// The AI editor's chat about the open photo.
     pub(crate) editor: EditorState,

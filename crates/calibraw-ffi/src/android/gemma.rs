@@ -1,10 +1,59 @@
-//! On-device Gemma through `GemmaBridge` (LiteRT-LM).
+//! The AI editor's model through `AiModels`, which forwards each call to the
+//! selected one: on-device Gemma (`GemmaBridge`, LiteRT-LM) or Claude Code in
+//! Termux (`ClaudeBridge`). The `gemma_` functions serve either model.
 
 use super::*;
 use jni::objects::JByteArray;
 
-/// A triage's genre and emoji, reported while Gemma still writes the rest of
-/// its card.
+/// Makes `name` ("gemma" or "claude") the model the later calls go to,
+/// releasing the one selected before. Returns at once.
+pub fn select_ai_model(app: &AndroidApp, name: &str) -> Result<(), String> {
+    with_gemma_bridge(app, |env, ai_models| {
+        let name = env.new_string(name)?;
+        env.call_method(
+            ai_models,
+            jni::jni_str!("select"),
+            jni::jni_sig!((JString) -> void),
+            &[JValue::Object(&name)],
+        )?;
+        Ok(())
+    })
+    .map_err(|error| format!("Could not select the AI model: {error:#}"))
+}
+
+/// How far Claude Code in Termux is set up, as `ClaudeBridge`'s status code.
+/// Blocks while Termux starts, up to about a minute, so run it on a worker.
+pub fn claude_code_status(app: &AndroidApp) -> Result<String, String> {
+    with_gemma_bridge(app, |env, ai_models| {
+        let value = env.call_method(
+            ai_models,
+            jni::jni_str!("claudeStatus"),
+            jni::jni_sig!(() -> JString),
+            &[],
+        )?;
+        java_string(env, value)
+    })
+    .map_err(|error| format!("Could not check Claude Code: {error:#}"))
+}
+
+/// Runs the Claude Code setup `step` ("permission", "install" or "sign_in").
+/// Returns once Termux has the command.
+pub fn claude_code_setup(app: &AndroidApp, step: &str) -> Result<(), String> {
+    with_gemma_bridge(app, |env, ai_models| {
+        let step = env.new_string(step)?;
+        env.call_method(
+            ai_models,
+            jni::jni_str!("claudeSetup"),
+            jni::jni_sig!((JString) -> void),
+            &[JValue::Object(&step)],
+        )?;
+        Ok(())
+    })
+    .map_err(|error| format!("Could not set up Claude Code: {error:#}"))
+}
+
+/// A triage's genre and emoji, reported while the model still writes the
+/// rest of its card.
 #[derive(Debug)]
 pub struct TriageHeadline {
     /// The `request_id` the triage was started with.
@@ -50,7 +99,7 @@ pub fn gemma_triage(
         )?;
         java_string(env, value)
     })
-    .map_err(|error| format!("Gemma could not triage the photo: {error:#}"))
+    .map_err(|error| format!("The AI model could not triage the photo: {error:#}"))
 }
 
 /// The newest triage headline reported since the last call.
@@ -59,7 +108,7 @@ pub fn take_triage_headline() -> Option<TriageHeadline> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_de_duecki_calibraw_GemmaBridge_nativeOnTriageHeadline<'local>(
+pub extern "system" fn Java_de_duecki_calibraw_AiModels_nativeOnTriageHeadline<'local>(
     mut unowned_env: EnvUnowned<'local>,
     _class: JClass<'local>,
     request_id: jni::sys::jlong,
@@ -83,11 +132,11 @@ pub extern "system" fn Java_de_duecki_calibraw_GemmaBridge_nativeOnTriageHeadlin
             Ok(())
         })
         .resolve_with::<LogContextErrorAndDefault, _>(|| {
-            "GemmaBridge.nativeOnTriageHeadline".to_owned()
+            "AiModels.nativeOnTriageHeadline".to_owned()
         });
 }
 
-/// The text of the editor reply Gemma is writing, so far.
+/// The text of the editor reply the model is writing, so far.
 #[derive(Debug)]
 pub struct EditorText {
     /// The `request_id` of the call the reply answers.
@@ -98,8 +147,9 @@ pub struct EditorText {
 /// The pieces of the newest reply since the last take, joined.
 static EDITOR_TEXT: Mutex<Option<EditorText>> = Mutex::new(None);
 
-/// Has Gemma read the AI editor's `system_prompt` in the background, so the
-/// open photo's first request does not wait for it. Returns at once.
+/// Has the model ready a conversation with the AI editor's `system_prompt` in
+/// the background, so the open photo's first request does not wait for it.
+/// Returns at once.
 pub fn gemma_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
     with_gemma_bridge(app, |env, gemma_bridge| {
         let system_prompt = env.new_string(system_prompt)?;
@@ -111,12 +161,13 @@ pub fn gemma_editor_prepare(app: &AndroidApp, system_prompt: &str) -> Result<(),
         )?;
         Ok(())
     })
-    .map_err(|error| format!("Gemma could not prepare the editor: {error:#}"))
+    .map_err(|error| format!("The AI model could not prepare the editor: {error:#}"))
 }
 
 /// Starts an AI editor request on a fresh conversation that holds only
-/// `system_prompt`, replacing the earlier request's. Blocks while Gemma reads
-/// a prompt it has not read yet, so run it on a worker.
+/// `system_prompt`, replacing the earlier request's. Blocks while the model
+/// reads a prompt it has not read yet or Claude Code starts, so run it on a
+/// worker.
 pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Result<(), String> {
     with_gemma_bridge(app, |env, gemma_bridge| {
         let system_prompt = env.new_string(system_prompt)?;
@@ -128,11 +179,11 @@ pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Resu
         )?;
         Ok(())
     })
-    .map_err(|error| format!("Gemma could not start the request: {error:#}"))
+    .map_err(|error| format!("The AI model could not start the request: {error:#}"))
 }
 
 /// Sends `text` to the running request, after the JPEG at `image_path` when
-/// there is one, and returns Gemma's reply as JSON (`GemmaBridge.editorSend`).
+/// there is one, and returns the model's reply as JSON (`AiModel.editorSend`).
 /// Blocks for the whole reply, whose text arrives earlier through
 /// [`take_editor_text`], tagged with `request_id`.
 pub fn gemma_editor_send(
@@ -160,7 +211,7 @@ pub fn gemma_editor_send(
         )?;
         java_string(env, value)
     })
-    .map_err(|error| format!("Gemma could not reply: {error:#}"))
+    .map_err(|error| format!("The AI model could not reply: {error:#}"))
 }
 
 /// Closes the AI editor request's conversation and cancels its running reply.
@@ -175,7 +226,7 @@ pub fn gemma_editor_close(app: &AndroidApp) -> Result<(), String> {
         )?;
         Ok(())
     })
-    .map_err(|error| format!("Gemma could not close the editor chat: {error:#}"))
+    .map_err(|error| format!("The AI model could not close the editor chat: {error:#}"))
 }
 
 /// The newest editor reply's text written since the last call.
@@ -184,7 +235,7 @@ pub fn take_editor_text() -> Option<EditorText> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_de_duecki_calibraw_GemmaBridge_nativeOnEditorText<'local>(
+pub extern "system" fn Java_de_duecki_calibraw_AiModels_nativeOnEditorText<'local>(
     mut unowned_env: EnvUnowned<'local>,
     _class: JClass<'local>,
     request_id: jni::sys::jlong,
@@ -205,9 +256,7 @@ pub extern "system" fn Java_de_duecki_calibraw_GemmaBridge_nativeOnEditorText<'l
             request_repaint();
             Ok(())
         })
-        .resolve_with::<LogContextErrorAndDefault, _>(|| {
-            "GemmaBridge.nativeOnEditorText".to_owned()
-        });
+        .resolve_with::<LogContextErrorAndDefault, _>(|| "AiModels.nativeOnEditorText".to_owned());
 }
 
 /// `emoji` drawn by Android's colour emoji font in a `size_px` square, as
@@ -240,13 +289,13 @@ fn with_gemma_bridge<T>(
     operation: impl FnOnce(&mut jni::Env<'_>, &JObject) -> jni::errors::Result<T>,
 ) -> jni::errors::Result<T> {
     with_activity(app, |env, activity| {
-        let gemma_bridge = env
+        let ai_models = env
             .get_field(
                 activity,
-                jni::jni_str!("gemmaBridge"),
-                jni::jni_sig!(de.duecki.calibraw.GemmaBridge),
+                jni::jni_str!("aiModels"),
+                jni::jni_sig!(de.duecki.calibraw.AiModels),
             )?
             .l()?;
-        operation(env, &gemma_bridge)
+        operation(env, &ai_models)
     })
 }

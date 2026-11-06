@@ -1,8 +1,10 @@
-//! The AI editor's chat with Gemma about the open photo, shown in place of
-//! the Develop tools while it is open (`EditorState::open`).
+//! The AI editor's chat with the selected model (Gemma or Claude) about the
+//! open photo, shown in place of the Develop tools while it is open
+//! (`EditorState::open`).
 
 use crate::app::{CalibRawApp, ChatRole, EditorState, TriageState};
 use crate::i18n::tr;
+use crate::platform::AiEditorModel;
 use eframe::egui::{self, Ui};
 
 /// What the photographer did in the chat.
@@ -35,16 +37,31 @@ pub(crate) fn show_badge(ui: &mut Ui, triage: &TriageState, emoji: &str, size: f
     }
 }
 
+/// The triage badge's tooltip while `model` looks at the photo.
+pub(crate) fn looking_at_photo(model: AiEditorModel) -> &'static str {
+    match model {
+        AiEditorModel::Gemma => tr("Gemma is looking at the photo…"),
+        AiEditorModel::ClaudeCode => tr("Claude is looking at the photo…"),
+    }
+}
+
 pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp) {
     let can_send = app.ai_editor_can_send();
-    match chat(ui, &app.ai.triage, &mut app.ai.editor, can_send) {
+    let model = app.ai.editor_model;
+    match chat(ui, model, &app.ai.triage, &mut app.ai.editor, can_send) {
         ChatAction::None => {}
         ChatAction::Send => app.send_ai_editor_request(),
         ChatAction::Close => app.set_ai_editor_open(false),
     }
 }
 
-fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: bool) -> ChatAction {
+fn chat(
+    ui: &mut Ui,
+    model: AiEditorModel,
+    triage: &TriageState,
+    editor: &mut EditorState,
+    can_send: bool,
+) -> ChatAction {
     let mut action = ChatAction::None;
     let margin = moduwu_design::SPACE_SM;
     let inner = ui.available_rect_before_wrap().shrink(margin);
@@ -52,7 +69,7 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
     let ui = &mut ui;
 
     ui.horizontal(|ui| {
-        triage_heading(ui, triage);
+        triage_heading(ui, model, triage);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if moduwu_design::ghost_icon_button(
                 ui,
@@ -81,6 +98,10 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
         });
 
     ui.add_space(moduwu_design::SPACE_SM);
+    let hint = match model {
+        AiEditorModel::Gemma => tr("Message Gemma"),
+        AiEditorModel::ClaudeCode => tr("Message Claude"),
+    };
     ui.horizontal(|ui| {
         let send_width = moduwu_design::toolbar_icon_size().x;
         let field = ui.add_sized(
@@ -88,7 +109,7 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
                 (ui.available_width() - send_width - ui.spacing().item_spacing.x).max(1.0),
                 moduwu_design::CONTROL_HEIGHT,
             ],
-            moduwu_design::singleline_text_edit(&mut editor.draft).hint_text(tr("Message Gemma")),
+            moduwu_design::singleline_text_edit(&mut editor.draft).hint_text(hint),
         );
         let entered = field.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
         if editor.request_running() {
@@ -110,14 +131,17 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
     action
 }
 
-/// The photo's genre, opening its triage card, or what Gemma is doing
+/// The photo's genre, opening its triage card, or what `model` is doing
 /// before the card is done.
-fn triage_heading(ui: &mut Ui, triage: &TriageState) {
+fn triage_heading(ui: &mut Ui, model: AiEditorModel, triage: &TriageState) {
     let Some((genre, emoji)) = triage.headline() else {
         ui.label(if triage.running() {
-            tr("Gemma is looking at the photo…")
+            looking_at_photo(model)
         } else {
-            tr("Gemma has not triaged this photo.")
+            match model {
+                AiEditorModel::Gemma => tr("Gemma has not triaged this photo."),
+                AiEditorModel::ClaudeCode => tr("Claude has not triaged this photo."),
+            }
         });
         return;
     };

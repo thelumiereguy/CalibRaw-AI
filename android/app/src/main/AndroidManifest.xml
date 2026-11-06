@@ -5,6 +5,13 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    <!-- Starts Claude Code in Termux for the AI editor (ClaudeBridge). -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <!-- ClaudeBridge checks that Termux is installed and starts its RunCommandService. -->
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
 
     <uses-feature
         android:glEsVersion="0x00030001"

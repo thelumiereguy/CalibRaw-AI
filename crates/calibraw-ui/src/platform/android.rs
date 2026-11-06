@@ -1,9 +1,10 @@
 //! The Android backend: the JNI bridge in `calibraw-ffi`.
 
 use super::service::{
-    CameraProfileFolderResult, ExportPublishResult, ImportProgress, ImportedLibraryDocument,
-    LibraryDocument, LibraryFolder, PickedDocument, PickerResult, Platform, PublishedExport,
-    ReplayVideoEncoder, StagedFilesResult, TaskNotification, TriageHeadline,
+    AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus,
+    ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
+    PickedDocument, PickerResult, Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult,
+    TaskNotification, TriageHeadline,
 };
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
@@ -455,6 +456,40 @@ impl Platform for AndroidPlatform {
 
     fn thumbnail_cache_size_bytes(&self) -> Result<u64, String> {
         calibraw_ffi::thumbnail_cache_size_bytes(&self.app)
+    }
+
+    fn select_ai_model(&self, model: AiEditorModel) -> Result<(), String> {
+        // The names AiModels.select knows.
+        let name = match model {
+            AiEditorModel::Gemma => "gemma",
+            AiEditorModel::ClaudeCode => "claude",
+        };
+        calibraw_ffi::select_ai_model(&self.app, name)
+    }
+
+    fn claude_code_status(&self) -> Result<ClaudeCodeStatus, String> {
+        // ClaudeBridge's status codes.
+        let code = calibraw_ffi::claude_code_status(&self.app)?;
+        Ok(match code.as_str() {
+            "no_termux" => ClaudeCodeStatus::NoTermux,
+            "no_run_command" => ClaudeCodeStatus::NoRunCommand,
+            "no_permission" => ClaudeCodeStatus::NoPermission,
+            "blocked" => ClaudeCodeStatus::Blocked,
+            "not_installed" => ClaudeCodeStatus::NotInstalled,
+            "signed_out" => ClaudeCodeStatus::SignedOut,
+            "ready" => ClaudeCodeStatus::Ready,
+            _ => ClaudeCodeStatus::Failed,
+        })
+    }
+
+    fn claude_code_setup(&self, step: ClaudeCodeSetup) -> Result<(), String> {
+        // The steps ClaudeBridge.setup knows.
+        let step = match step {
+            ClaudeCodeSetup::Permission => "permission",
+            ClaudeCodeSetup::Install => "install",
+            ClaudeCodeSetup::SignIn => "sign_in",
+        };
+        calibraw_ffi::claude_code_setup(&self.app, step)
     }
 
     fn gemma_triage(

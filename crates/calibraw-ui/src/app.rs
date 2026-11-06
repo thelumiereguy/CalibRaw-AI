@@ -344,7 +344,7 @@ mod sidecar_persistence;
 mod ui_review_tests;
 
 use ai::{AiUpdate, PeopleState};
-pub(crate) use ai::{ChatRole, EditorState, TriageState};
+pub(crate) use ai::{ChatRole, ClaudeSetupState, EditorState, TriageState};
 use lifecycle::needs_canonical_mask_source;
 pub(crate) use lifecycle::{
     install_missing_range_sources, masks_have_missing_range_sources, DocumentSource,

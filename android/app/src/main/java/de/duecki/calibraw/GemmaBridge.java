@@ -1,9 +1,6 @@
 package de.duecki.calibraw;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -26,15 +23,8 @@ import com.google.ai.edge.litertlm.ToolCall;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -49,11 +39,11 @@ import java.util.regex.Pattern;
 
 /**
  * Runs Gemma 4 E4B on the device through LiteRT-LM: the triage of each opened photo and the AI
- * editor's chat about it. Rust calls the public methods synchronously from its worker threads,
- * except {@link #closeEditor}, which returns at once. The engine is kept for the process and
- * shared by every activity, and one call uses it at a time.
+ * editor's chat about it, while it is the selected {@link AiModel}. Its calls block, except
+ * {@link #closeEditor}, which returns at once. The engine is kept for the process until another
+ * model is selected, is shared by every activity, and one call uses it at a time.
  */
-final class GemmaBridge {
+final class GemmaBridge implements AiModel {
     private static final String LOG_TAG = "CalibRaw";
     private static final String MODEL_FILE = "models/gemma-4-E4B-it.litertlm";
     private static final String TRIAGE_REQUEST = "Triage this photo.";
@@ -61,11 +51,6 @@ final class GemmaBridge {
     private static final SamplerConfig TRIAGE_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
     // A triage normally takes about ten seconds.
     private static final long TRIAGE_TIMEOUT_SECONDS = 120;
-    // A string field of the card once its closing quote is written.
-    private static final Pattern GENRE_FIELD =
-            Pattern.compile("\"genre\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-    private static final Pattern EMOJI_FIELD =
-            Pattern.compile("\"emoji\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
     // The reply LiteRT-LM quotes in its message when it cannot parse a tool call.
     private static final Pattern FULL_RESPONSE = Pattern.compile("full response: (.*)");
     // The editor's replies are short, so greedy decoding keeps them predictable.
@@ -96,6 +81,9 @@ final class GemmaBridge {
     // The running phase's conversation, or null. Written under GemmaBridge.class; volatile so
     // closeEditor can cancel its running turn without waiting for that lock.
     private static volatile Conversation editor;
+    // Whether Gemma is the selected model, so background preparations do not load the engine
+    // again after release.
+    private static volatile boolean active;
 
     private final Context context;
 
@@ -107,8 +95,53 @@ final class GemmaBridge {
      * Loads the engine and the first triage's conversation on a background thread, so the first
      * photo's triage does not wait for them. A call that arrives meanwhile waits for the load.
      */
-    void preload() {
+    @Override
+    public void activate() {
+        active = true;
         prepareTriageInBackground("Gemma preload");
+    }
+
+    /**
+     * Cancels the editor's running turn and closes the engine and every conversation on a
+     * background thread, once a running triage has finished, so the engine's memory is free for
+     * the other model.
+     */
+    @Override
+    public void release() {
+        active = false;
+        closeEditor();
+        Thread releaser = new Thread(() -> {
+            synchronized (GemmaBridge.class) {
+                // Selected again meanwhile.
+                if (active) {
+                    return;
+                }
+                if (nextTriage != null) {
+                    nextTriage.close();
+                    nextTriage = null;
+                }
+                Conversation running = editor;
+                editor = null;
+                if (running != null) {
+                    running.close();
+                }
+                for (Conversation base : editorBases.values()) {
+                    base.close();
+                }
+                editorBases.clear();
+                if (engine != null) {
+                    try {
+                        engine.close();
+                    } catch (Exception error) {
+                        Log.w(LOG_TAG, "Could not close the Gemma engine", error);
+                    }
+                    engine = null;
+                }
+                Log.i(LOG_TAG, "Gemma released");
+            }
+        }, "Gemma release");
+        releaser.setDaemon(true);
+        releaser.start();
     }
 
     /**
@@ -116,10 +149,11 @@ final class GemmaBridge {
      * assets/gemma/triage_schema.json. {@code hint} is the photographer's own genre, or empty.
      *
      * <p>The card's genre and emoji come first and are reported through
-     * {@link #nativeOnTriageHeadline} as soon as Gemma has written them, tagged with
+     * {@link AiModels#reportTriageHeadline} as soon as Gemma has written them, tagged with
      * {@code requestId} and with the emoji drawn in a {@code badgePx} square; the rest of the
      * card takes several seconds more.
      */
+    @Override
     public String triage(String imagePath, String hint, long requestId, int badgePx)
             throws Exception {
         try {
@@ -160,14 +194,13 @@ final class GemmaBridge {
                             if (headlineReported.get()) {
                                 return;
                             }
-                            String genre = completeField(text, GENRE_FIELD);
-                            String emoji = completeField(text, EMOJI_FIELD);
+                            String genre = AiModels.completeField(text, AiModels.GENRE_FIELD);
+                            String emoji = AiModels.completeField(text, AiModels.EMOJI_FIELD);
                             if (genre != null && emoji != null
                                     && headlineReported.compareAndSet(false, true)) {
                                 Log.i(LOG_TAG, "Gemma triage headline after "
                                         + (SystemClock.elapsedRealtime() - started) + " ms");
-                                nativeOnTriageHeadline(
-                                        requestId, genre, emoji, renderEmoji(emoji, badgePx));
+                                AiModels.reportTriageHeadline(requestId, genre, emoji, badgePx);
                             }
                         }
 
@@ -188,7 +221,7 @@ final class GemmaBridge {
                     null,
                     null,
                     null,
-                    ResponseFormat.json(asset(context, "gemma/triage_schema.json")));
+                    ResponseFormat.json(AiModels.asset(context, "gemma/triage_schema.json")));
             if (!finished.await(TRIAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 conversation.cancelProcess();
                 throw new IOException(
@@ -208,29 +241,11 @@ final class GemmaBridge {
         }
     }
 
-    /** The value of a string field the partial card {@code text} has finished, or null. */
-    private static String completeField(String text, Pattern field) {
-        Matcher match = field.matcher(text);
-        if (!match.find()) {
-            return null;
-        }
-        try {
-            // The match keeps its JSON escapes; decoding them as a JSON string undoes them.
-            return new JSONObject("{\"v\":\"" + match.group(1) + "\"}").getString("v");
-        } catch (JSONException error) {
-            return null;
-        }
-    }
-
-    /** Reports a triage's genre and emoji, with the emoji drawn, before its card is done. */
-    private static native void nativeOnTriageHeadline(
-            long requestId, String genre, String emoji, byte[] badge);
-
     private void prepareTriageInBackground(String threadName) {
         Thread preparer = new Thread(() -> {
             try {
                 synchronized (GemmaBridge.class) {
-                    if (nextTriage == null) {
+                    if (active && nextTriage == null) {
                         nextTriage = createTriage(context);
                     }
                 }
@@ -247,7 +262,7 @@ final class GemmaBridge {
         Engine loaded = engine(context);
         long started = SystemClock.elapsedRealtime();
         Conversation conversation = loaded.createConversation(new ConversationConfig(
-                Contents.Companion.of(asset(context, "gemma/triage_system.md")),
+                Contents.Companion.of(AiModels.asset(context, "gemma/triage_system.md")),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 TRIAGE_SAMPLER,
@@ -269,11 +284,14 @@ final class GemmaBridge {
      * photo's first request does not wait for it. Returns at once; a request that arrives
      * meanwhile waits for it.
      */
+    @Override
     public void prepareEditor(String systemPrompt) {
         Thread preparer = new Thread(() -> {
             try {
                 synchronized (GemmaBridge.class) {
-                    editorBase(context, systemPrompt);
+                    if (active) {
+                        editorBase(context, systemPrompt);
+                    }
                 }
             } catch (Exception error) {
                 Log.w(LOG_TAG, "Could not prepare the Gemma editor", error);
@@ -287,6 +305,7 @@ final class GemmaBridge {
      * Starts a phase of a request on a fresh conversation that holds only {@code systemPrompt},
      * replacing the earlier phase's. Blocks while Gemma reads a prompt it has not read yet.
      */
+    @Override
     public void startEditorRequest(String systemPrompt) throws Exception {
         synchronized (GemmaBridge.class) {
             Conversation previous = editor;
@@ -343,8 +362,9 @@ final class GemmaBridge {
      * when that is not empty, and returns Gemma's reply as
      * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}, the calls being
      * those Gemma wrote in its own call syntax that LiteRT-LM parsed. The reply's text also
-     * streams through {@link #nativeOnEditorText}, tagged with {@code requestId}.
+     * streams through {@link AiModels#reportEditorText}, tagged with {@code requestId}.
      */
+    @Override
     public String editorSend(long requestId, String text, String imagePath) throws Exception {
         Contents contents = imagePath == null || imagePath.isEmpty()
                 ? Contents.Companion.of(text)
@@ -358,6 +378,7 @@ final class GemmaBridge {
      * opens. Returns at once; the request's conversation is closed on a background thread once no
      * call uses it, and the prompts' are kept for the next request.
      */
+    @Override
     public void closeEditor() {
         Conversation closing = editor;
         if (closing != null) {
@@ -405,7 +426,7 @@ final class GemmaBridge {
                             synchronized (reply) {
                                 reply.append(text);
                             }
-                            nativeOnEditorText(requestId, text);
+                            AiModels.reportEditorText(requestId, text);
                         }
 
                         @Override
@@ -485,31 +506,6 @@ final class GemmaBridge {
         return response.find() ? response.group(1).trim() : "";
     }
 
-    /** Reports the next piece of an editor reply's text while Gemma writes it. */
-    private static native void nativeOnEditorText(long requestId, String text);
-
-    /**
-     * Draws {@code emoji} centred in a {@code sizePx} square with the system's colour emoji font,
-     * as premultiplied RGBA rows. Returns an empty array when the font has no glyph for it.
-     */
-    public byte[] renderEmoji(String emoji, int sizePx) {
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        if (emoji == null || emoji.isEmpty() || sizePx <= 0 || !paint.hasGlyph(emoji)) {
-            return new byte[0];
-        }
-        paint.setTextSize(sizePx * 0.8f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics metrics = paint.getFontMetrics();
-        Bitmap bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
-        new Canvas(bitmap).drawText(
-                emoji, sizePx / 2f, sizePx / 2f - (metrics.ascent + metrics.descent) / 2f, paint);
-        // ARGB_8888 stores premultiplied bytes in R, G, B, A order.
-        ByteBuffer pixels = ByteBuffer.allocate(sizePx * sizePx * 4);
-        bitmap.copyPixelsToBuffer(pixels);
-        bitmap.recycle();
-        return pixels.array();
-    }
-
     private static synchronized Engine engine(Context context) throws IOException {
         if (engine != null) {
             return engine;
@@ -551,16 +547,5 @@ final class GemmaBridge {
             }
         }
         throw new IOException("Android shared media storage is unavailable");
-    }
-
-    private static String asset(Context context, String path) throws IOException {
-        try (InputStream input = context.getAssets().open(path)) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            for (int read; (read = input.read(buffer)) != -1; ) {
-                output.write(buffer, 0, read);
-            }
-            return output.toString(StandardCharsets.UTF_8.name());
-        }
     }
 }

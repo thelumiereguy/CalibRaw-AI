@@ -1,6 +1,7 @@
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
 use crate::sidecar::{EditState, LoadedSidecar, PhotoReview, SidecarError};
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -133,8 +134,56 @@ pub(crate) struct TaskNotification<'a> {
     pub(crate) queued_count: usize,
 }
 
-/// A triage's genre and emoji, reported while Gemma still writes the rest of
-/// its card.
+/// The model behind photo triage and the AI editor, chosen in Settings.
+/// Serialized in the performance settings, so the names stay.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AiEditorModel {
+    /// Gemma 4 on the device, through LiteRT-LM.
+    #[default]
+    Gemma,
+    /// Claude Code, run in Termux on the same phone.
+    ClaudeCode,
+}
+
+/// How far Claude Code in Termux is set up: the first step still missing,
+/// or [`Self::Ready`].
+#[cfg_attr(
+    not(target_os = "android"),
+    allow(dead_code, reason = "constructed only by the Android backend")
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ClaudeCodeStatus {
+    /// Termux is not installed.
+    NoTermux,
+    /// The installed Termux, such as its Google Play build, cannot run
+    /// commands for other apps.
+    NoRunCommand,
+    /// CalibRaw has not been allowed to run commands in Termux.
+    NoPermission,
+    /// Termux did not run the command: `allow-external-apps` is not set, or
+    /// Termux has not been opened once.
+    Blocked,
+    NotInstalled,
+    SignedOut,
+    Ready,
+    /// The check failed for another reason; the log says why.
+    Failed,
+}
+
+/// A step of the Claude Code setup that Settings runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ClaudeCodeSetup {
+    /// Asks for the permission to run commands in Termux.
+    Permission,
+    /// Installs Claude Code in a Termux session brought to the front.
+    Install,
+    /// Runs Claude Code's sign-in in a Termux session brought to the front.
+    SignIn,
+}
+
+/// A triage's genre and emoji, reported while the model still writes the
+/// rest of its card.
 #[cfg_attr(
     not(target_os = "android"),
     allow(dead_code, reason = "constructed only by the Android backend")
@@ -491,9 +540,23 @@ pub(crate) trait Platform: Send + Sync {
         Err(unavailable("the thumbnail cache"))
     }
 
-    // --- On-device Gemma ---
+    // --- The AI editor's model: Gemma on the device or Claude Code ---
 
-    /// Gemma's triage card for the JPEG at `image_path`, as JSON. `hint` is
+    /// Makes `model` the one the triage and editor calls below go to,
+    /// releasing the one selected before. Returns at once.
+    fn select_ai_model(&self, _model: AiEditorModel) -> Result<(), String> {
+        Err(unavailable("the AI editor"))
+    }
+    /// How far Claude Code is set up. Blocks while Termux starts, up to
+    /// about a minute, so only workers call it.
+    fn claude_code_status(&self) -> Result<ClaudeCodeStatus, String> {
+        Err(unavailable("Claude Code"))
+    }
+    /// Runs a setup `step`; returns once the system has the request.
+    fn claude_code_setup(&self, _step: ClaudeCodeSetup) -> Result<(), String> {
+        Err(unavailable("Claude Code"))
+    }
+    /// The selected model's triage card for the JPEG at `image_path`, as JSON. `hint` is
     /// the photographer's own genre, or empty. Blocks for the whole model
     /// call, so only workers call it. The card's genre and emoji arrive
     /// earlier through [`Self::take_triage_headline`], tagged with
@@ -516,21 +579,23 @@ pub(crate) trait Platform: Send + Sync {
     fn render_emoji(&self, _emoji: &str, _size_px: u32) -> Result<Option<Vec<u8>>, String> {
         Ok(None)
     }
-    /// Has Gemma read the AI editor's `system_prompt` in the background, so
-    /// the open photo's first request does not wait for it. Returns at once.
+    /// Has the model ready a conversation with the AI editor's
+    /// `system_prompt` in the background, so the open photo's first request
+    /// does not wait for it. Returns at once.
     fn gemma_editor_prepare(&self, _system_prompt: &str) -> Result<(), String> {
         Err(unavailable("on-device Gemma"))
     }
     /// Starts an AI editor request on a fresh conversation that holds only
     /// `system_prompt`, replacing the earlier request's. Blocks while Gemma
-    /// reads a prompt it has not read yet, so only workers call it.
+    /// reads a prompt it has not read yet or Claude Code starts, so only
+    /// workers call it.
     fn gemma_editor_start_request(&self, _system_prompt: &str) -> Result<(), String> {
         Err(unavailable("on-device Gemma"))
     }
     /// Sends `text` to the running request, after the JPEG at `image_path`
-    /// when there is one, and returns Gemma's reply as JSON: `{"text": ...,
-    /// "tool_calls": [...]}`, the calls only where LiteRT-LM parsed Gemma's
-    /// own call syntax. Blocks for the whole reply, so only workers call it;
+    /// when there is one, and returns the model's reply as JSON: `{"text":
+    /// ..., "tool_calls": [...]}`, the calls only where LiteRT-LM parsed
+    /// Gemma's own call syntax. Blocks for the whole reply, so only workers call it;
     /// the reply's text arrives earlier through [`Self::take_editor_text`],
     /// tagged with `request_id`.
     fn gemma_editor_send(

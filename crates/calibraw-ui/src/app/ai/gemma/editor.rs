@@ -23,6 +23,13 @@
 //! applied to the edit, each value anywhere in its range. Once the preview
 //! shows the nudge, it goes to Gemma with what the app set, and Gemma says
 //! what it changed. The nudge is one undo step (`observe_edit_history`).
+//!
+//! Claude Code (`AiEditorModel::ClaudeCode`) needs no phases: it reads the
+//! photographer's words and edits in the same reply, in one conversation per
+//! photo that holds the whole chat (assets/claude/editor_system.md). After
+//! each nudge it looks at the new preview and corrects it, up to
+//! [`CLAUDE_MAX_NUDGES`] nudges a request. The conversation stays open
+//! between requests and ends when another photo opens or a request fails.
 
 use super::calls::{read_reply, Call};
 use super::color::{
@@ -36,6 +43,7 @@ use super::tools::{describe, number, written};
 use super::triage::{write_gemma_jpeg, TriageCard, GEMMA_IMAGE_EDGE};
 use super::*;
 use crate::app::preview_capture::PreviewSnapshot;
+use crate::platform::AiEditorModel;
 use calibraw_ai::AiFeature;
 use serde_json::{json, Value};
 
@@ -43,6 +51,8 @@ const INTERPRET_PROMPT: &str =
     include_str!("../../../../../../android/app/src/main/assets/gemma/interpret_system.md");
 const EDITOR_PROMPT: &str =
     include_str!("../../../../../../android/app/src/main/assets/gemma/editor_system.md");
+const CLAUDE_EDITOR_PROMPT: &str =
+    include_str!("../../../../../../android/app/src/main/assets/claude/editor_system.md");
 /// How a brief that answers a question instead starts.
 const ANSWER: &str = "Answer:";
 const EDITOR_IMAGE_FILE: &str = "gemma-editor.jpg";
@@ -57,6 +67,9 @@ const SET_AI_DENOISE: &str = "set_ai_denoise";
 /// every nudge after the first undid or overdid it (contrast 30→10, shadows
 /// and highlights +100), so the photographer steers with follow-ups instead.
 const MAX_NUDGES: u32 = 1;
+/// Nudges one Claude request may make: its first, then corrections after
+/// looking at the preview.
+const CLAUDE_MAX_NUDGES: u32 = 4;
 
 /// Who wrote a chat message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,6 +101,9 @@ pub(crate) struct EditorState {
     /// What the last request asked and changed, for the next one's first
     /// message.
     last_change: Option<String>,
+    /// Whether Claude's conversation about the photo is open, so a request
+    /// continues it rather than starting one.
+    claude_conversation: bool,
     request: Option<Request>,
     next_request_id: u64,
 }
@@ -194,10 +210,13 @@ impl CalibRawApp {
         if self.ai.triage.card.is_none() || self.ai.editor.prepared_for == Some(generation) {
             return;
         }
-        let prepared = self
-            .platform
-            .gemma_editor_prepare(INTERPRET_PROMPT)
-            .and_then(|()| self.platform.gemma_editor_prepare(EDITOR_PROMPT));
+        let prepared = match self.ai.editor_model {
+            AiEditorModel::Gemma => self
+                .platform
+                .gemma_editor_prepare(INTERPRET_PROMPT)
+                .and_then(|()| self.platform.gemma_editor_prepare(EDITOR_PROMPT)),
+            AiEditorModel::ClaudeCode => self.platform.gemma_editor_prepare(CLAUDE_EDITOR_PROMPT),
+        };
         match prepared {
             Ok(()) => self.ai.editor.prepared_for = Some(generation),
             Err(error) => log::warn!("{error}"),
@@ -311,6 +330,7 @@ impl CalibRawApp {
             return;
         };
         let edit = self.ai_edit_summary();
+        let model = self.ai.editor_model;
         let editor = &mut self.ai.editor;
         let Some(request) = editor.request.as_ref() else {
             return;
@@ -318,31 +338,58 @@ impl CalibRawApp {
         let Step::Capturing(outgoing) = &request.step else {
             return;
         };
-        // The phase a message starts, by its system prompt.
-        let system_prompt = match outgoing {
-            Outgoing::Request => Some(INTERPRET_PROMPT),
-            Outgoing::Brief { .. } => Some(EDITOR_PROMPT),
-            Outgoing::Nudged { .. } => None,
-        };
-        let interpreting = matches!(outgoing, Outgoing::Request);
         let photo = photo_line(card);
         let previous = editor
             .last_change
             .as_ref()
             .map(|change| format!("{change}\n"))
             .unwrap_or_default();
-        let message = match outgoing {
-            Outgoing::Request => format!(
-                "{photo}\n{previous}Request: {}\n\nCurrent values: {edit}",
-                request.text
-            ),
-            Outgoing::Brief { brief } => {
-                format!("{photo}\n{previous}Brief:\n{brief}\n\nCurrent values: {edit}")
+        // The conversation a message starts, by its system prompt, or None
+        // to continue the open one.
+        let (system_prompt, message) = match model {
+            AiEditorModel::Gemma => {
+                let system_prompt = match outgoing {
+                    Outgoing::Request => Some(INTERPRET_PROMPT),
+                    Outgoing::Brief { .. } => Some(EDITOR_PROMPT),
+                    Outgoing::Nudged { .. } => None,
+                };
+                let message = match outgoing {
+                    Outgoing::Request => format!(
+                        "{photo}\n{previous}Request: {}\n\nCurrent values: {edit}",
+                        request.text
+                    ),
+                    Outgoing::Brief { brief } => {
+                        format!("{photo}\n{previous}Brief:\n{brief}\n\nCurrent values: {edit}")
+                    }
+                    Outgoing::Nudged { results } => format!(
+                        "The app set:\n{results}\n\nThe preview after your nudge. Current values: {edit}\nSay what you changed and why, without a tool line."
+                    ),
+                };
+                (system_prompt, message)
             }
-            Outgoing::Nudged { results } => format!(
-                "The app set:\n{results}\n\nThe preview after your nudge. Current values: {edit}\nSay what you changed and why, without a tool line."
-            ),
+            AiEditorModel::ClaudeCode => {
+                let starts = !editor.claude_conversation;
+                let message = match outgoing {
+                    Outgoing::Request if starts => format!(
+                        "{photo}\n{previous}Request: {}\n\nCurrent values: {edit}",
+                        request.text
+                    ),
+                    // Claude never writes a brief.
+                    Outgoing::Request | Outgoing::Brief { .. } => {
+                        format!("Request: {}\n\nCurrent values: {edit}", request.text)
+                    }
+                    Outgoing::Nudged { results } if request.nudges < CLAUDE_MAX_NUDGES => format!(
+                        "The app set:\n{results}\n\nThe new preview. Current values: {edit}\nIf it shows what was asked, say what you changed in one or two sentences, without a tool line; otherwise write the tool lines that correct it."
+                    ),
+                    Outgoing::Nudged { results } => format!(
+                        "The app set:\n{results}\n\nThe new preview. Current values: {edit}\nYou have no corrections left: say what you changed in one or two sentences, without a tool line."
+                    ),
+                };
+                editor.claude_conversation = true;
+                (starts.then_some(CLAUDE_EDITOR_PROMPT), message)
+            }
         };
+        let interpreting = model == AiEditorModel::Gemma && matches!(outgoing, Outgoing::Request);
         log::info!("AI editor message: {}", message.replace('\n', " | "));
 
         let device = render_state.device.clone();
@@ -364,7 +411,7 @@ impl CalibRawApp {
             write_gemma_jpeg(preview, &jpeg_path)?;
             let body = platform.gemma_editor_send(request_id, &message, Some(&jpeg_path))?;
             serde_json::from_str::<Reply>(&body).map_err(|error| {
-                format!("Gemma's reply is not the expected JSON ({error}): {body}")
+                format!("the model's reply is not the expected JSON ({error}): {body}")
             })
         });
         self.ai.editor.prepared_for = Some(self.persistence.document_generation);
@@ -442,8 +489,12 @@ impl CalibRawApp {
             arguments: call.arguments,
         }));
         let calls = routed(calls);
+        let max_nudges = match self.ai.editor_model {
+            AiEditorModel::Gemma => MAX_NUDGES,
+            AiEditorModel::ClaudeCode => CLAUDE_MAX_NUDGES,
+        };
 
-        if calls.is_empty() || nudges >= MAX_NUDGES {
+        if calls.is_empty() || nudges >= max_nudges {
             if !calls.is_empty() {
                 log::info!("AI editor drops tool lines written after the last nudge");
             }
@@ -601,15 +652,23 @@ impl CalibRawApp {
     }
 
     /// Ends the running request, keeping what it changed for the next one,
-    /// and closes its conversation, which reserves memory until closed.
+    /// and closes Gemma's conversation, which reserves memory until closed.
+    /// Claude's stays open for the next request.
     fn finish_ai_editor_request(&mut self) {
         let editor = &mut self.ai.editor;
         if let Some(request) = editor.request.take() {
             log::info!("AI editor request ended after {} nudges", request.nudges);
             editor.last_change = Some(change_summary(&request.text, &request.changes));
-            if let Err(error) = self.platform.gemma_editor_close() {
-                log::warn!("{error}");
+            if self.ai.editor_model == AiEditorModel::Gemma {
+                self.close_ai_editor_conversation();
             }
+        }
+    }
+
+    fn close_ai_editor_conversation(&mut self) {
+        self.ai.editor.claude_conversation = false;
+        if let Err(error) = self.platform.gemma_editor_close() {
+            log::warn!("{error}");
         }
     }
 
@@ -631,6 +690,11 @@ impl CalibRawApp {
         }
         // Its nudges stay in the edit, so the next request hears of them.
         self.finish_ai_editor_request();
+        // Claude's conversation may have lost a turn, so the next request
+        // starts a new one.
+        if self.ai.editor.claude_conversation {
+            self.close_ai_editor_conversation();
+        }
         self.ai.editor.messages.push(ChatMessage {
             role: ChatRole::Failure,
             text: error,

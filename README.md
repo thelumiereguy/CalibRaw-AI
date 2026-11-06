@@ -10,7 +10,7 @@
 [![Graphics: wgpu](https://img.shields.io/badge/Graphics-wgpu_%2F_WGSL-red.svg)](https://wgpu.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Linux_%7C_Android_%7C_Windows_%7C_macOS-green.svg)](https://github.com/Duecki1/CalibRaw/releases/latest)
 
-[**Download**](#download) • [**Why CalibRaw**](#why-calibraw) • [**Features**](#key-features) • [**FAQ**](#faq) • [**Supported Formats**](#supported-formats) • [**Building**](#building-from-source)
+[**References**](#references) • [**Download**](#download) • [**Why CalibRaw**](#why-calibraw) • [**Features**](#key-features) • [**FAQ**](#faq) • [**Supported Formats**](#supported-formats) • [**Building**](#building-from-source)
 
 [**Website**](https://calibraw.dueckis.de) • [**Discord**](https://discord.gg/yrY3JDJKsr) • [**Instagram**](https://www.instagram.com/calib.raw/)
 
@@ -42,6 +42,18 @@
 </table>
 
 Edit RAW files with sliders, curves, color grading and masks. AI tools can select a subject or the sky, remove objects and denoise high-ISO photos. Everything runs **on your device**, without an account or subscription.
+
+---
+
+## References
+
+The AI editor on Android takes its approaches from these projects:
+
+- **[LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)**: Runs Gemma on the phone for the photo triage and the editor chat.
+- **[Termux](https://github.com/termux/termux-app)**: Its `RUN_COMMAND` intent, which CalibRaw uses to start Claude Code in Termux.
+- **[code-for-termux](https://github.com/amangujar21/code-for-termux)**: Reference for launching Claude Code through `RUN_COMMAND` and for installing the official linux-arm64 binary, patched with `patchelf` to run on Termux's glibc. No code was copied; it has no license.
+- **[claude-droid](https://github.com/minedmap/claude-droid)**: Reference for driving Claude Code from an app over `stream-json`, with `--include-partial-messages` to stream replies.
+- **[Claude Code](https://github.com/anthropics/claude-code)**: The second AI editor model, run in Termux.
 
 ---
 
