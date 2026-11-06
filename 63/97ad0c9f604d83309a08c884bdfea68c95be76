@@ -1,0 +1,23 @@
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_52fc0aae64dc15 121
+  s_8f74af7efeeba8::t_caab06e4bc959f 123-124
+  s_8f74af7efeeba8::t_ce16d507fdfab3 122
+crates/calibraw-ui/src/app/edit_history.rs
+  s_8f74af7efeeba8::t_88b9b476568f84 521-522,524-526,530-532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6397ad0c9f604d83309a08c884bdfea68c95be76",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
