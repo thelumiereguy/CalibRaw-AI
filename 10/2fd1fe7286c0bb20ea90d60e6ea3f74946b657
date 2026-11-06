@@ -1,0 +1,54 @@
+android/app/src/main/java/de/duecki/calibraw/ClaudeBridge.java
+  s_8f74af7efeeba8::t_451e7172e655e6 739-745
+  s_8f74af7efeeba8::t_2d43ad3d392723 267-268,274,276-285,292-295,300,304-311
+  s_8f74af7efeeba8::t_5cb2166603eef2 348-351
+  s_8f74af7efeeba8::t_28006f1d4afcd9 760,833
+  s_8f74af7efeeba8::t_f513bd8172fd4f 38
+  s_8f74af7efeeba8::t_3392d20a38d2fe 152,312,677,680,735-738,747-755,761,766-767,776,783-788,790-794,796-801,815-829,835
+  s_8f74af7efeeba8::t_52485033219bce 117-121,124-126,129-132,136-139,149-151
+  s_8f74af7efeeba8::t_82d9c13f1f6c7a 168-171,174-178,180
+  s_8f74af7efeeba8::t_2859601f8784c9 90-92,97-98,103-104,106-108
+  s_8f74af7efeeba8::t_63f6914e6cc15a 746
+  s_8f74af7efeeba8::t_eebf83c74e9e80 69
+  s_8f74af7efeeba8::t_450cd55c3e3a5b 214-216
+  s_8f74af7efeeba8::t_2e4fbd7dc15e5c 676
+  s_8f74af7efeeba8::t_f2e44b89379901 678-679
+  s_8f74af7efeeba8::t_a308b61a7b209d 759
+  s_8f74af7efeeba8::t_29b789e48b3595 830-832
+  s_8f74af7efeeba8::t_245f7533845bb5 834
+  s_8f74af7efeeba8::t_13ed5ab91a7dad 836-837
+  s_8f74af7efeeba8::t_5af7c0cc47107a 354
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_8f74af7efeeba8::t_dfca6c912b5911 327
+  s_8f74af7efeeba8::t_c19e8b642e89e7 170
+  s_8f74af7efeeba8::t_6b1c6feac80f14 245-254
+  s_8f74af7efeeba8::t_b9232253e97b35 418
+android/app/src/main/assets/claude/connect.sh
+  s_8f74af7efeeba8::t_b6bfb5d6705904 14-15
+  s_8f74af7efeeba8::t_ef441a7f761046 16-17
+android/app/src/main/assets/claude/install.sh
+  s_8f74af7efeeba8::t_d35d7d2ccdaf16 4
+  s_8f74af7efeeba8::t_2acb148be52a11 17-23,25
+docs/DEVELOPMENT.md
+  s_8f74af7efeeba8::t_3cadaf8de1e9e4 614-616
+  s_8f74af7efeeba8::t_d05b6ad4cadf6c 610-612
+  s_8f74af7efeeba8::t_07d3a68652c6ed 620-624
+android/app/src/main/java/de/duecki/calibraw/AiModels.java
+  s_8f74af7efeeba8::t_694c7995a904d2 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "102fd1fe7286c0bb20ea90d60e6ea3f74946b657",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "unknown"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
