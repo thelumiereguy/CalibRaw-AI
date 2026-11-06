@@ -48,7 +48,7 @@ use super::masks::{mask_named, selection_image, PreviewPlacement, MAX_SELECTION_
 use super::sliders::{apply_set_sliders, changed_sliders, is_slider};
 use super::tone_curve::{apply_set_tone_curve, changed_curves, is_curve};
 use super::tools::{describe, number, written};
-use super::triage::{write_gemma_jpeg, TriageCard, GEMMA_IMAGE_EDGE};
+use super::triage::{write_model_jpeg, TriageCard, MODEL_IMAGE_EDGE};
 use super::*;
 use crate::app::preview_capture::PreviewSnapshot;
 use crate::platform::AiEditorModel;
@@ -63,7 +63,7 @@ const CLAUDE_EDITOR_PROMPT: &str =
     include_str!("../../../../../../android/app/src/main/assets/claude/editor_system.md");
 /// How a brief that answers a question instead starts.
 const ANSWER: &str = "Answer:";
-const EDITOR_IMAGE_FILE: &str = "gemma-editor.jpg";
+const EDITOR_IMAGE_FILE: &str = "ai-editor.jpg";
 /// The tools the app applies.
 const SET_SLIDERS: &str = "set_sliders";
 const SET_COLOR_MIXER: &str = "set_color_mixer";
@@ -471,7 +471,7 @@ impl CalibRawApp {
                 platform.ai_editor_start_request(system_prompt)?;
             }
             let preview = snapshot
-                .read_thumbnail_blocking(&device, &queue, GEMMA_IMAGE_EDGE)
+                .read_thumbnail_blocking(&device, &queue, MODEL_IMAGE_EDGE)
                 .map_err(|error| format!("could not read the preview back: {error:#}"))?;
             let write = |image: &crate::pipeline::RawThumbnail, path: &Path| {
                 let image = crate::pipeline::transform_thumbnail_geometry_with_lens(
@@ -481,7 +481,7 @@ impl CalibRawApp {
                 );
                 let image = image::RgbaImage::from_raw(image.width, image.height, image.rgba)
                     .ok_or_else(|| "the preview read back with an invalid size".to_owned())?;
-                write_gemma_jpeg(image, path)
+                write_model_jpeg(image, path)
             };
             write(&preview, &jpeg_path)?;
             let mut images = vec![jpeg_path];

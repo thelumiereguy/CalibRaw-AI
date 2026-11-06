@@ -14,11 +14,11 @@ use crate::platform::AiEditorModel;
 use serde::Deserialize;
 use std::path::Path;
 
-/// Longest edge of the image Gemma sees; its vision encoder scales it down
-/// further, so a larger one only costs encode time.
-pub(super) const GEMMA_IMAGE_EDGE: u32 = 1024;
-const GEMMA_JPEG_QUALITY: u8 = 90;
-const TRIAGE_IMAGE_FILE: &str = "gemma-triage.jpg";
+/// Longest edge of the image the model sees; Gemma's vision encoder scales it
+/// down further, so a larger one only costs encode time.
+pub(super) const MODEL_IMAGE_EDGE: u32 = 1024;
+const MODEL_JPEG_QUALITY: u8 = 90;
+const TRIAGE_IMAGE_FILE: &str = "ai-triage.jpg";
 /// Shown when the model's emoji is missing.
 const FALLBACK_EMOJI: &str = "📷";
 /// Pixel size of the colour badge the platform draws; the toolbar shows it
@@ -47,7 +47,7 @@ impl TriageCard {
     fn clamped(self) -> Result<Self, String> {
         let genre = clamp_text(&self.genre, 40);
         if genre.is_empty() {
-            return Err("Gemma's triage card names no genre".to_owned());
+            return Err("the triage card names no genre".to_owned());
         }
         Ok(Self {
             genre,
@@ -197,7 +197,7 @@ impl CalibRawApp {
         let document_generation = self.persistence.document_generation;
         let receiver = spawn_ui_worker(&self.egui_ctx, move || {
             let preview = snapshot
-                .read_thumbnail_blocking(&device, &queue, GEMMA_IMAGE_EDGE)
+                .read_thumbnail_blocking(&device, &queue, MODEL_IMAGE_EDGE)
                 .map_err(|error| format!("could not read the preview back: {error:#}"))?;
             let preview = crate::pipeline::transform_thumbnail_geometry_with_lens(
                 &preview,
@@ -234,7 +234,7 @@ impl CalibRawApp {
                 .is_some_and(|(generation, _)| *generation == headline.request_id);
             if current && triage.card.is_none() {
                 log::info!(
-                    "Gemma named the genre {} {}",
+                    "AI triage named the genre {} {}",
                     headline.emoji,
                     headline.genre
                 );
@@ -252,9 +252,7 @@ impl CalibRawApp {
         let result = match receiver.try_recv() {
             Ok(result) => result,
             Err(mpsc::TryRecvError::Empty) => return,
-            Err(mpsc::TryRecvError::Disconnected) => {
-                Err("the Gemma triage worker stopped".to_owned())
-            }
+            Err(mpsc::TryRecvError::Disconnected) => Err("the AI triage worker stopped".to_owned()),
         };
         let current = *generation == self.persistence.document_generation;
         self.ai.triage.pending = None;
@@ -263,7 +261,7 @@ impl CalibRawApp {
         }
         match result {
             Ok((card, badge)) => {
-                log::info!("Gemma triaged the photo as {} {}", card.emoji, card.genre);
+                log::info!("AI triage named the photo {} {}", card.emoji, card.genre);
                 if self.ai.triage.badge.is_none() {
                     self.ai.triage.badge = badge_texture(&self.egui_ctx, badge);
                 }
@@ -283,7 +281,7 @@ fn badge_texture(ctx: &egui::Context, rgba: Option<Vec<u8>>) -> Option<egui::Tex
     rgba.filter(|rgba| rgba.len() == side * side * 4)
         .map(|rgba| {
             ctx.load_texture(
-                "gemma-triage-badge",
+                "triage-badge",
                 egui::ColorImage::from_rgba_premultiplied([side, side], &rgba),
                 egui::TextureOptions::LINEAR,
             )
@@ -314,32 +312,32 @@ fn fill_triage_card(
     jpeg_path: &Path,
     request_id: u64,
 ) -> Result<TriageCard, String> {
-    write_gemma_jpeg(image, jpeg_path)?;
+    write_model_jpeg(image, jpeg_path)?;
     let body = platform.ai_triage(jpeg_path, "", request_id, BADGE_PX)?;
     serde_json::from_str::<TriageCard>(&body)
-        .map_err(|error| format!("Gemma's triage card is not the expected JSON ({error}): {body}"))?
+        .map_err(|error| format!("the triage card is not the expected JSON ({error}): {body}"))?
         .clamped()
 }
 
-/// Writes `image` to `path` as the JPEG Gemma reads, scaled down to
-/// [`GEMMA_IMAGE_EDGE`].
-pub(super) fn write_gemma_jpeg(image: image::RgbaImage, path: &Path) -> Result<(), String> {
+/// Writes `image` to `path` as the JPEG the model reads, scaled down to
+/// [`MODEL_IMAGE_EDGE`].
+pub(super) fn write_model_jpeg(image: image::RgbaImage, path: &Path) -> Result<(), String> {
     let mut image = image::DynamicImage::ImageRgba8(image);
-    if image.width().max(image.height()) > GEMMA_IMAGE_EDGE {
+    if image.width().max(image.height()) > MODEL_IMAGE_EDGE {
         image = image.resize(
-            GEMMA_IMAGE_EDGE,
-            GEMMA_IMAGE_EDGE,
+            MODEL_IMAGE_EDGE,
+            MODEL_IMAGE_EDGE,
             image::imageops::FilterType::Triangle,
         );
     }
     let image = image::DynamicImage::ImageRgb8(image.to_rgb8());
     let mut encoded = Vec::new();
-    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, GEMMA_JPEG_QUALITY)
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, MODEL_JPEG_QUALITY)
         .encode_image(&image)
-        .map_err(|error| format!("could not encode the image for Gemma: {error}"))?;
+        .map_err(|error| format!("could not encode the image for the model: {error}"))?;
     calibraw_core::file_ops::write_bytes_atomically(path, &encoded).map_err(|error| {
         format!(
-            "could not write the image for Gemma {}: {error}",
+            "could not write the image for the model {}: {error}",
             path.display()
         )
     })

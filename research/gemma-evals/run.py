@@ -91,7 +91,7 @@ def type_request(text):
 def run_cell(case, photo, folder):
     """Runs one case on one photo; returns (ok, problem)."""
     reset_photo(photo)
-    adb("shell", "run-as", PKG, "rm", "-f", "files/gemma-trace.txt", "files/gemma-editor.jpg")
+    adb("shell", "run-as", PKG, "rm", "-f", "files/gemma-trace.txt", "files/ai-editor.jpg")
     adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
     time.sleep(5)
@@ -111,11 +111,11 @@ def run_cell(case, photo, folder):
         if not wait_for(r"^\d+ SEND .*Request: ", SEND_SECONDS, turn):
             return False, f"turn {turn} not sent"
         time.sleep(0.5)
-        pull("files/gemma-editor.jpg", folder / f"before{turn}.jpg")
+        pull("files/ai-editor.jpg", folder / f"before{turn}.jpg")
         if not wait_for(r"^\d+ CLOSE", TURN_SECONDS, turn):
             return False, f"turn {turn} did not end"
         time.sleep(1)
-        pull("files/gemma-editor.jpg", folder / f"after{turn}.jpg")
+        pull("files/ai-editor.jpg", folder / f"after{turn}.jpg")
     return True, None
 
 
