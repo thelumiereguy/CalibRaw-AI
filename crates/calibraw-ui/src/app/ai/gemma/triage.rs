@@ -9,6 +9,7 @@
 //! when the photographer asks Claude about it.
 
 use super::*;
+use crate::app::preview_capture::PreviewSnapshot;
 use crate::platform::AiEditorModel;
 use serde::Deserialize;
 use std::path::Path;
@@ -80,8 +81,9 @@ pub(crate) struct TriageState {
     pub(crate) badge: Option<egui::TextureHandle>,
     /// The document generation the running triage is for, and its result.
     pending: Option<(u64, mpsc::Receiver<TriageResult>)>,
-    /// Why the open photo has no card. Logged, never shown as an error: the
-    /// photo stays editable without one.
+    /// Why the open photo has no card. The AI editor's chat shows it with a
+    /// retry ([`CalibRawApp::retry_photo_triage`]), never an error dialog:
+    /// the photo stays editable by hand without one.
     pub(crate) failure: Option<String>,
     /// The open photo is triaged once Develop shows it, and with Claude Code
     /// once the AI editor's chat is open too: Claude Code waits for the chat,
@@ -99,6 +101,13 @@ impl TriageState {
         self.pending.is_some()
     }
 
+    /// Whether the triage runs or waits to start. In the AI editor's chat,
+    /// which shows with Develop and lets Claude Code see the photo, a
+    /// waiting triage starts once the preview shows every edit.
+    pub(crate) fn looking(&self) -> bool {
+        self.pending.is_some() || self.waiting
+    }
+
     /// The photo's genre and emoji, from the card or, while it is not done,
     /// from what Gemma wrote first.
     pub(crate) fn headline(&self) -> Option<(&str, &str)> {
@@ -111,79 +120,106 @@ impl TriageState {
 }
 
 impl CalibRawApp {
-    /// Starts the triage of the photo of `document_generation`, which just
-    /// opened, from its rendered preview; with Claude Code it waits until the
-    /// AI editor's chat opens.
+    /// Has the photo of `document_generation`, which just opened, triaged
+    /// once Develop shows its preview with every edit; with Claude Code once
+    /// the AI editor's chat is open too.
     pub(in crate::app) fn start_photo_triage(
         &mut self,
         frame: &eframe::Frame,
         document_generation: u64,
     ) {
-        if self.ai.editor_model == AiEditorModel::ClaudeCode && !self.ai.editor.open {
-            self.ai.triage.waiting = true;
+        if document_generation != self.persistence.document_generation {
             return;
         }
-        let started = self
-            .read_triage_image(frame)
-            .and_then(|image| {
-                let data_dir = self
-                    .platform
-                    .internal_data_dir()
-                    .ok_or_else(|| "the app has no private data folder".to_owned())?;
-                Ok((image, data_dir.join(TRIAGE_IMAGE_FILE)))
-            })
-            .map(|(image, jpeg_path)| {
-                let platform = Arc::clone(&self.platform);
-                spawn_ui_worker(&self.egui_ctx, move || {
-                    triage_photo(platform.as_ref(), image, &jpeg_path, document_generation)
-                })
-            });
-        match started {
-            Ok(receiver) => self.ai.triage.pending = Some((document_generation, receiver)),
-            Err(error) => {
-                log::warn!("Gemma triage could not start: {error}");
-                self.ai.triage.failure = Some(error);
-            }
-        }
+        self.ai.triage.failure = None;
+        self.ai.triage.waiting = true;
+        self.start_waiting_photo_triage(frame);
     }
 
-    /// Starts the waiting triage of the open photo once Develop shows it with
-    /// its preview, and with Claude Code once the AI editor's chat is open.
+    /// Triages the open photo again after its triage failed, as the
+    /// photographer asked in the AI editor's chat. The chat is open, so
+    /// Claude Code may see the photo.
+    pub(crate) fn retry_photo_triage(&mut self) {
+        if self.ai.triage.running() || self.develop.loaded_raw.is_none() {
+            return;
+        }
+        self.ai.triage.failure = None;
+        self.ai.triage.waiting = true;
+        self.egui_ctx.request_repaint();
+    }
+
+    /// Starts the waiting triage of the open photo once Develop shows its
+    /// preview with every edit, and with Claude Code once the AI editor's
+    /// chat is open. The preview is read back, cropped and sent on a worker,
+    /// as the AI editor sends it (editor.rs).
     pub(in crate::app) fn start_waiting_photo_triage(&mut self, frame: &eframe::Frame) {
         if !self.ai.triage.waiting
             || self.ui.active_tab != AppTab::Develop
             || self.develop.loaded_raw.is_none()
-            || self.preview.pipeline().is_none()
             || self.document_load_is_background()
             || (self.ai.editor_model == AiEditorModel::ClaudeCode && !self.ai.editor.open)
         {
             return;
         }
+        let snapshot = match self.current_preview_snapshot(frame) {
+            PreviewSnapshot::Ready(snapshot) => snapshot,
+            // A repaint is requested to look again.
+            PreviewSnapshot::Rendering => return,
+            PreviewSnapshot::NoGpu => {
+                self.fail_photo_triage("the GPU preview is not available".to_owned());
+                return;
+            }
+        };
+        let Some(render_state) = frame.wgpu_render_state() else {
+            self.fail_photo_triage("the GPU preview is not available".to_owned());
+            return;
+        };
+        let Some(data_dir) = self.platform.internal_data_dir() else {
+            self.fail_photo_triage("the app has no private data folder".to_owned());
+            return;
+        };
         self.ai.triage.waiting = false;
-        self.start_photo_triage(frame, self.persistence.document_generation);
+        let device = render_state.device.clone();
+        let queue = render_state.queue.clone();
+        let geometry = self.develop.geometry;
+        // As the AI editor sends the preview: lens-corrected for Claude,
+        // which sees it as the photographer does.
+        let lens = match self.ai.editor_model {
+            AiEditorModel::Gemma => None,
+            AiEditorModel::ClaudeCode => self
+                .develop
+                .loaded_raw
+                .as_ref()
+                .and_then(|raw| raw.lens_geometry.clone()),
+        };
+        let jpeg_path = data_dir.join(TRIAGE_IMAGE_FILE);
+        let platform = Arc::clone(&self.platform);
+        let document_generation = self.persistence.document_generation;
+        let receiver = spawn_ui_worker(&self.egui_ctx, move || {
+            let preview = snapshot
+                .read_thumbnail_blocking(&device, &queue, GEMMA_IMAGE_EDGE)
+                .map_err(|error| format!("could not read the preview back: {error:#}"))?;
+            let preview = crate::pipeline::transform_thumbnail_geometry_with_lens(
+                &preview,
+                geometry,
+                lens.as_deref(),
+            );
+            let image = image::RgbaImage::from_raw(preview.width, preview.height, preview.rgba)
+                .ok_or_else(|| "the preview read back with an invalid size".to_owned())?;
+            triage_photo(platform.as_ref(), image, &jpeg_path, document_generation)
+        });
+        self.ai.triage.pending = Some((document_generation, receiver));
     }
 
-    /// The preview as shown, read back from the GPU.
-    fn read_triage_image(&self, frame: &eframe::Frame) -> Result<image::RgbaImage, String> {
-        let render_state = frame
-            .wgpu_render_state()
-            .ok_or_else(|| "the GPU preview is not available".to_owned())?;
-        let pipeline = self
-            .preview
-            .pipeline()
-            .ok_or_else(|| "the photo has no preview yet".to_owned())?;
-        let rgba = pipeline
-            .read_output_region_blocking(
-                &render_state.device,
-                &render_state.queue,
-                0,
-                0,
-                pipeline.width,
-                pipeline.height,
-            )
-            .map_err(|error| format!("could not read the preview back: {error:#}"))?;
-        image::RgbaImage::from_raw(pipeline.width, pipeline.height, rgba)
-            .ok_or_else(|| "the preview read back with an invalid size".to_owned())
+    /// Records why the open photo has no card. The genre written before the
+    /// failure goes too, since no card follows it.
+    fn fail_photo_triage(&mut self, error: String) {
+        log::warn!("AI triage failed: {error}");
+        let triage = &mut self.ai.triage;
+        triage.waiting = false;
+        triage.headline = None;
+        triage.badge = None;
+        triage.failure = Some(error);
     }
 
     /// Takes the running triage's headline, then its finished card, when
@@ -235,10 +271,7 @@ impl CalibRawApp {
                 self.ai.triage.card = Some(card);
                 self.prepare_ai_editor();
             }
-            Err(error) => {
-                log::warn!("Gemma triage failed: {error}");
-                self.ai.triage.failure = Some(error);
-            }
+            Err(error) => self.fail_photo_triage(error),
         }
     }
 }
