@@ -51,10 +51,14 @@ public final class CalibRawActivity extends NativeActivity {
     private ExportPublisher exportPublisher;
     private AiModels aiModels;
     private TaskNotificationController taskNotificationController;
+    // The values calibraw_ffi::set_soft_keyboard sends; 0 is no field.
+    private static final int SOFT_KEYBOARD_TEXT = 1;
+    private static final int SOFT_KEYBOARD_NUMBER = 2;
     // Created on first use; UI thread only.
+    private TextInputView textInputView;
     private NumericInputView numericInputView;
-    // The view that had input focus before the number layout took it.
-    private View focusBeforeNumericInput;
+    // The view that had input focus before one of the two above took it.
+    private View focusBeforeKeyboardInput;
     private final ExecutorService startupMaintenanceExecutor =
             Executors.newSingleThreadExecutor(runnable ->
                     new Thread(runnable, "CalibRaw startup maintenance"));
@@ -254,35 +258,58 @@ public final class CalibRawActivity extends NativeActivity {
         });
     }
 
-    // Shows the soft keyboard's number layout while the UI edits a number. Showing and hiding the
-    // keyboard stays with winit; this only moves input focus between NativeActivity's view, which
-    // gets the text layout, and NumericInputView.
-    public void setNumericKeyboard(int numericFlag) {
-        final boolean numeric = numericFlag != 0;
+    // Points the soft keyboard at the field the UI edits: TextInputView for text, so the keyboard
+    // offers swipe and voice typing, or NumericInputView for its number layout. Showing and hiding
+    // the keyboard stays with winit; this only moves input focus between NativeActivity's view,
+    // which has no input connection, and those two.
+    public void setSoftKeyboard(int field) {
         runOnUiThread(() -> {
             InputMethodManager inputMethods = getSystemService(InputMethodManager.class);
-            if (numeric) {
-                if (numericInputView == null) {
-                    numericInputView = new NumericInputView(this);
-                    addContentView(numericInputView, new ViewGroup.LayoutParams(1, 1));
+            View focused = getWindow().getCurrentFocus();
+            boolean keyboardInputFocused = focused != null
+                    && (focused == textInputView || focused == numericInputView);
+            View target = keyboardInputView(field);
+            if (target == null) {
+                if (keyboardInputFocused) {
+                    View previous = focusBeforeKeyboardInput;
+                    focusBeforeKeyboardInput = null;
+                    if (previous != null && previous.requestFocus()) {
+                        inputMethods.restartInput(previous);
+                    } else {
+                        focused.clearFocus();
+                    }
                 }
-                if (numericInputView.hasFocus()) {
-                    return;
-                }
-                focusBeforeNumericInput = getWindow().getCurrentFocus();
-                numericInputView.requestFocus();
-                inputMethods.restartInput(numericInputView);
-                inputMethods.showSoftInput(numericInputView, 0);
-            } else if (numericInputView != null && numericInputView.hasFocus()) {
-                View previous = focusBeforeNumericInput;
-                focusBeforeNumericInput = null;
-                if (previous != null && previous.requestFocus()) {
-                    inputMethods.restartInput(previous);
-                } else {
-                    numericInputView.clearFocus();
-                }
+                return;
             }
+            if (target.hasFocus()) {
+                return;
+            }
+            if (!keyboardInputFocused) {
+                focusBeforeKeyboardInput = focused;
+            }
+            target.requestFocus();
+            inputMethods.restartInput(target);
+            inputMethods.showSoftInput(target, 0);
         });
+    }
+
+    // The view that takes the keyboard for `field`, added on first use; null for no field.
+    private View keyboardInputView(int field) {
+        if (field == SOFT_KEYBOARD_TEXT) {
+            if (textInputView == null) {
+                textInputView = new TextInputView(this);
+                addContentView(textInputView, new ViewGroup.LayoutParams(1, 1));
+            }
+            return textInputView;
+        }
+        if (field == SOFT_KEYBOARD_NUMBER) {
+            if (numericInputView == null) {
+                numericInputView = new NumericInputView(this);
+                addContentView(numericInputView, new ViewGroup.LayoutParams(1, 1));
+            }
+            return numericInputView;
+        }
+        return null;
     }
 
     @SuppressWarnings("deprecation")

@@ -134,6 +134,17 @@ pub(crate) struct TaskNotification<'a> {
     pub(crate) queued_count: usize,
 }
 
+/// The field an on-screen keyboard types into, which decides what it offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SoftKeyboard {
+    /// No field has focus.
+    None,
+    /// A text field: swipe and voice typing, suggestions.
+    Text,
+    /// A number field: the number layout.
+    Number,
+}
+
 /// The model behind photo triage and the AI editor, chosen in Settings.
 /// Serialized in the performance settings, so the names stay.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -241,10 +252,15 @@ pub(crate) trait Platform: Send + Sync {
     fn keyboard_inset_points(&self, _pixels_per_point: f32) -> f32 {
         0.0
     }
-    /// Shows the on-screen keyboard's number layout instead of its text
-    /// layout while `numeric`.
-    fn set_numeric_keyboard(&self, _numeric: bool) -> Result<(), String> {
+    /// Points the on-screen keyboard at `field`.
+    fn set_soft_keyboard(&self, _field: SoftKeyboard) -> Result<(), String> {
         Ok(())
+    }
+    /// What the on-screen keyboard typed into a text field since the last
+    /// call, in order, where the platform delivers it apart from egui's own
+    /// input.
+    fn take_typed_input(&self) -> Vec<eframe::egui::Event> {
+        Vec::new()
     }
     fn set_light_system_bars(&self, _light: bool) -> Result<(), String> {
         Ok(())

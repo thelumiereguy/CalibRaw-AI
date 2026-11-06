@@ -3,8 +3,8 @@
 use super::service::{
     AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus,
     ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
-    PickedDocument, PickerResult, Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult,
-    TaskNotification, TriageHeadline,
+    PickedDocument, PickerResult, Platform, PublishedExport, ReplayVideoEncoder, SoftKeyboard,
+    StagedFilesResult, TaskNotification, TriageHeadline,
 };
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
@@ -99,8 +99,20 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::keyboard_inset_points(pixels_per_point)
     }
 
-    fn set_numeric_keyboard(&self, numeric: bool) -> Result<(), String> {
-        calibraw_ffi::set_numeric_keyboard(&self.app, numeric)
+    fn set_soft_keyboard(&self, field: SoftKeyboard) -> Result<(), String> {
+        let field = match field {
+            SoftKeyboard::None => calibraw_ffi::SoftKeyboard::None,
+            SoftKeyboard::Text => calibraw_ffi::SoftKeyboard::Text,
+            SoftKeyboard::Number => calibraw_ffi::SoftKeyboard::Number,
+        };
+        calibraw_ffi::set_soft_keyboard(&self.app, field)
+    }
+
+    fn take_typed_input(&self) -> Vec<eframe::egui::Event> {
+        calibraw_ffi::take_typed_input()
+            .into_iter()
+            .flat_map(typed_input_events)
+            .collect()
     }
 
     fn set_light_system_bars(&self, light: bool) -> Result<(), String> {
@@ -599,6 +611,27 @@ impl ReplayVideoEncoder for MediaCodecEncoder {
     fn finish(self: Box<Self>) -> Result<(), String> {
         self.0.finish()
     }
+}
+
+/// egui's events for one edit the soft keyboard typed: the text, or a key
+/// pressed and released.
+fn typed_input_events(input: calibraw_ffi::TypedInput) -> Vec<eframe::egui::Event> {
+    use eframe::egui::{Event, Key, Modifiers};
+    let key = match input {
+        calibraw_ffi::TypedInput::Text(text) => return vec![Event::Text(text)],
+        calibraw_ffi::TypedInput::Backspace => Key::Backspace,
+        calibraw_ffi::TypedInput::Delete => Key::Delete,
+        calibraw_ffi::TypedInput::Enter => Key::Enter,
+    };
+    [true, false]
+        .map(|pressed| Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        })
+        .to_vec()
 }
 
 fn staged_files_result(result: calibraw_ffi::StagedFilesResult) -> StagedFilesResult {

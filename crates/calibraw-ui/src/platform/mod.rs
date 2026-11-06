@@ -45,7 +45,7 @@ pub(crate) use locale::preferred_languages;
 pub(crate) use service::{
     AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus,
     ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
-    PickerResult, Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult,
+    PickerResult, Platform, PublishedExport, ReplayVideoEncoder, SoftKeyboard, StagedFilesResult,
     TaskNotification,
 };
 

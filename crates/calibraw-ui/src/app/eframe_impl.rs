@@ -1,5 +1,6 @@
 use super::*;
 use crate::i18n::{tr, tr_fmt};
+use crate::platform::SoftKeyboard;
 
 fn set_develop_sidebar_panel_width(ctx: &egui::Context, panel_id: egui::Id, width: f32) {
     ctx.data_mut(|data| {
@@ -155,10 +156,17 @@ impl CalibRawApp {
             moduwu_design::set_long_press_duration(ui.ctx(), self.platform.long_press_duration());
         }
 
-        let numeric_keyboard = moduwu_design::numeric_keyboard_requested(ui.ctx());
-        if numeric_keyboard != self.ui.numeric_keyboard {
-            self.ui.numeric_keyboard = numeric_keyboard;
-            if let Err(error) = self.platform.set_numeric_keyboard(numeric_keyboard) {
+        // A value entry is a text field too, so its request is read first.
+        let soft_keyboard = if moduwu_design::numeric_keyboard_requested(ui.ctx()) {
+            SoftKeyboard::Number
+        } else if ui.ctx().text_edit_focused() {
+            SoftKeyboard::Text
+        } else {
+            SoftKeyboard::None
+        };
+        if soft_keyboard != self.ui.soft_keyboard {
+            self.ui.soft_keyboard = soft_keyboard;
+            if let Err(error) = self.platform.set_soft_keyboard(soft_keyboard) {
                 log::warn!("{error}");
             }
         }
@@ -523,6 +531,12 @@ impl eframe::App for CalibRawApp {
         let handles_back =
             self.handles_back_navigation() || moduwu_design::menu_sheet_open(ui.ctx());
         self.platform.set_back_navigation_active(handles_back);
+    }
+
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // The soft keyboard's typing in a text field (Android), after the
+        // events winit delivered for this frame.
+        raw_input.events.extend(self.platform.take_typed_input());
     }
 
     fn on_exit(&mut self) {
