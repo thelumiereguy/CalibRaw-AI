@@ -10,8 +10,10 @@
 //! Beneath them, with no app state: `calls` reads the tool lines the model
 //! writes, and the tools, `sliders`, `color` (mixer and grading),
 //! `tone_curve` and `effects`, read and write the edit, keeping each value in
-//! its control's range (`tools`). Claude Code has two more, which make masks
-//! and their selections (`masks`) and set the crop and geometry (`crop`).
+//! its control's range (`tools`, which also routes each value to its tool and
+//! records what a request changed). `denoise` turns AI denoise on or off.
+//! Claude Code has two more, which make masks and their selections (`masks`)
+//! and set the crop and geometry (`crop`).
 //!
 //! Prompts live in android/app/src/main/assets/gemma/ and, for Claude's
 //! editor, assets/claude/.
@@ -22,6 +24,7 @@ mod calls;
 mod chat;
 mod color;
 mod crop;
+mod denoise;
 mod effects;
 mod masks;
 mod model;

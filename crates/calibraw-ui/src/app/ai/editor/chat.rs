@@ -2,7 +2,8 @@
 //! photo in which the model edits it through six tools: `set_sliders`
 //! (sliders.rs), `set_color_mixer` and `set_color_grading` (color.rs),
 //! `set_tone_curve` (tone_curve.rs), `set_effect` (effects.rs) and
-//! `set_ai_denoise`. The model writes its calls as text lines, which the app
+//! `set_ai_denoise` (denoise.rs). The model writes its calls as text lines,
+//! which the app
 //! reads itself (calls.rs). Gemma's editor_system.md no longer lists
 //! `set_tone_curve` or `set_ai_denoise`, which Gemma misused; the app still
 //! applies them.
@@ -41,18 +42,20 @@
 use super::calls::{read_reply, Call};
 use super::color::{
     apply_set_color_grading, apply_set_color_mixer, changed_grading, changed_mixer,
-    is_grading_value, is_mixer_value,
 };
-use super::effects::{changed_effects, is_effect_value};
+use super::effects::changed_effects;
 use super::masks::{mask_named, selection_image, PreviewPlacement, MAX_SELECTION_IMAGES};
-use super::sliders::{apply_set_sliders, changed_sliders, is_slider};
-use super::tone_curve::{apply_set_tone_curve, changed_curves, is_curve};
-use super::tools::{describe, number, written};
+use super::sliders::{apply_set_sliders, changed_sliders};
+use super::tone_curve::{apply_set_tone_curve, changed_curves};
+use super::tools::{
+    change_summary, change_tool, describe, is_value_name, record_changes, result_line, routed,
+    Change, SET_AI_DENOISE, SET_COLOR_GRADING, SET_COLOR_MIXER, SET_CROP, SET_EFFECT, SET_MASK,
+    SET_MASK_PART, SET_SLIDERS, SET_TONE_CURVE,
+};
 use super::triage::{write_model_jpeg, TriageCard, MODEL_IMAGE_EDGE};
 use super::*;
 use crate::app::preview_capture::PreviewSnapshot;
 use crate::platform::AiEditorModel;
-use calibraw_ai::AiFeature;
 use serde_json::{json, Value};
 
 const INTERPRET_PROMPT: &str =
@@ -64,18 +67,6 @@ const CLAUDE_EDITOR_PROMPT: &str =
 /// How a brief that answers a question instead starts.
 const ANSWER: &str = "Answer:";
 const EDITOR_IMAGE_FILE: &str = "ai-editor.jpg";
-/// The tools the app applies.
-const SET_SLIDERS: &str = "set_sliders";
-const SET_COLOR_MIXER: &str = "set_color_mixer";
-const SET_COLOR_GRADING: &str = "set_color_grading";
-const SET_TONE_CURVE: &str = "set_tone_curve";
-const SET_EFFECT: &str = "set_effect";
-const SET_AI_DENOISE: &str = "set_ai_denoise";
-/// Claude's tools besides those, which assets/claude/editor_system.md
-/// describes.
-const SET_MASK: &str = "set_mask";
-const SET_MASK_PART: &str = "set_mask_part";
-const SET_CROP: &str = "set_crop";
 /// Nudges one request may make, as the editor prompt tells Gemma. With four,
 /// every nudge after the first undid or overdid it (contrast 30→10, shadows
 /// and highlights +100), so the photographer steers with follow-ups instead.
@@ -135,15 +126,6 @@ struct Request {
     /// with the next preview.
     selections: Vec<String>,
     step: Step,
-}
-
-/// A value a request's nudges changed: from `was`, its value before the
-/// first of them, to `now`.
-struct Change {
-    tool: String,
-    name: String,
-    was: Value,
-    now: Value,
 }
 
 enum Step {
@@ -731,60 +713,6 @@ impl CalibRawApp {
         responses
     }
 
-    /// Applies a `set_ai_denoise` call. Turning it on starts the RawNIND job,
-    /// which may first ask the photographer to allow it; the response says
-    /// which, since the app's notices never reach the model.
-    fn apply_set_ai_denoise(&mut self, arguments: &Value, frame: &eframe::Frame) -> Value {
-        let Some(enabled) = arguments.get("enabled").and_then(Value::as_bool) else {
-            return json!({ "error": "enabled must be true or false" });
-        };
-        let Some(raw) = self.develop.loaded_raw.as_deref() else {
-            return json!({ "error": "no photo is open" });
-        };
-        if raw.is_pre_demosaiced_raster() {
-            return json!({
-                "error": "AI denoise works only on RAW photos; use set_sliders' noise_luminance and noise_color"
-            });
-        }
-        let was = json!({
-            "enabled": self.develop.exposure.ai_denoise_enabled,
-            "strength": (self.develop.exposure.ai_denoise_amount * 100.0).round(),
-        });
-        if let Some(strength) = arguments.get("strength").and_then(number) {
-            let amount = strength.clamp(0.0, 100.0) / 100.0;
-            if amount != self.develop.exposure.ai_denoise_amount {
-                self.develop.exposure.ai_denoise_amount = amount;
-                self.mark_pipeline_dirty();
-            }
-        }
-        if enabled != self.develop.exposure.ai_denoise_enabled {
-            if enabled && self.foreground_operation_active() {
-                return json!({ "error": "another operation is running; try again once it finishes" });
-            }
-            self.set_ai_denoise_enabled(enabled, frame);
-        }
-        let status = if self.ai_denoise_running() {
-            "running; it takes about a minute, then the app sends the new preview"
-        } else if self.ai_consent_is_for(AiFeature::Denoise) {
-            "waiting for the photographer to allow it"
-        } else if self.develop.exposure.ai_denoise_enabled {
-            "on"
-        } else if enabled {
-            let reason = self.ui.notice.clone();
-            return json!({ "error": reason.unwrap_or_else(|| "AI denoise could not start".to_owned()) });
-        } else {
-            "off"
-        };
-        json!({
-            "was": was,
-            "now": {
-                "enabled": self.develop.exposure.ai_denoise_enabled,
-                "strength": (self.develop.exposure.ai_denoise_amount * 100.0).round(),
-            },
-            "status": status,
-        })
-    }
-
     /// Ends the running request, keeping what it changed for the next one,
     /// and closes Gemma's conversation, which reserves memory until closed.
     /// Claude's stays open for the next request.
@@ -834,172 +762,6 @@ impl CalibRawApp {
             text: error,
         });
     }
-}
-
-/// The tool that sets the value `name`; every value name belongs to one.
-fn owner(name: &str) -> Option<&'static str> {
-    [
-        (SET_SLIDERS, is_slider as fn(&str) -> bool),
-        (SET_COLOR_MIXER, is_mixer_value),
-        (SET_COLOR_GRADING, is_grading_value),
-        (SET_TONE_CURVE, is_curve),
-        (SET_EFFECT, is_effect_value),
-    ]
-    .into_iter()
-    .find_map(|(tool, owns)| owns(name).then_some(tool))
-}
-
-fn is_value_name(name: &str) -> bool {
-    owner(name).is_some()
-}
-
-/// `calls` with each value moved to the call of the tool that sets it, in the
-/// order the tools are first written: Gemma wrote `vignette_amount` in its
-/// `set_sliders` line, which set nothing.
-fn routed(calls: Vec<Call>) -> Vec<Call> {
-    let mut routed: Vec<Call> = Vec::new();
-    for call in calls {
-        let arguments = match call.arguments {
-            // These tools' values are their own, even where another tool
-            // has one of the same name, such as a mask's `exposure`.
-            Value::Object(arguments)
-                if ![SET_AI_DENOISE, SET_MASK, SET_MASK_PART, SET_CROP]
-                    .contains(&call.name.as_str())
-                    && !arguments.is_empty() =>
-            {
-                arguments
-            }
-            arguments => {
-                routed.push(Call {
-                    name: call.name,
-                    arguments,
-                });
-                continue;
-            }
-        };
-        for (name, value) in arguments {
-            let tool = owner(&name).map_or_else(|| call.name.clone(), str::to_owned);
-            let index = match routed.iter().position(|routed| routed.name == tool) {
-                Some(index) => index,
-                None => {
-                    routed.push(Call {
-                        name: tool,
-                        arguments: Value::Object(serde_json::Map::new()),
-                    });
-                    routed.len() - 1
-                }
-            };
-            if let Value::Object(arguments) = &mut routed[index].arguments {
-                arguments.insert(name, value);
-            }
-        }
-    }
-    routed
-}
-
-/// A tool's `response` to a call of `tool`, as a line for the model in the call
-/// syntax: `tool name=before→after …`, then what it kept in range or could
-/// not set.
-fn result_line(tool: &str, response: &Value) -> String {
-    if let Some(error) = response.get("error").and_then(Value::as_str) {
-        return format!("{tool}: {error}");
-    }
-    let was = response.get("was").and_then(Value::as_object);
-    let mut line = tool.to_owned();
-    for (name, now) in response
-        .get("now")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-    {
-        match was.and_then(|was| was.get(name)) {
-            Some(was) => line.push_str(&format!(" {name}={}→{}", written(was), written(now))),
-            None => line.push_str(&format!(" {name}={}", written(now))),
-        }
-    }
-    for (key, label) in [("limited", "kept within its range"), ("not_set", "not set")] {
-        let names = response
-            .get(key)
-            .and_then(Value::as_array)
-            .filter(|names| !names.is_empty());
-        if let Some(names) = names {
-            let names: Vec<String> = names.iter().map(written).collect();
-            line.push_str(&format!("; {label}: {}", names.join(" ")));
-        }
-    }
-    if let Some(status) = response.get("status").and_then(Value::as_str) {
-        line.push_str(&format!("; {status}"));
-    }
-    line
-}
-
-/// The tool `call`'s changes are recorded under: a mask tool's with the
-/// mask and part it set, since every mask has an `exposure`.
-fn change_tool(call: &Call) -> String {
-    if !matches!(call.name.as_str(), SET_MASK | SET_MASK_PART) {
-        return call.name.clone();
-    }
-    let mut tool = call.name.clone();
-    for key in ["name", "part"] {
-        if let Some(value) = call.arguments.get(key) {
-            tool.push_str(&format!(" {key}={}", written(value)));
-        }
-    }
-    tool
-}
-
-/// Adds the values a call of `tool` set, by its `response`, to `changes`.
-fn record_changes(changes: &mut Vec<Change>, tool: &str, response: &Value) {
-    let (Some(was), Some(now)) = (
-        response.get("was").and_then(Value::as_object),
-        response.get("now").and_then(Value::as_object),
-    ) else {
-        return;
-    };
-    for (name, now) in now {
-        let Some(was) = was.get(name) else {
-            continue;
-        };
-        match changes
-            .iter_mut()
-            .find(|change| change.tool == tool && change.name == *name)
-        {
-            Some(change) => change.now = now.clone(),
-            None => changes.push(Change {
-                tool: tool.to_owned(),
-                name: name.clone(),
-                was: was.clone(),
-                now: now.clone(),
-            }),
-        }
-    }
-}
-
-/// The request `text` and its `changes` for the next request's first
-/// message, the changes in the call syntax as `name=before→after`.
-fn change_summary(text: &str, changes: &[Change]) -> String {
-    let mut groups: Vec<(&str, Vec<String>)> = Vec::new();
-    for change in changes.iter().filter(|change| change.was != change.now) {
-        let pair = format!(
-            "{}={}→{}",
-            change.name,
-            written(&change.was),
-            written(&change.now)
-        );
-        match groups.iter_mut().find(|(tool, _)| *tool == change.tool) {
-            Some((_, pairs)) => pairs.push(pair),
-            None => groups.push((&change.tool, vec![pair])),
-        }
-    }
-    if groups.is_empty() {
-        return format!("Previous request: \"{text}\". It changed nothing.");
-    }
-    let changed = groups
-        .iter()
-        .map(|(tool, pairs)| format!("{tool} {}", pairs.join(" ")))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("Previous request: \"{text}\". It changed:\n{changed}")
 }
 
 /// `brief` without its Keep line, for the second phase. What to keep guides
