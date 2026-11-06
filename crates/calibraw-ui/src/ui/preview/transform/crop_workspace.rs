@@ -177,25 +177,9 @@ pub(in crate::ui::preview) fn corrected_uv_to_native_source(
     source_width: u32,
     source_height: u32,
 ) -> [f32; 2] {
-    let Some(lens_geometry) = lens_geometry else {
-        return corrected_uv;
-    };
-    if corrected_uv[0] < 0.0
-        || corrected_uv[0] > 1.0
-        || corrected_uv[1] < 0.0
-        || corrected_uv[1] > 1.0
-    {
-        return corrected_uv;
-    }
-    let width = source_width.saturating_sub(1).max(1) as f32;
-    let height = source_height.saturating_sub(1).max(1) as f32;
-    let source = lens_geometry.source_position_for_raster(
-        corrected_uv[0] * width,
-        corrected_uv[1] * height,
-        source_width,
-        source_height,
-    );
-    [source[0] / width, source[1] / height]
+    lens_geometry.map_or(corrected_uv, |lens_geometry| {
+        lens_geometry.source_uv_for_raster(corrected_uv, source_width, source_height)
+    })
 }
 
 pub(in crate::ui::preview) fn crop_preview_screen_rect(

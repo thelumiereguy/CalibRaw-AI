@@ -226,23 +226,10 @@ impl PreviewPlacement {
     /// preview's pointer tools map it (`corrected_uv_to_native_source`).
     fn native(&self, preview: [f32; 2]) -> [f32; 2] {
         let corrected = self.corrected(preview);
-        let Some(lens) = &self.lens else {
-            return corrected;
-        };
-        if !corrected.iter().all(|value| (0.0..=1.0).contains(value)) {
-            return corrected;
-        }
         let [width, height] = self.source_size;
-        let [last_x, last_y] = self
-            .source_size
-            .map(|size| size.saturating_sub(1).max(1) as f32);
-        let source = lens.source_position_for_raster(
-            corrected[0] * last_x,
-            corrected[1] * last_y,
-            width,
-            height,
-        );
-        [source[0] / last_x, source[1] / last_y]
+        self.lens.as_ref().map_or(corrected, |lens| {
+            lens.source_uv_for_raster(corrected, width, height)
+        })
     }
 
     fn source_pixels(&self) -> [f32; 2] {
