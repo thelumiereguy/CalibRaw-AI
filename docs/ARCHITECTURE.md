@@ -11,7 +11,7 @@ background work follows. Update it in the change that alters a boundary.
 | `calibraw-core` | Image and edit models, colour mathematics, geometry, parameter validation, RAW/rendered loading, sidecars, presets, the LUT library and `.cube` parsing (`luts`), thumbnail cache | std, decoding and serde crates | any other CalibRaw crate, egui/eframe |
 | `calibraw-gpu` | Headless devices (`device`), adapter memory queries (`memory/`), GPU resource planning, WGSL composition, processing passes, readback, tiled export and file encoding | `calibraw-core`, wgpu, naga_oil; in `memory/`, the platform APIs under wgpu (`windows` DXGI, `ash`, `objc2-metal`) | UI crates, egui/eframe |
 | `calibraw-ai` | AI configuration and device capabilities (`config`), ONNX Runtime loading, its WebGPU plugin and the automatic packages (`runtime/`), where sessions run (GPU if they fit in free memory, else CPU), CPU memory admission, CPU fallback, GPU failure handling and platform and provider quirks (`placement/`), the model table, downloads and installation (`registry/`), the session slot (`slot`), the job worker (`jobs`), model-specific pre/postprocessing (`models/`) | `calibraw-core`, `calibraw-gpu` (denoise/remove render paths) | UI crates, egui/eframe |
-| `calibraw-ffi` | C ABI and the Android JNI bridge: storage, pickers, export publishing, notifications, replay encoder | `calibraw-core` (sidecar types), jni, android-activity | processing crates, UI crates, egui/eframe |
+| `calibraw-ffi` | C ABI and the Android JNI bridge: storage, pickers, export publishing, notifications, replay encoder, soft-keyboard text input, the AI editor's models | `calibraw-core` (sidecar types), jni, android-activity | processing crates, UI crates, egui/eframe |
 | `calibraw-ui` (lib `calibraw`) | Application coordination (`app/`), views (`ui/`), presentation-independent services (`services/`), preview presentation, platform capabilities and OS services (`platform/`) | all crates above, eframe/egui, `moduwu-design`; in `platform/`, the OS crates (`calibraw-ffi`, `rfd`, `trash`, `zbus`, `windows-sys`, `objc2` AppKit bindings, Discord IPC, loggers) | — |
 | `calibraw-cli` | Headless develop export and white-balance diagnostics | `calibraw-core`, `calibraw-gpu` | UI crates, egui/eframe |
 | `xtask` | Repository tooling: architecture checks, line counts, baselines, Android build helpers, icons | std and tooling crates | product crates |
@@ -107,7 +107,7 @@ change that establishes a boundary, not in advance.
   `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
   (`tone_curve.rs`, five outputs at fixed inputs), `set_effect` (`effects.rs`,
   the global Vignette, Grain, Glow and Halation, by slider label) and
-  `set_ai_denoise`. A request is one nudge, the calls of the second phase's
+  `set_ai_denoise` (`denoise.rs`). A request is one nudge, the calls of the second phase's
   first reply, each value sent to the tool that owns its name: each value goes
   where Gemma writes it within its range (`tools.rs`). A cap
   per nudge kept Gemma from reaching black and white or a strong effect, and
@@ -186,7 +186,8 @@ change that establishes a boundary, not in advance.
 |---|---|---|
 | Document state | `DevelopState`, `MaskState::stack`, `InpaintState::edits`, `PersistenceState::history` | exposure, geometry, masks, remove/retouch edits, undo history |
 | Interaction state | `DevelopUiState`, `MaskState` drag fields, view-local `egui` memory | crop/mask drags, pickers, open sections |
-| Active work | `ForegroundOperation`, `ExportTask`, `PreviewState` receivers (including `full_resolution`), `AiState::update`, `InpaintState::receiver` | AI masks, export, preview rebuilds, the idle full-resolution render |
+| Active work | `ForegroundOperation`, `ExportTask`, `PreviewState` receivers (including `full_resolution`), `AiState::update`, `InpaintState::receiver`, and on Android `TriageState`, `EditorState`'s request and `ClaudeSetupState`'s check | AI masks, export, preview rebuilds, the idle full-resolution render, the photo triage, AI editor requests, the Claude Code setup check |
+| AI editor (Android) | `AiState::triage` (the open photo's triage card), `AiState::editor` (`EditorState`: the chat, its draft and what the last request changed), `AiState::claude_setup`; kept in the app only, forgotten when another photo opens or the model is switched | the triage card, chat messages, Claude Code's setup status |
 | Caches | `DevelopState::decoded_raws` (shared with workers), `PreviewState::program_template`, `MaskState` caches, `AiState::people` (kept beside the RAW as `.calibraw-people`), library thumbnail caches, `calibraw-ai` model runtime, `calibraw-gpu` shared relighting surface | decoded RAWs, compiled GPU programs, AI inference results, the people found in the photo and their body parts, the surface derived from the current scene depth while a pipeline shows it |
 
 `PersistenceState::document_generation` identifies the open document: it
@@ -262,7 +263,7 @@ GPU readbacks wait on one-slot channels.
 | per-entry recoloured-copy slot | `DecodedRaw` | document loads and the prefetch worker | held while another camera profile is applied to the decode (reading its DCP); never held with the lens-correction slot |
 | serialized-read gate (HDD mode) | `calibraw_core::serialized_reads` | thumbnail, display-metadata and RAW loads, only while HDD mode is on | one photo file read at a time; decoding stays outside; a leaf lock, re-entered inline on the holding thread |
 | `TextureRetirement` | `PreviewState` | any thread dropping a `PreviewPipeline`; drained by the UI thread | short pushes and one drain per frame |
-| FFI result queues, `REPAINT_NOTIFIER`, Gemma's `TRIAGE_HEADLINE` and `EDITOR_TEXT` slots | `calibraw_ffi::android` | Java callback threads push; the UI thread pops | short critical sections; no JNI call while held |
+| FFI result queues, `REPAINT_NOTIFIER`, the AI models' `TRIAGE_HEADLINE` and `EDITOR_TEXT` slots, the soft keyboard's `TYPED_INPUT` queue | `calibraw_ffi::android` | Java callback threads push; the UI thread pops | short critical sections; no JNI call while held |
 
 Apart from the serialized-read gate, only these nestings exist, each in a fixed
 order: the reference-preview serial lock is taken before the decode gate; a
@@ -414,7 +415,9 @@ production `ShaderManager` composes.
   - `Platform` (`Arc<dyn Platform>`, in `CalibRawApp::platform` and
     `LibraryState`) is the service behind actions: the Android bridge's
     pickers, media library, sidecars, thumbnails, publishing, clipboard,
-    notifications, system bars and replay encoder, Android's end after a lost
+    notifications, system bars, soft keyboard (`set_soft_keyboard`, whose
+    typed text egui receives through `take_typed_input`, so swipe typing and
+    dictation reach text fields) and replay encoder, Android's end after a lost
     GPU device, and the desktop's settings and cache folders and GPU-loss
     restart. Its default methods answer
     "unavailable" or do nothing, so a backend implements only what it has;
