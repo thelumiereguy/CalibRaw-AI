@@ -37,7 +37,8 @@ impl CalibRawApp {
 
     /// Makes `model` the one behind the triage and the AI editor. The open
     /// photo's chat and card are forgotten, and the photo is triaged again by
-    /// the new model when Develop next shows it.
+    /// the new model when Develop next shows it (Claude Code: when the chat
+    /// next opens).
     pub(crate) fn set_ai_editor_model(&mut self, model: AiEditorModel) {
         if self.ai.editor_model == model {
             return;
@@ -48,7 +49,7 @@ impl CalibRawApp {
         if let Err(error) = self.platform.select_ai_model(model) {
             log::warn!("{error}");
         }
-        self.ai.triage.restart_pending = self.develop.loaded_raw.is_some();
+        self.ai.triage.waiting = self.develop.loaded_raw.is_some();
         self.persist_performance_settings();
         if model == AiEditorModel::ClaudeCode {
             self.check_claude_code();

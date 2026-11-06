@@ -4,9 +4,12 @@
 //! fills the triage card that the AI editor's system prompt is built from
 //! (android/app/src/main/assets/gemma/editor_system.md). The genre and emoji
 //! come first, so the badge shows them (`Platform::take_triage_headline`)
-//! while Gemma still writes the rest of the card.
+//! while Gemma still writes the rest of the card. Claude Code triages a photo
+//! only once the AI editor's chat opens, so a photo goes to Anthropic only
+//! when the photographer asks Claude about it.
 
 use super::*;
+use crate::platform::AiEditorModel;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -80,9 +83,10 @@ pub(crate) struct TriageState {
     /// Why the open photo has no card. Logged, never shown as an error: the
     /// photo stays editable without one.
     pub(crate) failure: Option<String>,
-    /// The open photo is triaged again once Develop shows it, since the
-    /// photographer chose another model in Settings.
-    pub(in crate::app) restart_pending: bool,
+    /// The open photo is triaged once Develop shows it, and with Claude Code
+    /// once the AI editor's chat is open too: Claude Code waits for the chat,
+    /// and a photo is triaged again after a model switch.
+    pub(in crate::app) waiting: bool,
 }
 
 impl TriageState {
@@ -107,13 +111,18 @@ impl TriageState {
 }
 
 impl CalibRawApp {
-    /// Starts Gemma's triage of the photo of `document_generation`, which
-    /// just opened, from its rendered preview.
+    /// Starts the triage of the photo of `document_generation`, which just
+    /// opened, from its rendered preview; with Claude Code it waits until the
+    /// AI editor's chat opens.
     pub(in crate::app) fn start_photo_triage(
         &mut self,
         frame: &eframe::Frame,
         document_generation: u64,
     ) {
+        if self.ai.editor_model == AiEditorModel::ClaudeCode && !self.ai.editor.open {
+            self.ai.triage.waiting = true;
+            return;
+        }
         let started = self
             .read_triage_image(frame)
             .and_then(|image| {
@@ -138,18 +147,19 @@ impl CalibRawApp {
         }
     }
 
-    /// Triages the open photo again with the newly chosen model once Develop
-    /// shows it with its preview.
-    pub(in crate::app) fn restart_photo_triage(&mut self, frame: &eframe::Frame) {
-        if !self.ai.triage.restart_pending
+    /// Starts the waiting triage of the open photo once Develop shows it with
+    /// its preview, and with Claude Code once the AI editor's chat is open.
+    pub(in crate::app) fn start_waiting_photo_triage(&mut self, frame: &eframe::Frame) {
+        if !self.ai.triage.waiting
             || self.ui.active_tab != AppTab::Develop
             || self.develop.loaded_raw.is_none()
             || self.preview.pipeline().is_none()
             || self.document_load_is_background()
+            || (self.ai.editor_model == AiEditorModel::ClaudeCode && !self.ai.editor.open)
         {
             return;
         }
-        self.ai.triage.restart_pending = false;
+        self.ai.triage.waiting = false;
         self.start_photo_triage(frame, self.persistence.document_generation);
     }
 

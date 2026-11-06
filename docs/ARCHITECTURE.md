@@ -137,12 +137,15 @@ change that establishes a boundary, not in advance.
   `RUN_COMMAND` intent (`assets/claude/connect.sh`); it connects back to a
   loopback port of the app, proves itself with a one-time token and speaks
   stream-json over that connection. The triage uses Gemma's prompt and
-  schema (`--json-schema`). The editor needs no phases: one conversation per
-  photo holds the whole chat, plans and writes its tool lines in the same
-  reply (`assets/claude/editor_system.md`), and looks at the preview after
-  each nudge to correct it, up to four nudges a request. Switching models
-  forgets the open photo's chat and card, and the photo is triaged again by
-  the new model when Develop next shows it (`TriageState::restart_pending`).
+  schema (`--json-schema`), and waits until the AI editor's chat opens
+  (`TriageState::waiting`), so a photo goes to Anthropic only when the
+  photographer asks Claude about it. The editor needs no phases: one
+  conversation per photo holds the whole chat, plans and writes its tool
+  lines in the same reply (`assets/claude/editor_system.md`), and looks at the
+  preview after each nudge to correct it, up to ten nudges a request; it ends
+  sooner with a reply without tool lines. Switching models forgets the open
+  photo's chat and card, and the photo is triaged again by the new model when
+  Develop next shows it (with Claude, when the chat next opens).
   Settings checks how far Claude Code is set up (`claude auth status`) and
   runs each missing step.
 
@@ -198,7 +201,7 @@ job records the value it started with.
 | Full-resolution preview (desktop) | one `RunningRender` in `PreviewState::full_resolution`, started after the editor has been idle; no second one starts until its result arrives | `AtomicBool`, set by `FullResolutionState::observe` when the fitted preview shows another `FittedOutput` (texture and `output_revision`), and at once by an edit, a moved view or a pressed pointer. The worker renders one stage at a time and waits for the GPU between them (`wait_for_gpu`), so a cancel is noticed before the next stage | the result is installed only when `FittedOutput` and `document_generation` still match | a photo whose graph does not fit the adapter's free memory or texture limit is skipped with a diagnostics line; a failed render is an error dialog; neither is retried for the document |
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
-| Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed, or when Develop shows the photo after a model switch (`restart_pending`) | none; it ends with the model's reply or a 120 s timeout | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
+| Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed; with Claude Code, or after a model switch, it waits (`waiting`) until Develop shows the photo, and with Claude Code until the AI editor's chat is open too | none; it ends with the model's reply or a 120 s timeout | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
 | AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or ending Claude's process) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s |
 | Claude Code setup check (Android) | one receiver in `ClaudeSetupState`; no second check starts while one runs | none; it ends when `claude auth status` exits or after 60 s | none; the setup is an app setting | the failure is shown in Settings; Termux not running the check reads as blocked |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |

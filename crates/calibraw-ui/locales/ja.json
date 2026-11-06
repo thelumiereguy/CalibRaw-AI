@@ -301,7 +301,7 @@
   "Choose the color of the smoke plumes.": "煙の筋の色を選択します。",
   "Choose the design used across every screen and the canvas color shown around the photo. Changes are saved and applied immediately.": "すべての画面で使うデザインと写真の周囲のキャンバス色を選択します。変更はすぐに適用され、保存されます。",
   "Choose the emitted Neon color.": "ネオンの発光色を選択します。",
-  "Choose the model that triages each photo you open and edits it from the chat. Gemma runs on this phone. Claude Code runs in the Termux app and needs a Claude account; the photo's preview is sent to Anthropic.": "開いた写真ごとに解析し、チャットから編集を行うモデルを選択します。Gemmaはこのスマートフォン上で動作します。Claude CodeはTermuxアプリで動作し、Claudeアカウントが必要です。写真のプレビューはAnthropicに送信されます。",
+  "Choose the model behind the AI editor. Gemma runs on this phone and triages each photo you open. Claude Code runs in the Termux app and needs a Claude account; a photo's preview is sent to Anthropic only once you open the AI editor's chat on it.": "AIエディターで使用するモデルを選択します。Gemmaはこのスマートフォン上で動作し、開いた写真ごとに解析します。Claude CodeはTermuxアプリで動作し、Claudeアカウントが必要です。写真のプレビューは、その写真でAIエディターのチャットを開いたときにのみAnthropicに送信されます。",
   "Choose the output file after pressing Export.": "「書き出し」を押した後に出力ファイルを選択します。",
   "Choose what happens when you open a photo that has no saved edits. Photos you have already edited keep their own lens settings, and you can always change them in the Lens Corrections card.": "保存済みの編集がない写真を開いたときの動作を選択します。すでに編集した写真にはそれぞれのレンズ設定が保持され、レンズ補正カードからいつでも変更できます。",
   "Choose where CalibRaw finds DCP camera profiles for your RAW files.": "RAWファイル用のDCPカメラプロファイルをCalibRawが探す場所を選択します。",

@@ -1240,7 +1240,7 @@ impl Settings {
         moduwu_design::heading_with_help(
             ui,
             tr("AI editor"),
-            tr("Choose the model that triages each photo you open and edits it from the chat. Gemma runs on this phone. Claude Code runs in the Termux app and needs a Claude account; the photo's preview is sent to Anthropic."),
+            tr("Choose the model behind the AI editor. Gemma runs on this phone and triages each photo you open. Claude Code runs in the Termux app and needs a Claude account; a photo's preview is sent to Anthropic only once you open the AI editor's chat on it."),
         );
         let mut model = app.ai.editor_model;
         moduwu_design::form_combo_with_help(

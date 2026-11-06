@@ -68,8 +68,9 @@ const SET_AI_DENOISE: &str = "set_ai_denoise";
 /// and highlights +100), so the photographer steers with follow-ups instead.
 const MAX_NUDGES: u32 = 1;
 /// Nudges one Claude request may make: its first, then corrections after
-/// looking at the preview.
-const CLAUDE_MAX_NUDGES: u32 = 4;
+/// looking at the preview. Claude ends sooner with a reply without tool
+/// lines once the preview shows what was asked.
+const CLAUDE_MAX_NUDGES: u32 = 10;
 
 /// Who wrote a chat message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

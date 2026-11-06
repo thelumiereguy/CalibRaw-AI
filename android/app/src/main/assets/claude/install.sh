@@ -17,14 +17,16 @@ loader="$PREFIX/glibc/lib/ld-linux-aarch64.so.1"
 # The registry's metadata, read with curl: npm itself hung on a phone.
 metadata=$(curl -fsSL --max-time 60 https://registry.npmjs.org/@anthropic-ai/claude-code-linux-arm64/latest)
 tarball=$(printf '%s' "$metadata" | grep -o '"tarball": *"[^"]*"' | cut -d'"' -f4)
-shasum=$(printf '%s' "$metadata" | grep -o '"shasum": *"[^"]*"' | cut -d'"' -f4)
-[ -n "$tarball" ] && [ -n "$shasum" ] || { echo "The registry did not name the package."; exit 1; }
+# The SHA-512 integrity value, base64 after "sha512-", as hex for sha512sum.
+integrity=$(printf '%s' "$metadata" | grep -o '"integrity": *"sha512-[^"]*"' | cut -d'"' -f4)
+sha512=$(printf '%s' "${integrity#sha512-}" | base64 -d | od -An -v -tx1 | tr -d ' \n')
+[ -n "$tarball" ] && [ ${#sha512} -eq 128 ] || { echo "The registry did not name the package."; exit 1; }
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 printf '\nDownloading %s\n' "$tarball"
 curl -fL --retry 3 -o "$work/claude.tgz" "$tarball"
-printf '%s  %s\n' "$shasum" "$work/claude.tgz" | sha1sum -c -
+printf '%s  %s\n' "$sha512" "$work/claude.tgz" | sha512sum -c -
 tar -xzf "$work/claude.tgz" -C "$work"
 
 home="$HOME/.calibraw-claude"

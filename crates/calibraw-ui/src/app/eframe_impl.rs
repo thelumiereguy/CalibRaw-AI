@@ -217,7 +217,7 @@ impl CalibRawApp {
         self.poll_people_composes();
         if caps.on_device_gemma {
             self.poll_claude_code_check();
-            self.restart_photo_triage(frame);
+            self.start_waiting_photo_triage(frame);
             self.poll_photo_triage();
             self.poll_ai_editor(frame);
         }

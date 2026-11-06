@@ -301,7 +301,7 @@
   "Choose the color of the smoke plumes.": "选择烟雾团的颜色。",
   "Choose the design used across every screen and the canvas color shown around the photo. Changes are saved and applied immediately.": "选择应用于所有屏幕的设计，以及照片周围显示的画布颜色。更改会立即保存并应用。",
   "Choose the emitted Neon color.": "选择霓虹效果发出的颜色。",
-  "Choose the model that triages each photo you open and edits it from the chat. Gemma runs on this phone. Claude Code runs in the Termux app and needs a Claude account; the photo's preview is sent to Anthropic.": "选择在你打开每张照片时对其进行分析、并通过聊天进行编辑的模型。Gemma 在此手机上运行。Claude Code 在 Termux 应用中运行，需要 Claude 账号；照片的预览会发送给 Anthropic。",
+  "Choose the model behind the AI editor. Gemma runs on this phone and triages each photo you open. Claude Code runs in the Termux app and needs a Claude account; a photo's preview is sent to Anthropic only once you open the AI editor's chat on it.": "选择 AI 编辑器所使用的模型。Gemma 在此手机上运行，并分析你打开的每张照片。Claude Code 在 Termux 应用中运行，需要 Claude 账号；仅当你在某张照片上打开 AI 编辑器的聊天时，才会将该照片的预览发送给 Anthropic。",
   "Choose the output file after pressing Export.": "按下“导出”后选择输出文件。",
   "Choose what happens when you open a photo that has no saved edits. Photos you have already edited keep their own lens settings, and you can always change them in the Lens Corrections card.": "选择打开没有已保存编辑的照片时要执行的操作。已编辑的照片会保留自己的镜头设置；你也可以随时在“镜头校正”卡片中更改。",
   "Choose where CalibRaw finds DCP camera profiles for your RAW files.": "选择 CalibRaw 为 RAW 文件查找 DCP 相机配置文件的位置。",
