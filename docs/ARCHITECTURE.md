@@ -118,8 +118,10 @@ change that establishes a boundary, not in advance.
   consent dialog or people mask from the analysis holds it, the
   preview that shows the nudge goes to Gemma with what the app set, as
   `name=before→after`, and Gemma says what it changed. The nudge is one undo
-  step (`observe_edit_history`). The chat is kept in the app only: each phase
-  runs on a clone of a conversation that holds just its system prompt
+  step (`observe_edit_history`), and undo and redo are off while a request
+  runs (`can_undo_edit`); an explicit save meanwhile commits what is there.
+  The chat is kept in the app only: each phase runs on a clone of a
+  conversation that holds just its system prompt
   (`GemmaBridge.startEditorRequest`), both read once, when the first card
   comes (`prepareEditor`), since a clone takes milliseconds and a new conversation's
   first prefill took 16–23 s after the process's first. Each phase's first
