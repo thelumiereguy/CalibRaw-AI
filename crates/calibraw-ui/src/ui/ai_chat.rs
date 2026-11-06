@@ -216,7 +216,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
     ui.with_layout(layout, |ui| {
         egui::Frame::new()
             .fill(fill)
-            .corner_radius(8.0)
+            .corner_radius(moduwu_design::CARD_RADIUS)
             .inner_margin(egui::Margin::symmetric(10, 6))
             .show(ui, |ui| {
                 ui.set_max_width(max_width);
