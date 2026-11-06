@@ -1,0 +1,23 @@
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_9a2c2ab1673913 189-190
+  s_8f74af7efeeba8::t_a02537eb5214d7 418-420
+  s_8f74af7efeeba8::t_c711c9c74202fb 266
+  s_8f74af7efeeba8::t_a55923b466a9fd 14
+  s_8f74af7efeeba8::t_cf38db02675fc1 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70eed3f7da4049e27e4defe70dd217bc41200779",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
