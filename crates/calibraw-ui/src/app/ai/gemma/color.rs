@@ -1,6 +1,7 @@
 //! The Color Mixer and Color Grading values Gemma's `set_color_mixer` and
-//! `set_color_grading` tools move. Their names and ranges are those
-//! editor_system.md gives Gemma.
+//! `set_color_grading` tools move. editor_system.md gives Gemma the mixer's
+//! names and ranges and the grading's shadow and highlight tints; the other
+//! grading values stay settable.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ColorGradeWheel, ColorGrading, ExposureParams};

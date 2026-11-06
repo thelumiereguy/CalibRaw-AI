@@ -1,7 +1,8 @@
 //! The finish effects Gemma's `set_effect` tool moves: the sliders of the
 //! global Vignette, Grain, Glow and Halation, named `effect_setting` after
-//! each slider's label (Preserve highlights is `vignette_preserve_highlights`)
-//! as editor_system.md lists them.
+//! each slider's label (Preserve highlights is `vignette_preserve_highlights`).
+//! editor_system.md lists only each effect's amount; Gemma left the rest at
+//! odd values, such as a vignette with no feather. The rest stay settable.
 //! Colours, positions and pattern seeds are left to the photographer.
 
 use super::tools::{number, rounded, Limits, Outcome};
