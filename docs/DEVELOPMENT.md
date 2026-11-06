@@ -607,16 +607,21 @@ Settings shows the first missing step:
 
 1. **Allow**: grant CalibRaw Termux's `RUN_COMMAND` permission.
 2. **Copy command**: paste it into Termux once, which sets
-   `allow-external-apps = true` in `~/.termux/termux.properties`.
+   `allow-external-apps = true` in `~/.termux/termux.properties`. This lets
+   every app holding the `RUN_COMMAND` permission, not only CalibRaw, run
+   commands as Termux, with access to its files and Claude Code's sign-in.
 3. **Install Claude Code**: Termux runs `assets/claude/install.sh`, which
-   installs the official linux-arm64 binary and runs it through Termux's glibc
-   (`glibc-runner`, `patchelf`). It takes a few minutes.
+   installs the official linux-arm64 binary of the release it pins, checked
+   against its npm SHA-512, and runs it through Termux's glibc (`glibc-runner`,
+   `patchelf`). It takes a few minutes.
 4. **Sign in**: Termux runs `claude auth login`.
 
 Tap **Check again** after each step. Every conversation runs `claude -p` with
-the Sonnet model and no tools, settings or MCP servers; the diagnostics log
-gives each triage's and editor turn's time and cost (`Claude triage took …`,
-`Claude editor turn took …`).
+the Sonnet model and no tools, settings, MCP servers or nonessential traffic
+(`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`); the diagnostics log gives each
+triage's and editor turn's time and cost (`Claude triage took …`,
+`Claude editor turn took …`). A triage or editor turn waits up to 35 s for
+Claude Code to connect, then up to 120 s for its reply.
 
 ### Profiling on a device
 

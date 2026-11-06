@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Runs Claude Code in Termux for the triage of each opened photo and the AI editor's chat about
@@ -65,6 +66,7 @@ final class ClaudeBridge implements AiModel {
     private static final int RUN_COMMAND_PERMISSION_REQUEST = 1006;
     private static final String MODEL = "sonnet";
     private static final String TRIAGE_REQUEST = "Triage this photo.";
+    private static final String RELEASED = "Claude Code is no longer the selected AI model";
     // Termux starting a process took about 3.4 s on the spike phone; a cold Termux takes longer.
     private static final int CONNECT_TIMEOUT_MS = 30_000;
     // The connection's first line, the token, arrives at once after it connects.
@@ -85,20 +87,25 @@ final class ClaudeBridge implements AiModel {
     static final String FAILED = "failed";
 
     private final Context context;
-    // Whether another model was selected; then nothing is started any more.
+    // Whether another model was selected; then nothing is started or sent any more, so photos go
+    // to Claude only while it is the selected model. Written under this, and checked under this
+    // wherever a conversation is taken or installed, so release ends every conversation it misses.
     private volatile boolean released;
     // The next triage's conversation, started ahead of time; each triage takes it and starts the
     // next. Guarded by this.
     private Session nextTriage;
-    // The running triage's conversation, so release can end it.
-    private volatile Session runningTriage;
+    // The running triage's conversation, so release can end it. Guarded by this.
+    private Session runningTriage;
     // The open photo's editor conversation, started ahead of time with nextEditorPrompt.
     // Guarded by this.
     private Session nextEditor;
     private String nextEditorPrompt;
-    // The editor conversation, or null. Written under editorLock; volatile so closeEditor can end
-    // its running turn without waiting for that lock.
+    // The editor conversation, or null. Written under editorLock and this; volatile so
+    // closeEditor can end its running turn without waiting for either.
     private volatile Session editor;
+    // How many times closeEditor was called, so a close that arrives while startEditorRequest
+    // waits for its conversation to connect ends that conversation too.
+    private final AtomicInteger editorCloses = new AtomicInteger();
     // Held for a turn of the editor's conversation, so its turns run one at a time.
     private final Object editorLock = new Object();
     private final Object triageLock = new Object();
@@ -107,23 +114,29 @@ final class ClaudeBridge implements AiModel {
         this.context = context.getApplicationContext();
     }
 
-    /** Starts the first triage's conversation, so the first photo's triage does not wait for it. */
+    /**
+     * Starts the first triage's conversation on a background thread, so the first photo's triage
+     * does not wait for it. Returns at once: starting it reads assets and has Termux start a
+     * process.
+     */
     @Override
     public void activate() {
-        released = false;
-        prepareTriage();
+        Thread preparer = new Thread(this::prepareTriage, "Claude preload");
+        preparer.setDaemon(true);
+        preparer.start();
     }
 
-    /** Ends every conversation and its process, failing a running triage or editor turn. */
+    /**
+     * Ends every conversation and its process, failing a running triage or editor turn; a call
+     * that has not taken its conversation yet fails without sending anything.
+     */
     @Override
     public void release() {
-        released = true;
-        Session triage = runningTriage;
-        if (triage != null) {
-            triage.end();
-        }
-        closeEditor();
         synchronized (this) {
+            released = true;
+            if (runningTriage != null) {
+                runningTriage.end();
+            }
             if (nextTriage != null) {
                 nextTriage.end();
                 nextTriage = null;
@@ -132,6 +145,10 @@ final class ClaudeBridge implements AiModel {
                 nextEditor.end();
                 nextEditor = null;
                 nextEditorPrompt = null;
+            }
+            Session closing = editor;
+            if (closing != null) {
+                closing.end();
             }
         }
         Log.i(LOG_TAG, "Claude released");
@@ -148,16 +165,20 @@ final class ClaudeBridge implements AiModel {
         synchronized (triageLock) {
             Session session;
             synchronized (this) {
+                // A triage that waited for triageLock while another model was selected.
+                if (released) {
+                    throw new IOException(RELEASED);
+                }
                 session = nextTriage;
                 nextTriage = null;
-            }
-            if (session == null || session.hasEnded()) {
-                if (session != null) {
-                    session.end();
+                if (session == null || session.hasEnded()) {
+                    if (session != null) {
+                        session.end();
+                    }
+                    session = Session.start(context, "Claude triage", triageArguments(context));
                 }
-                session = Session.start(context, "Claude triage", triageArguments(context));
+                runningTriage = session;
             }
-            runningTriage = session;
             try {
                 String request = hint == null || hint.isEmpty()
                         ? TRIAGE_REQUEST
@@ -190,7 +211,9 @@ final class ClaudeBridge implements AiModel {
                         + " ms, " + costOf(result) + ": " + text);
                 return text;
             } finally {
-                runningTriage = null;
+                synchronized (this) {
+                    runningTriage = null;
+                }
                 session.end();
                 prepareTriage();
             }
@@ -241,39 +264,54 @@ final class ClaudeBridge implements AiModel {
 
     /**
      * Starts a fresh editor conversation with {@code systemPrompt}, ending the earlier one. Blocks
-     * until its process has connected.
+     * until its process has connected; fails when the editor is closed or another model is
+     * selected meanwhile.
      */
     @Override
     public void startEditorRequest(String systemPrompt) throws Exception {
         synchronized (editorLock) {
-            Session previous = editor;
-            editor = null;
-            if (previous != null) {
-                previous.end();
-            }
             Session session = null;
+            int closes;
             synchronized (this) {
+                Session previous = editor;
+                editor = null;
+                if (previous != null) {
+                    previous.end();
+                }
+                // A close from here on is for this request.
+                closes = editorCloses.get();
+                if (released) {
+                    throw new IOException(RELEASED);
+                }
                 if (nextEditor != null && systemPrompt.equals(nextEditorPrompt)
                         && !nextEditor.hasEnded()) {
                     session = nextEditor;
                     nextEditor = null;
                     nextEditorPrompt = null;
                 }
-            }
-            if (session == null) {
-                session = Session.start(
-                        context, "Claude editor", conversationArguments(systemPrompt, null));
+                if (session == null) {
+                    session = Session.start(
+                            context, "Claude editor", conversationArguments(systemPrompt, null));
+                }
             }
             long started = SystemClock.elapsedRealtime();
             try {
                 session.awaitConnected();
-            } catch (IOException error) {
+            } catch (IOException | InterruptedException error) {
                 session.end();
                 throw error;
             }
+            // Neither release nor closeEditor can see the session while it connects, so it is
+            // installed only if neither came meanwhile.
+            synchronized (this) {
+                if (released || editorCloses.get() != closes) {
+                    session.end();
+                    throw new IOException(released ? RELEASED : "The AI editor chat was closed");
+                }
+                editor = session;
+            }
             Log.i(LOG_TAG, "Claude editor conversation ready in "
                     + (SystemClock.elapsedRealtime() - started) + " ms");
-            editor = session;
         }
     }
 
@@ -307,9 +345,13 @@ final class ClaudeBridge implements AiModel {
         }
     }
 
-    /** Ends the editor conversation and its process, failing a running turn. Returns at once. */
+    /**
+     * Ends the editor conversation and its process, failing a running turn or a request that is
+     * still connecting. Returns at once.
+     */
     @Override
     public void closeEditor() {
+        editorCloses.incrementAndGet();
         Session closing = editor;
         if (closing != null) {
             closing.end();
@@ -631,6 +673,11 @@ final class ClaudeBridge implements AiModel {
                     throw new IOException("Claude could not reply: " + result.optString("result"));
                 }
                 return result;
+            } catch (InterruptedException interrupted) {
+                // Ended, so a later send cannot read this turn's late reply as its own.
+                end();
+                Thread.currentThread().interrupt();
+                throw interrupted;
             } catch (IOException error) {
                 if (hasEnded()) {
                     throw new IOException("Claude Code stopped; " + ending(), error);
@@ -685,24 +732,39 @@ final class ClaudeBridge implements AiModel {
 
         private void run() {
             try {
-                Socket accepted = accept();
-                if (accepted == null) {
-                    return;
-                }
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(accepted.getInputStream(), StandardCharsets.UTF_8));
-                if (!token.equals(reader.readLine())) {
+                // Any app can connect to the loopback port, so connections without the token are
+                // closed and the process's is waited for until the deadline.
+                long deadline = SystemClock.elapsedRealtime() + CONNECT_TIMEOUT_MS;
+                Socket accepted;
+                BufferedReader reader;
+                while (true) {
+                    accepted = accept(deadline);
+                    if (accepted == null) {
+                        return;
+                    }
+                    try {
+                        reader = new BufferedReader(new InputStreamReader(
+                                accepted.getInputStream(), StandardCharsets.UTF_8));
+                    } catch (IOException error) {
+                        closeQuietly(accepted);
+                        throw error;
+                    }
+                    if (token.equals(readToken(reader))) {
+                        break;
+                    }
+                    closeQuietly(accepted);
                     Log.w(LOG_TAG, name + ": a connection without the token was refused");
-                    return;
                 }
-                accepted.setSoTimeout(0);
-                socket = accepted;
                 closeQuietly(server);
-                connection.countDown();
+                socket = accepted;
+                // end() closes the socket once it is set; one that ran before is seen here, so
+                // a send never writes to a session that has ended.
                 if (closed.get()) {
                     closeQuietly(accepted);
                     return;
                 }
+                accepted.setSoTimeout(0);
+                connection.countDown();
                 for (String line; (line = reader.readLine()) != null; ) {
                     handle(line);
                 }
@@ -711,18 +773,32 @@ final class ClaudeBridge implements AiModel {
                     Log.w(LOG_TAG, name + ": the connection failed", error);
                 }
             } finally {
+                closeQuietly(server);
                 ended = true;
                 connection.countDown();
                 results.add(END);
             }
         }
 
-        /** Accepts the process's connection, or returns null when it does not come or is closed. */
-        private Socket accept() throws IOException {
+        /**
+         * Accepts the next connection, or returns null when none comes before {@code deadline}
+         * (elapsedRealtime) or the session is closed.
+         */
+        private Socket accept(long deadline) throws IOException {
+            long left = deadline - SystemClock.elapsedRealtime();
             try {
-                server.setSoTimeout(CONNECT_TIMEOUT_MS);
+                // A timeout of 0 would wait forever.
+                if (left <= 0) {
+                    throw new SocketTimeoutException();
+                }
+                server.setSoTimeout((int) left);
                 Socket accepted = server.accept();
-                accepted.setSoTimeout(TOKEN_TIMEOUT_MS);
+                try {
+                    accepted.setSoTimeout(TOKEN_TIMEOUT_MS);
+                } catch (IOException error) {
+                    closeQuietly(accepted);
+                    throw error;
+                }
                 return accepted;
             } catch (SocketTimeoutException timeout) {
                 Log.w(LOG_TAG, name + ": Termux did not start Claude Code in "
@@ -733,9 +809,30 @@ final class ClaudeBridge implements AiModel {
                     return null;
                 }
                 throw error;
-            } finally {
-                closeQuietly(server);
             }
+        }
+
+        /**
+         * The connection's first line, read only as far as one character past the token's length
+         * so a connection cannot make it buffer without end, or null when it is longer, does not
+         * come in time or the connection fails.
+         */
+        private String readToken(BufferedReader reader) {
+            StringBuilder line = new StringBuilder();
+            try {
+                while (line.length() <= token.length()) {
+                    int next = reader.read();
+                    if (next < 0 || next == '\n') {
+                        return line.toString();
+                    }
+                    line.append((char) next);
+                }
+            } catch (IOException error) {
+                if (!closed.get()) {
+                    Log.w(LOG_TAG, name + ": a connection did not send the token", error);
+                }
+            }
+            return null;
         }
 
         private void handle(String line) {

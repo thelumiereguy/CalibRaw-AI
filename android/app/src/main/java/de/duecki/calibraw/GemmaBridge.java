@@ -167,6 +167,7 @@ final class GemmaBridge implements AiModel {
 
     private String triageLocked(String imagePath, String hint, long requestId, int badgePx)
             throws Exception {
+        checkActive();
         String request = hint == null || hint.isEmpty()
                 ? TRIAGE_REQUEST
                 : TRIAGE_REQUEST + " The photographer says the genre is: " + hint + ".";
@@ -238,6 +239,16 @@ final class GemmaBridge implements AiModel {
                     + " ms: " + text);
             Log.i(LOG_TAG, "Gemma triage benchmark: " + conversation.getBenchmarkInfo());
             return text;
+        }
+    }
+
+    /**
+     * Fails a call that waited for GemmaBridge.class while another model was selected, so it does
+     * not load the engine again after release. Caller holds GemmaBridge.class.
+     */
+    private static void checkActive() throws IOException {
+        if (!active) {
+            throw new IOException("Gemma is no longer the selected AI model");
         }
     }
 
@@ -313,6 +324,7 @@ final class GemmaBridge implements AiModel {
             if (previous != null) {
                 previous.close();
             }
+            checkActive();
             Conversation base = editorBase(context, systemPrompt);
             long started = SystemClock.elapsedRealtime();
             editor = base.clone();
@@ -403,6 +415,7 @@ final class GemmaBridge implements AiModel {
 
     private String editorTurn(long requestId, Message message) throws Exception {
         synchronized (GemmaBridge.class) {
+            checkActive();
             Conversation conversation = editor;
             if (conversation == null) {
                 throw new IOException("The AI editor chat is closed");

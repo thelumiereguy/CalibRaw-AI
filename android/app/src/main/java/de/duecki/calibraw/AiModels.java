@@ -101,7 +101,7 @@ final class AiModels {
 
     /**
      * How far Claude Code in Termux is set up, as one of {@link ClaudeBridge}'s status codes.
-     * Blocks for up to half a minute while Termux starts, so Rust runs it on a worker.
+     * Blocks for up to a minute while Termux starts, so Rust runs it on a worker.
      */
     public String claudeStatus() {
         return ClaudeBridge.status(activity);
