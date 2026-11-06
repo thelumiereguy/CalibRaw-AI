@@ -143,6 +143,14 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::clear_background_task_notification(&self.app)
     }
 
+    fn end_after_gpu_loss(&self, message: &str) {
+        // The process ends without `on_exit`, which clears the notification.
+        if let Err(error) = self.clear_task_notification() {
+            log::warn!("{error}");
+        }
+        calibraw_ffi::end_after_gpu_loss(&self.app, message)
+    }
+
     fn performance_settings_path(&self) -> Result<Option<PathBuf>, String> {
         calibraw_ffi::performance_settings_path(&self.app).map(Some)
     }

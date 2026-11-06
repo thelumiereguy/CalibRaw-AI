@@ -326,9 +326,7 @@ impl CalibRawApp {
 impl eframe::App for CalibRawApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let caps = self.caps();
-        if caps.can_restart {
-            self.handle_gpu_device_loss(ui.ctx());
-        }
+        self.handle_gpu_device_loss(ui.ctx());
         self.handle_gpu_failures();
         self.release_retired_egui_textures(frame);
         self.poll_version_check();
@@ -520,6 +518,9 @@ impl eframe::App for CalibRawApp {
         }
 
         self.advance_background_work(ui.ctx(), frame);
+        // The preview work above is where a device is usually lost, and egui
+        // draws on it as soon as `ui` returns.
+        self.handle_gpu_device_loss(ui.ctx());
         if raw_drop_hovered {
             show_raw_drop_overlay(ui, self.library.folder());
         }

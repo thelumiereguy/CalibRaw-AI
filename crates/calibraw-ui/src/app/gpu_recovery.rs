@@ -41,9 +41,9 @@ impl CalibRawApp {
 
     /// Saves and restarts after the GPU device was lost, usually a driver
     /// reset. Nothing can be drawn on a lost device, so the notice is a native
-    /// dialog. A GPU AI job that was running, or a model loaded on the GPU,
-    /// switches AI to the CPU first: a loaded model's memory alone can drive
-    /// the GPU into paging and a reset.
+    /// dialog, or on Android a toast before the process ends. A GPU AI job that
+    /// was running, or a model loaded on the GPU, switches AI to the CPU first:
+    /// a loaded model's memory alone can drive the GPU into paging and a reset.
     pub(in crate::app) fn handle_gpu_device_loss(&mut self, ctx: &egui::Context) {
         if calibraw_gpu::take_gpu_device_lost().is_none() {
             return;
@@ -85,6 +85,7 @@ impl CalibRawApp {
                 log::error!("could not restart CalibRaw after the GPU was lost: {error}");
             }
         }
+        self.platform.end_after_gpu_loss(&message);
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 

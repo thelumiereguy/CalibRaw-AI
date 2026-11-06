@@ -288,6 +288,12 @@ pub(crate) trait Platform: Send + Sync {
     fn restart_after_gpu_loss_command(&self) -> Option<std::process::Command> {
         None
     }
+    /// Ends the app after a lost GPU device where it can neither show a
+    /// native dialog nor close its window before the next frame draws on the
+    /// device: shows `message`, then ends the process without returning.
+    /// Returns at once where [`super::show_fatal_message`] showed the notice
+    /// and the window closes.
+    fn end_after_gpu_loss(&self, _message: &str) {}
 
     // --- Memory ---
 

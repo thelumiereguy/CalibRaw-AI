@@ -18,9 +18,6 @@ pub(crate) struct PlatformCaps {
     /// built into the app and GPU AI is always allowed.
     pub(crate) configurable_ai_runtime: bool,
     pub(crate) video_encoder: VideoEncoder,
-    /// The app can start itself again, so a lost GPU device ends in a
-    /// native notice and a restart.
-    pub(crate) can_restart: bool,
     /// Gemma runs on the device ([`super::Platform::gemma_triage`]), so an
     /// opened photo gets a triage card and the AI editor is offered.
     pub(crate) on_device_gemma: bool,
@@ -76,7 +73,6 @@ impl PlatformCaps {
         tasks_need_foreground: false,
         configurable_ai_runtime: true,
         video_encoder: VideoEncoder::Ffmpeg,
-        can_restart: true,
         on_device_gemma: false,
     };
 
@@ -87,7 +83,6 @@ impl PlatformCaps {
         tasks_need_foreground: true,
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
-        can_restart: false,
         on_device_gemma: true,
     };
 
@@ -99,7 +94,6 @@ impl PlatformCaps {
         tasks_need_foreground: false,
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
-        can_restart: false,
         on_device_gemma: false,
     };
 

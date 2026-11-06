@@ -407,15 +407,16 @@ production `ShaderManager` composes.
   else compiles on every target and branches at run time:
   - `PlatformCaps` (`form_factor`, `storage`, `memory`,
     `tasks_need_foreground`, `configurable_ai_runtime`, `video_encoder`,
-    `can_restart`, `on_device_gemma`) is what views and handlers read. Views take it, or
+    `on_device_gemma`) is what views and handlers read. Views take it, or
     `app.caps()`, and return actions; leaf widgets without the app use
     `PlatformCaps::CURRENT`. Data that already names its kind is matched
     instead: `LibraryLocator`, `SidecarTarget` and `ExportDestination`.
   - `Platform` (`Arc<dyn Platform>`, in `CalibRawApp::platform` and
     `LibraryState`) is the service behind actions: the Android bridge's
     pickers, media library, sidecars, thumbnails, publishing, clipboard,
-    notifications, system bars and replay encoder, and the desktop's settings
-    and cache folders and GPU-loss restart. Its default methods answer
+    notifications, system bars and replay encoder, Android's end after a lost
+    GPU device, and the desktop's settings and cache folders and GPU-loss
+    restart. Its default methods answer
     "unavailable" or do nothing, so a backend implements only what it has;
     `release_free_memory` defaults to the heap purge every backend shares,
     which tests replace to observe it.

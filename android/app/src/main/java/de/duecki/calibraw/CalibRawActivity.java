@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Process;
 import android.graphics.Insets;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -43,6 +44,8 @@ public final class CalibRawActivity extends NativeActivity {
     // A launch with this extra set to true times GPU processing stages
     // (`cargo xtask android-bench`).
     private static final String EXTRA_GPU_STAGE_TIMING = "de.duecki.calibraw.GPU_STAGE_TIMING";
+    // How long the lost-GPU notice shows before the process ends: Toast.LENGTH_LONG.
+    private static final long GPU_LOSS_NOTICE_MILLIS = 3500;
 
     private StorageManager storageManager;
     private ProfileImporter profileImporter;
@@ -433,6 +436,22 @@ public final class CalibRawActivity extends NativeActivity {
             clipboard.setPrimaryClip(ClipData.newPlainText(safeLabel, safeText));
             Toast.makeText(this, "Diagnostic log copied", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    // Ends the process after the GPU device was lost, once `message` was on screen for a while.
+    // The Rust thread waits for this without drawing, and nothing finishes the activity first:
+    // NativeActivity's lifecycle callbacks wait for that thread. winit cannot start again in this
+    // process, so the person starts CalibRaw again.
+    public void endAfterGpuLoss(String message) {
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+        new Thread(() -> {
+            try {
+                Thread.sleep(GPU_LOSS_NOTICE_MILLIS);
+            } catch (InterruptedException ignored) {
+                // End at once.
+            }
+            Process.killProcess(Process.myPid());
+        }, "CalibRaw GPU loss").start();
     }
 
     public String deviceDiagnostics() {

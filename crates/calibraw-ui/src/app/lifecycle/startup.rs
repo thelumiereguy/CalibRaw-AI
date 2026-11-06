@@ -440,10 +440,8 @@ impl CalibRawApp {
         if let Some(render_state) = cc.wgpu_render_state.as_ref() {
             calibraw_gpu::install_uncaptured_gpu_error_handler(&render_state.device);
             calibraw_gpu::stage_timing::install(&render_state.device, &render_state.queue);
-            // A lost device is recovered by restarting (`handle_gpu_device_loss`).
-            if caps.can_restart {
-                calibraw_gpu::install_gpu_device_lost_handler(&render_state.device);
-            }
+            // A lost device ends the session (`handle_gpu_device_loss`).
+            calibraw_gpu::install_gpu_device_lost_handler(&render_state.device);
             editor_gpu = Some(calibraw_ai::GpuIdentity::new(&render_state.device));
         }
         let repaint = cc.egui_ctx.clone();
