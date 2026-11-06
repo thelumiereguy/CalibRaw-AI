@@ -1,0 +1,23 @@
+crates/calibraw-ui/src/ui/preview/transform/crop_workspace.rs
+  s_8f74af7efeeba8::t_8ed77fbecf54e0 180-182
+crates/calibraw-core/src/pipeline/geometry/lens_map.rs
+  s_8f74af7efeeba8::t_53c3f9641cb9af 76-102
+crates/calibraw-ui/src/app/ai/editor/masks.rs
+  s_8f74af7efeeba8::t_334959d9e171cd 230-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5b3de3af3ff6e46e7fd867246f5eb9a7e2b61ac",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "unknown"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
