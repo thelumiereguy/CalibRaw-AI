@@ -592,17 +592,17 @@ pub(crate) trait Platform: Send + Sync {
     fn gemma_editor_start_request(&self, _system_prompt: &str) -> Result<(), String> {
         Err(unavailable("on-device Gemma"))
     }
-    /// Sends `text` to the running request, after the JPEG at `image_path`
-    /// when there is one, and returns the model's reply as JSON: `{"text":
-    /// ..., "tool_calls": [...]}`, the calls only where LiteRT-LM parsed
-    /// Gemma's own call syntax. Blocks for the whole reply, so only workers call it;
-    /// the reply's text arrives earlier through [`Self::take_editor_text`],
-    /// tagged with `request_id`.
+    /// Sends `text` to the running request, after the JPEGs at `images`, and
+    /// returns the model's reply as JSON: `{"text": ..., "tool_calls":
+    /// [...]}`, the calls only where LiteRT-LM parsed Gemma's own call
+    /// syntax. Gemma is sent one image at most. Blocks for the whole reply,
+    /// so only workers call it; the reply's text arrives earlier through
+    /// [`Self::take_editor_text`], tagged with `request_id`.
     fn gemma_editor_send(
         &self,
         _request_id: u64,
         _text: &str,
-        _image_path: Option<&Path>,
+        _images: &[&Path],
     ) -> Result<String, String> {
         Err(unavailable("on-device Gemma"))
     }

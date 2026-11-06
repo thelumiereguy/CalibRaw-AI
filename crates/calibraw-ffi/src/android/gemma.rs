@@ -182,22 +182,24 @@ pub fn gemma_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Resu
     .map_err(|error| format!("The AI model could not start the request: {error:#}"))
 }
 
-/// Sends `text` to the running request, after the JPEG at `image_path` when
-/// there is one, and returns the model's reply as JSON (`AiModel.editorSend`).
-/// Blocks for the whole reply, whose text arrives earlier through
-/// [`take_editor_text`], tagged with `request_id`.
+/// Sends `text` to the running request, after the JPEGs at `images`, and
+/// returns the model's reply as JSON (`AiModel.editorSend`, which takes the
+/// paths one per line). Blocks for the whole reply, whose text arrives
+/// earlier through [`take_editor_text`], tagged with `request_id`.
 pub fn gemma_editor_send(
     app: &AndroidApp,
     request_id: u64,
     text: &str,
-    image_path: Option<&Path>,
+    images: &[&Path],
 ) -> Result<String, String> {
-    let image_path = image_path
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let image_paths = images
+        .iter()
+        .map(|path| path.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("\n");
     with_gemma_bridge(app, |env, gemma_bridge| {
         let text = env.new_string(text)?;
-        let image_path = env.new_string(&image_path)?;
+        let image_paths = env.new_string(&image_paths)?;
         let value = env.call_method(
             gemma_bridge,
             jni::jni_str!("editorSend"),
@@ -206,7 +208,7 @@ pub fn gemma_editor_send(
                 // Java has no unsigned long; the id comes back bit for bit.
                 JValue::Long(request_id as i64),
                 JValue::Object(&text),
-                JValue::Object(&image_path),
+                JValue::Object(&image_paths),
             ],
         )?;
         java_string(env, value)

@@ -527,9 +527,9 @@ impl Platform for AndroidPlatform {
         &self,
         request_id: u64,
         text: &str,
-        image_path: Option<&Path>,
+        images: &[&Path],
     ) -> Result<String, String> {
-        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, image_path)
+        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, images)
     }
 
     fn gemma_editor_close(&self) -> Result<(), String> {

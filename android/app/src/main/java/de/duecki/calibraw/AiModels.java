@@ -88,8 +88,8 @@ final class AiModels {
         model().startEditorRequest(systemPrompt);
     }
 
-    public String editorSend(long requestId, String text, String imagePath) throws Exception {
-        return model().editorSend(requestId, text, imagePath);
+    public String editorSend(long requestId, String text, String imagePaths) throws Exception {
+        return model().editorSend(requestId, text, imagePaths);
     }
 
     public void closeEditor() {

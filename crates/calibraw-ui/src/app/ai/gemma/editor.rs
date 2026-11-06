@@ -22,7 +22,8 @@
 //! The edit is one nudge: the tool lines of the second phase's reply, each
 //! applied to the edit, each value anywhere in its range. Once the preview
 //! shows the nudge, it goes to Gemma with what the app set, and Gemma says
-//! what it changed. The nudge is one undo step (`observe_edit_history`).
+//! what it changed. A request, whatever its nudges, is one undo step
+//! (`observe_edit_history`).
 //!
 //! Claude Code (`AiEditorModel::ClaudeCode`) needs no phases: it reads the
 //! photographer's words and edits in the same reply, in one conversation per
@@ -30,6 +31,9 @@
 //! each nudge it looks at the new preview and corrects it, up to
 //! [`CLAUDE_MAX_NUDGES`] nudges a request. The conversation stays open
 //! between requests and ends when another photo opens or a request fails.
+//! Claude has three tools more: `set_mask` and `set_mask_part` (masks.rs)
+//! and `set_crop` (crop.rs). After a nudge that set a mask, the preview
+//! comes with an image of each such mask's selection.
 
 use super::calls::{read_reply, Call};
 use super::color::{
@@ -37,6 +41,7 @@ use super::color::{
     is_grading_value, is_mixer_value,
 };
 use super::effects::{changed_effects, is_effect_value};
+use super::masks::{mask_named, selection_image, PreviewPlacement, MAX_SELECTION_IMAGES};
 use super::sliders::{apply_set_sliders, changed_sliders, is_slider};
 use super::tone_curve::{apply_set_tone_curve, changed_curves, is_curve};
 use super::tools::{describe, number, written};
@@ -63,6 +68,11 @@ const SET_COLOR_GRADING: &str = "set_color_grading";
 const SET_TONE_CURVE: &str = "set_tone_curve";
 const SET_EFFECT: &str = "set_effect";
 const SET_AI_DENOISE: &str = "set_ai_denoise";
+/// Claude's tools besides those, which assets/claude/editor_system.md
+/// describes.
+const SET_MASK: &str = "set_mask";
+const SET_MASK_PART: &str = "set_mask_part";
+const SET_CROP: &str = "set_crop";
 /// Nudges one request may make, as the editor prompt tells Gemma. With four,
 /// every nudge after the first undid or overdid it (contrast 30→10, shadows
 /// and highlights +100), so the photographer steers with follow-ups instead.
@@ -117,6 +127,9 @@ struct Request {
     nudges: u32,
     /// What its nudges changed, in the order first set.
     changes: Vec<Change>,
+    /// The masks the last nudge set, by name, whose selections go to Claude
+    /// with the next preview.
+    selections: Vec<String>,
     step: Step,
 }
 
@@ -239,6 +252,7 @@ impl CalibRawApp {
             text,
             nudges: 0,
             changes: Vec::new(),
+            selections: Vec::new(),
             step: Step::Capturing(Outgoing::Request),
         });
         self.egui_ctx.request_repaint();
@@ -251,7 +265,12 @@ impl CalibRawApp {
                 log::warn!("{error}");
             }
         }
-        self.ai.editor = EditorState::default();
+        // Request ids keep counting: a cancelled reply's text may still
+        // stream in, and must not match the next photo's first request.
+        self.ai.editor = EditorState {
+            next_request_id: self.ai.editor.next_request_id,
+            ..EditorState::default()
+        };
     }
 
     /// Moves the running request on: streams what Gemma says, applies its
@@ -309,9 +328,14 @@ impl CalibRawApp {
     /// preview shows every edit. Each phase's first message starts its
     /// conversation.
     fn send_to_ai_editor(&mut self, frame: &eframe::Frame) {
-        // AI denoise holds the preview while it runs, and may first ask the
-        // photographer to allow it.
-        if self.ai_denoise_running() || self.ai_consent_is_for(AiFeature::Denoise) {
+        // AI denoise holds the preview while it runs, and a model making a
+        // mask's selection is not done; either may first ask the
+        // photographer to allow it. A person mask made from the people
+        // already found runs beside the foreground job (`composes`).
+        if self.foreground_operation_active()
+            || self.ai.consent.is_some()
+            || !self.ai.people.composes.is_empty()
+        {
             return;
         }
         let snapshot = match self.current_preview_snapshot(frame) {
@@ -332,6 +356,34 @@ impl CalibRawApp {
         };
         let edit = self.ai_edit_summary();
         let model = self.ai.editor_model;
+        // Claude sees the preview as the photographer does, lens-corrected,
+        // so its positions are where masks are drawn.
+        let lens = match model {
+            AiEditorModel::Gemma => None,
+            AiEditorModel::ClaudeCode => self
+                .develop
+                .loaded_raw
+                .as_ref()
+                .and_then(|raw| raw.lens_geometry.clone()),
+        };
+        // The masks whose selection images follow the preview, by index.
+        let selections: Vec<(String, usize)> = self
+            .ai
+            .editor
+            .request
+            .as_ref()
+            .map(|request| {
+                request
+                    .selections
+                    .iter()
+                    .filter_map(|name| Some((name.clone(), mask_named(&self.masks.stack, name)?)))
+                    .take(MAX_SELECTION_IMAGES)
+                    .collect()
+            })
+            .unwrap_or_default();
+        // The worker draws the selections, so it takes the masks; their
+        // bitmaps are shared (`Arc`), so this copies only their parameters.
+        let masks = (!selections.is_empty()).then(|| self.masks.stack.clone());
         let editor = &mut self.ai.editor;
         let Some(request) = editor.request.as_ref() else {
             return;
@@ -370,6 +422,16 @@ impl CalibRawApp {
             }
             AiEditorModel::ClaudeCode => {
                 let starts = !editor.claude_conversation;
+                let shown = if selections.is_empty() {
+                    String::new()
+                } else {
+                    let names: Vec<&str> =
+                        selections.iter().map(|(name, _)| name.as_str()).collect();
+                    format!(
+                        "\nAfter the preview, one image per mask you set shows its selection in red and the rest darkened, in this order: {}.",
+                        names.join(", ")
+                    )
+                };
                 let message = match outgoing {
                     Outgoing::Request if starts => format!(
                         "{photo}\n{previous}Request: {}\n\nCurrent values: {edit}",
@@ -380,10 +442,10 @@ impl CalibRawApp {
                         format!("Request: {}\n\nCurrent values: {edit}", request.text)
                     }
                     Outgoing::Nudged { results } if request.nudges < CLAUDE_MAX_NUDGES => format!(
-                        "The app set:\n{results}\n\nThe new preview. Current values: {edit}\nIf it shows what was asked, say what you changed in one or two sentences, without a tool line; otherwise write the tool lines that correct it."
+                        "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nIf it shows what was asked, say what you changed in one or two sentences, without a tool line; otherwise write the tool lines that correct it."
                     ),
                     Outgoing::Nudged { results } => format!(
-                        "The app set:\n{results}\n\nThe new preview. Current values: {edit}\nYou have no corrections left: say what you changed in one or two sentences, without a tool line."
+                        "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nYou have no corrections left: say what you changed in one or two sentences, without a tool line."
                     ),
                 };
                 editor.claude_conversation = true;
@@ -406,11 +468,31 @@ impl CalibRawApp {
             let preview = snapshot
                 .read_thumbnail_blocking(&device, &queue, GEMMA_IMAGE_EDGE)
                 .map_err(|error| format!("could not read the preview back: {error:#}"))?;
-            let preview = crate::pipeline::transform_thumbnail_geometry(&preview, geometry);
-            let preview = image::RgbaImage::from_raw(preview.width, preview.height, preview.rgba)
-                .ok_or_else(|| "the preview read back with an invalid size".to_owned())?;
-            write_gemma_jpeg(preview, &jpeg_path)?;
-            let body = platform.gemma_editor_send(request_id, &message, Some(&jpeg_path))?;
+            let write = |image: &crate::pipeline::RawThumbnail, path: &Path| {
+                let image = crate::pipeline::transform_thumbnail_geometry_with_lens(
+                    image,
+                    geometry,
+                    lens.as_deref(),
+                );
+                let image = image::RgbaImage::from_raw(image.width, image.height, image.rgba)
+                    .ok_or_else(|| "the preview read back with an invalid size".to_owned())?;
+                write_gemma_jpeg(image, path)
+            };
+            write(&preview, &jpeg_path)?;
+            let mut images = vec![jpeg_path];
+            for (number, (_, layer)) in selections.iter().enumerate() {
+                let Some(masks) = masks.as_ref() else {
+                    break;
+                };
+                let path = data_dir.join(format!("claude-selection-{number}.jpg"));
+                write(
+                    &selection_image(masks, *layer, &preview, lens.as_deref()),
+                    &path,
+                )?;
+                images.push(path);
+            }
+            let images: Vec<&Path> = images.iter().map(PathBuf::as_path).collect();
+            let body = platform.gemma_editor_send(request_id, &message, &images)?;
             serde_json::from_str::<Reply>(&body).map_err(|error| {
                 format!("the model's reply is not the expected JSON ({error}): {body}")
             })
@@ -456,6 +538,17 @@ impl CalibRawApp {
                 "AI denoise: on, strength {}",
                 (exposure.ai_denoise_amount * 100.0).round()
             ));
+        }
+        if self.ai.editor_model == AiEditorModel::ClaudeCode {
+            if let Some(masks) = self
+                .preview_placement()
+                .and_then(|placement| self.mask_summary(&placement))
+            {
+                groups.push(format!("masks: {masks}"));
+            }
+            if let Some(geometry) = self.geometry_summary() {
+                groups.push(format!("crop: {geometry}"));
+            }
         }
         if groups.is_empty() {
             "every value at its default".to_owned()
@@ -510,6 +603,18 @@ impl CalibRawApp {
         }
 
         let responses = self.apply_ai_editor_calls(&calls, frame);
+        let mut selections: Vec<String> = Vec::new();
+        for (call, response) in calls.iter().zip(&responses) {
+            let set = matches!(call.name.as_str(), SET_MASK | SET_MASK_PART)
+                && response.get("error").is_none()
+                && response.get("status").and_then(Value::as_str) != Some("deleted");
+            let name = call.arguments.get("name").and_then(Value::as_str);
+            if let Some(name) =
+                name.filter(|name| set && !selections.iter().any(|known| known == name))
+            {
+                selections.push(name.to_owned());
+            }
+        }
         let results = calls
             .iter()
             .zip(&responses)
@@ -529,8 +634,9 @@ impl CalibRawApp {
             return;
         };
         request.nudges += 1;
+        request.selections = selections;
         for (call, response) in calls.iter().zip(&responses) {
-            record_changes(&mut request.changes, &call.name, response);
+            record_changes(&mut request.changes, &change_tool(call), response);
         }
         request.step = Step::Capturing(Outgoing::Nudged { results });
         self.egui_ctx.request_repaint();
@@ -563,28 +669,50 @@ impl CalibRawApp {
         self.egui_ctx.request_repaint();
     }
 
+    /// Where the fractions of the preview Claude saw lie in the photo.
+    fn preview_placement(&self) -> Option<PreviewPlacement> {
+        let raw = self.develop.loaded_raw.as_ref()?;
+        Some(PreviewPlacement::new(
+            self.develop.geometry,
+            raw.lens_geometry.clone(),
+            raw.width,
+            raw.height,
+        ))
+    }
+
     /// Applies `calls` as one nudge from the edit as the reply found it, and
     /// returns each call's response.
     fn apply_ai_editor_calls(&mut self, calls: &[Call], frame: &eframe::Frame) -> Vec<Value> {
         let baseline = self.develop.exposure;
         let baseline_effects = self.masks.stack.global_effects.clone();
+        // Mask positions are in the preview the reply saw, before this
+        // nudge's crop.
+        let placement = self.preview_placement();
+        let claude = self.ai.editor_model == AiEditorModel::ClaudeCode;
         let mut responses = Vec::with_capacity(calls.len());
         let mut denoise_calls = Vec::new();
         for (index, call) in calls.iter().enumerate() {
             let raw = self.develop.loaded_raw.as_deref();
             let exposure = &mut self.develop.exposure;
             let arguments = &call.arguments;
-            let response = match call.name.as_str() {
-                SET_SLIDERS => apply_set_sliders(exposure, &baseline, raw, arguments),
-                SET_COLOR_MIXER => apply_set_color_mixer(exposure, &baseline, arguments),
-                SET_COLOR_GRADING => apply_set_color_grading(exposure, &baseline, arguments),
-                SET_TONE_CURVE => apply_set_tone_curve(exposure, &baseline, arguments),
-                SET_EFFECT => self.apply_set_effect(&baseline_effects, arguments),
-                SET_AI_DENOISE => {
+            let response = match (call.name.as_str(), placement.as_ref()) {
+                (SET_SLIDERS, _) => apply_set_sliders(exposure, &baseline, raw, arguments),
+                (SET_COLOR_MIXER, _) => apply_set_color_mixer(exposure, &baseline, arguments),
+                (SET_COLOR_GRADING, _) => apply_set_color_grading(exposure, &baseline, arguments),
+                (SET_TONE_CURVE, _) => apply_set_tone_curve(exposure, &baseline, arguments),
+                (SET_EFFECT, _) => self.apply_set_effect(&baseline_effects, arguments),
+                (SET_AI_DENOISE, _) => {
                     denoise_calls.push(index);
                     Value::Null
                 }
-                name => json!({ "error": format!("there is no tool named {name}") }),
+                (SET_MASK, Some(placement)) if claude => {
+                    self.apply_set_mask(arguments, placement, frame)
+                }
+                (SET_MASK_PART, Some(placement)) if claude => {
+                    self.apply_set_mask_part(arguments, placement, frame)
+                }
+                (SET_CROP, _) if claude => self.apply_set_crop(arguments),
+                (name, _) => json!({ "error": format!("there is no tool named {name}") }),
             };
             responses.push(response);
         }
@@ -723,7 +851,13 @@ fn routed(calls: Vec<Call>) -> Vec<Call> {
     let mut routed: Vec<Call> = Vec::new();
     for call in calls {
         let arguments = match call.arguments {
-            Value::Object(arguments) if call.name != SET_AI_DENOISE && !arguments.is_empty() => {
+            // These tools' values are their own, even where another tool
+            // has one of the same name, such as a mask's `exposure`.
+            Value::Object(arguments)
+                if ![SET_AI_DENOISE, SET_MASK, SET_MASK_PART, SET_CROP]
+                    .contains(&call.name.as_str())
+                    && !arguments.is_empty() =>
+            {
                 arguments
             }
             arguments => {
@@ -788,6 +922,21 @@ fn result_line(tool: &str, response: &Value) -> String {
         line.push_str(&format!("; {status}"));
     }
     line
+}
+
+/// The tool `call`'s changes are recorded under: a mask tool's with the
+/// mask and part it set, since every mask has an `exposure`.
+fn change_tool(call: &Call) -> String {
+    if !matches!(call.name.as_str(), SET_MASK | SET_MASK_PART) {
+        return call.name.clone();
+    }
+    let mut tool = call.name.clone();
+    for key in ["name", "part"] {
+        if let Some(value) = call.arguments.get(key) {
+            tool.push_str(&format!(" {key}={}", written(value)));
+        }
+    }
+    tool
 }
 
 /// Adds the values a call of `tool` set, by its `response`, to `changes`.

@@ -114,7 +114,8 @@ change that establishes a boundary, not in advance.
   with four nudges every one after the first undid or overdid it, so the
   photographer steers with follow-ups. Each message to Gemma carries the
   edit's values away from their defaults. Once `current_preview_snapshot`
-  reports the render current and no AI denoise job or consent holds it, the
+  reports the render current and no foreground job (AI denoise, an AI mask),
+  consent dialog or people mask from the analysis holds it, the
   preview that shows the nudge goes to Gemma with what the app set, as
   `name=before→after`, and Gemma says what it changed. The nudge is one undo
   step (`observe_edit_history`). The chat is kept in the app only: each phase
@@ -143,7 +144,22 @@ change that establishes a boundary, not in advance.
   conversation per photo holds the whole chat, plans and writes its tool
   lines in the same reply (`assets/claude/editor_system.md`), and looks at the
   preview after each nudge to correct it, up to ten nudges a request; it ends
-  sooner with a reply without tool lines. Switching models forgets the open
+  sooner with a reply without tool lines. Claude also has three tools Gemma
+  is not given: `set_mask`
+  and `set_mask_part` (`masks.rs`) make and edit masks by a name Claude gives
+  them, with their parts (radial, linear, luminance, colour and the model
+  kinds; brushes and paths stay the photographer's) and adjustments, and
+  `set_crop` (`crop.rs`) sets the crop, straightening, turns, flips,
+  perspective and skew as the Crop panel does. Mask positions are fractions
+  of the preview Claude sees, mapped back through the geometry and the lens
+  correction (`PreviewPlacement`), so Claude's preview is transformed with
+  the lens as Develop shows it; the crop is in fractions of the uncropped
+  photo as displayed. A model-made part starts its foreground job or consent
+  dialog, so one is made per reply and the nudge waits for it. After a nudge
+  that set masks, each such mask's selection goes to Claude as an image of
+  its own after the preview, at most four (`selection_image`); the image
+  paths travel to Java one per line in `editorSend`'s path string. Each
+  message also lists the masks and the crop. Switching models forgets the open
   photo's chat and card, and the photo is triaged again by the new model when
   Develop next shows it (with Claude, when the chat next opens).
   Settings checks how far Claude Code is set up (`claude auth status`) and
@@ -202,7 +218,7 @@ job records the value it started with.
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
 | Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed; with Claude Code, or after a model switch, it waits (`waiting`) until Develop shows the photo, and with Claude Code until the AI editor's chat is open too | none; it ends with the model's reply or a 120 s timeout | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
-| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or ending Claude's process) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or `Session.end`, which closes Claude Code's connection: its process exits once the running turn's API call, already billed, has finished) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id, which keeps counting across photos | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s, and with Claude Code a request first waits up to 35 s for its process to connect |
 | Claude Code setup check (Android) | one receiver in `ClaudeSetupState`; no second check starts while one runs | none; it ends when `claude auth status` exits or after 60 s | none; the setup is an app setting | the failure is shown in Settings; Termux not running the check reads as blocked |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |

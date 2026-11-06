@@ -38,12 +38,13 @@ interface AiModel {
     void startEditorRequest(String systemPrompt) throws Exception;
 
     /**
-     * Sends {@code text}, after the JPEG at {@code imagePath} when that is not empty, to the
-     * editor conversation and returns the reply as
-     * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}. The reply's text
-     * also streams through {@link AiModels#reportEditorText}, tagged with {@code requestId}.
+     * Sends {@code text}, after the JPEGs at {@code imagePaths}, one path per line or empty for
+     * none, to the editor conversation and returns the reply as
+     * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}. Gemma is sent one
+     * JPEG at most. The reply's text also streams through {@link AiModels#reportEditorText},
+     * tagged with {@code requestId}.
      */
-    String editorSend(long requestId, String text, String imagePath) throws Exception;
+    String editorSend(long requestId, String text, String imagePaths) throws Exception;
 
     /**
      * Ends the editor conversation, cancelling a running turn, which then fails. Returns at once.

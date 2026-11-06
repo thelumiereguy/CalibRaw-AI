@@ -316,20 +316,20 @@ final class ClaudeBridge implements AiModel {
     }
 
     /**
-     * Sends {@code text}, after the JPEG at {@code imagePath} when that is not empty, and returns
+     * Sends {@code text}, after the JPEGs at {@code imagePaths}, one path per line, and returns
      * Claude's reply as {@code {"text": ..., "tool_calls": []}}: Claude writes its tool lines in
      * the text, which the app parses (app/ai/gemma/calls.rs). The text also streams through
      * {@link AiModels#reportEditorText}, tagged with {@code requestId}.
      */
     @Override
-    public String editorSend(long requestId, String text, String imagePath) throws Exception {
+    public String editorSend(long requestId, String text, String imagePaths) throws Exception {
         synchronized (editorLock) {
             Session session = editor;
             if (session == null) {
                 throw new IOException("The AI editor chat is closed");
             }
             long started = SystemClock.elapsedRealtime();
-            JSONObject result = session.send(userMessage(text, imagePath), new Listener() {
+            JSONObject result = session.send(userMessage(text, imagePaths), new Listener() {
                 @Override
                 public void onText(String piece) {
                     AiModels.reportEditorText(requestId, piece);
@@ -509,11 +509,17 @@ final class ClaudeBridge implements AiModel {
         return arguments;
     }
 
-    /** A stream-json user message: the JPEG at {@code imagePath}, when not empty, then text. */
-    private static JSONObject userMessage(String text, String imagePath)
+    /**
+     * A stream-json user message: the JPEGs at {@code imagePaths}, one path per line or empty for
+     * none, then text.
+     */
+    private static JSONObject userMessage(String text, String imagePaths)
             throws IOException, JSONException {
         JSONArray content = new JSONArray();
-        if (imagePath != null && !imagePath.isEmpty()) {
+        for (String imagePath : imagePaths == null ? new String[0] : imagePaths.split("\n")) {
+            if (imagePath.isEmpty()) {
+                continue;
+            }
             JSONObject source = new JSONObject();
             source.put("type", "base64");
             source.put("media_type", "image/jpeg");

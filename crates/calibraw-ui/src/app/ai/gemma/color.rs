@@ -1,6 +1,6 @@
 //! The Color Mixer and Color Grading values Gemma's `set_color_mixer` and
-//! `set_color_grading` tools move. Their names and ranges are those
-//! editor_system.md gives Gemma.
+//! `set_color_grading` tools move, and Claude's `set_mask` moves in a mask.
+//! Their names and ranges are those editor_system.md gives the model.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ColorGradeWheel, ColorGrading, ExposureParams};
@@ -14,6 +14,10 @@ const MIXER_LIMITS: Limits = Limits::new(-100.0, 100.0, 0);
 /// Stored mixer hue per unit Gemma reads, which are Lightroom's: the stored
 /// hue spans ±`HSL_HUE_LIMIT` (200), as presets/xmp.rs reads Lightroom's.
 const MIXER_HUE_SCALE: f32 = 2.0;
+
+/// A Color Mixer's stored hue, saturation and luminance per range, of the
+/// edit (`ExposureParams::hsl_*`) or of a mask (`LocalAdjustments::hsl_*`).
+pub(super) type Mixer = [[f32; 8]; 3];
 
 #[derive(Clone, Copy)]
 enum Channel {
@@ -36,19 +40,28 @@ fn channel(name: &str) -> Option<Channel> {
 }
 
 /// The mixer value `color_channel`, such as `blue_saturation`.
-fn mixer_value<'a>(exposure: &'a mut ExposureParams, name: &str) -> Option<(&'a mut f32, f32)> {
+fn mixer_value<'a>(mixer: &'a mut Mixer, name: &str) -> Option<(&'a mut f32, f32)> {
     let (color, channel_name) = name.split_once('_')?;
     let index = MIXER_COLORS.iter().position(|known| *known == color)?;
+    let [hue, saturation, luminance] = mixer;
     Some(match channel(channel_name)? {
-        Channel::Hue => (&mut exposure.hsl_hue[index], MIXER_HUE_SCALE),
-        Channel::Saturation => (&mut exposure.hsl_saturation[index], 1.0),
-        Channel::Luminance => (&mut exposure.hsl_luminance[index], 1.0),
+        Channel::Hue => (&mut hue[index], MIXER_HUE_SCALE),
+        Channel::Saturation => (&mut saturation[index], 1.0),
+        Channel::Luminance => (&mut luminance[index], 1.0),
     })
+}
+
+const fn edit_mixer(exposure: &ExposureParams) -> Mixer {
+    [
+        exposure.hsl_hue,
+        exposure.hsl_saturation,
+        exposure.hsl_luminance,
+    ]
 }
 
 /// Whether `name` is a mixer value.
 pub(super) fn is_mixer_value(name: &str) -> bool {
-    mixer_value(&mut ExposureParams::default(), name).is_some()
+    mixer_value(&mut Mixer::default(), name).is_some()
 }
 
 /// Whether `name` is a grading value.
@@ -56,14 +69,18 @@ pub(super) fn is_grading_value(name: &str) -> bool {
     grading_value(&mut ColorGrading::default(), name).is_some()
 }
 
-/// The mixer values away from zero, as Gemma reads them.
+/// The edit's mixer values away from zero, as Gemma reads them.
 pub(super) fn changed_mixer(exposure: &ExposureParams) -> Map<String, Value> {
-    let mut exposure = *exposure;
+    changed_mixer_values(edit_mixer(exposure))
+}
+
+/// The values of `mixer` away from zero, as the model reads them.
+pub(super) fn changed_mixer_values(mut mixer: Mixer) -> Map<String, Value> {
     let mut values = Map::new();
     for color in MIXER_COLORS {
         for (_, channel_name) in CHANNELS {
             let name = format!("{color}_{channel_name}");
-            let Some((stored, scale)) = mixer_value(&mut exposure, &name) else {
+            let Some((stored, scale)) = mixer_value(&mut mixer, &name) else {
                 continue;
             };
             let value = rounded(*stored / scale, 0);
@@ -84,7 +101,24 @@ pub(super) fn apply_set_color_mixer(
     arguments: &Value,
 ) -> Value {
     let mut outcome = Outcome::default();
-    let mut baseline = *baseline;
+    let mut mixer = edit_mixer(exposure);
+    apply_mixer(&mut mixer, edit_mixer(baseline), arguments, &mut outcome);
+    [
+        exposure.hsl_hue,
+        exposure.hsl_saturation,
+        exposure.hsl_luminance,
+    ] = mixer;
+    outcome.into_response()
+}
+
+/// Sets the mixer values `arguments` names in `mixer`, each within its
+/// range, noting them in `outcome`; `baseline` gives the values they were.
+pub(super) fn apply_mixer(
+    mixer: &mut Mixer,
+    mut baseline: Mixer,
+    arguments: &Value,
+    outcome: &mut Outcome,
+) {
     for (name, requested) in arguments.as_object().into_iter().flatten() {
         let (Some(requested), Some((from, _))) =
             (number(requested), mixer_value(&mut baseline, name))
@@ -93,7 +127,7 @@ pub(super) fn apply_set_color_mixer(
             continue;
         };
         let from = *from;
-        let Some((field, scale)) = mixer_value(exposure, name) else {
+        let Some((field, scale)) = mixer_value(mixer, name) else {
             outcome.not_set(name);
             continue;
         };
@@ -102,7 +136,6 @@ pub(super) fn apply_set_color_mixer(
         *field = value * scale;
         outcome.set_number(name, requested, was, value, MIXER_LIMITS.decimals);
     }
-    outcome.into_response()
 }
 
 fn wheel<'a>(grading: &'a mut ColorGrading, name: &str) -> Option<&'a mut ColorGradeWheel> {
@@ -131,10 +164,14 @@ fn grading_value<'a>(grading: &'a mut ColorGrading, name: &str) -> Option<(&'a m
     })
 }
 
-/// The grading values away from their defaults, as Gemma reads them; a
-/// wheel's hue only while it has saturation to show it.
+/// The edit's grading values away from their defaults, as Gemma reads them.
 pub(super) fn changed_grading(exposure: &ExposureParams) -> Map<String, Value> {
-    let grading = exposure.color_grading;
+    changed_grading_values(exposure.color_grading)
+}
+
+/// The values of `grading` away from their defaults, as the model reads
+/// them; a wheel's hue only while it has saturation to show it.
+pub(super) fn changed_grading_values(grading: ColorGrading) -> Map<String, Value> {
     let defaults = ColorGrading::default();
     let mut values = Map::new();
     let wheels = [
@@ -172,7 +209,23 @@ pub(super) fn apply_set_color_grading(
     arguments: &Value,
 ) -> Value {
     let mut outcome = Outcome::default();
-    let mut baseline = baseline.color_grading;
+    apply_grading(
+        &mut exposure.color_grading,
+        baseline.color_grading,
+        arguments,
+        &mut outcome,
+    );
+    outcome.into_response()
+}
+
+/// Sets the grading values `arguments` names in `grading`, each within its
+/// range, noting them in `outcome`; `baseline` gives the values they were.
+pub(super) fn apply_grading(
+    grading: &mut ColorGrading,
+    mut baseline: ColorGrading,
+    arguments: &Value,
+    outcome: &mut Outcome,
+) {
     for (name, requested) in arguments.as_object().into_iter().flatten() {
         let (Some(requested), Some((from, _))) =
             (number(requested), grading_value(&mut baseline, name))
@@ -190,7 +243,7 @@ pub(super) fn apply_set_color_grading(
                 continue;
             }
         }
-        let Some((field, limits)) = grading_value(&mut exposure.color_grading, name) else {
+        let Some((field, limits)) = grading_value(grading, name) else {
             outcome.not_set(name);
             continue;
         };
@@ -199,5 +252,4 @@ pub(super) fn apply_set_color_grading(
         *field = value;
         outcome.set_number(name, requested, was, value, limits.decimals);
     }
-    outcome.into_response()
 }

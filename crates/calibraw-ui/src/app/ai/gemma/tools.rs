@@ -16,6 +16,14 @@ pub(super) fn number(value: &Value) -> Option<f32> {
         .filter(|value| value.is_finite())
 }
 
+/// Two numbers written `a/b`, such as a position.
+pub(super) fn pair(value: &Value) -> Option<[f32; 2]> {
+    match value.as_array()?.as_slice() {
+        [a, b] => Some([number(a)?, number(b)?]),
+        _ => None,
+    }
+}
+
 /// `value` with `decimals` decimal places, as its slider shows it.
 pub(super) fn rounded(value: f32, decimals: u32) -> f32 {
     let scale = 10_f32.powi(decimals as i32);
@@ -63,6 +71,12 @@ impl Outcome {
     /// `now`.
     pub(super) fn set(&mut self, name: &str, was: Value, now: Value) {
         self.was.insert(name.to_owned(), was);
+        self.now.insert(name.to_owned(), now);
+    }
+
+    /// Notes that `name` is now `now`, where it had no value before, such as
+    /// a new mask's shape.
+    pub(super) fn now(&mut self, name: &str, now: Value) {
         self.now.insert(name.to_owned(), now);
     }
 

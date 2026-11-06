@@ -10,7 +10,8 @@
 //! Beneath them, with no app state: `calls` reads the tool lines the model
 //! writes, and the tools, `sliders`, `color` (mixer and grading),
 //! `tone_curve` and `effects`, read and write the edit, keeping each value in
-//! its control's range (`tools`).
+//! its control's range (`tools`). Claude Code has two more, which make masks
+//! and their selections (`masks`) and set the crop and geometry (`crop`).
 //!
 //! Prompts live in android/app/src/main/assets/gemma/ and, for Claude's
 //! editor, assets/claude/.
@@ -19,8 +20,10 @@ use super::*;
 
 mod calls;
 mod color;
+mod crop;
 mod editor;
 mod effects;
+mod masks;
 mod model;
 mod sliders;
 mod tone_curve;

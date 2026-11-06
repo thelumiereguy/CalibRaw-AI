@@ -370,17 +370,28 @@ final class GemmaBridge implements AiModel {
     }
 
     /**
-     * Sends the photographer's turn, {@code text} with the JPEG at {@code imagePath} before it
-     * when that is not empty, and returns Gemma's reply as
+     * Sends the photographer's turn, {@code text} after the JPEG in {@code imagePaths}, one path
+     * per line or empty for none, and returns Gemma's reply as
      * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}, the calls being
-     * those Gemma wrote in its own call syntax that LiteRT-LM parsed. The reply's text also
-     * streams through {@link AiModels#reportEditorText}, tagged with {@code requestId}.
+     * those Gemma wrote in its own call syntax that LiteRT-LM parsed. Gemma takes one JPEG at
+     * most. The reply's text also streams through {@link AiModels#reportEditorText}, tagged with
+     * {@code requestId}.
      */
     @Override
-    public String editorSend(long requestId, String text, String imagePath) throws Exception {
-        Contents contents = imagePath == null || imagePath.isEmpty()
+    public String editorSend(long requestId, String text, String imagePaths) throws Exception {
+        List<String> paths = new ArrayList<>();
+        for (String path : imagePaths == null ? new String[0] : imagePaths.split("\n")) {
+            if (!path.isEmpty()) {
+                paths.add(path);
+            }
+        }
+        if (paths.size() > 1) {
+            throw new IOException("Gemma takes one image per message, not " + paths.size());
+        }
+        Contents contents = paths.isEmpty()
                 ? Contents.Companion.of(text)
-                : Contents.Companion.of(new Content.ImageFile(imagePath), new Content.Text(text));
+                : Contents.Companion.of(
+                        new Content.ImageFile(paths.get(0)), new Content.Text(text));
         return editorTurn(requestId, Message.Companion.user(contents));
     }
 
