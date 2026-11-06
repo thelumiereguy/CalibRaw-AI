@@ -25,6 +25,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -533,6 +534,7 @@ final class ClaudeBridge implements AiModel {
         // Queued after the last result, when the process has ended or the connection closed.
         private static final JSONObject END = new JSONObject();
         private static final SecureRandom RANDOM = new SecureRandom();
+        private static final InetAddress IPV4_LOOPBACK = ipv4Loopback();
 
         private final ServerSocket server;
         private final String token;
@@ -555,7 +557,8 @@ final class ClaudeBridge implements AiModel {
         /** Has Termux start {@code claude} with {@code claudeArguments}. Returns at once. */
         static Session start(Context context, String name, List<String> claudeArguments)
                 throws IOException {
-            ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+            // IPv4 loopback, where connect.sh connects: Android's getLoopbackAddress() is ::1.
+            ServerSocket server = new ServerSocket(0, 1, IPV4_LOOPBACK);
             byte[] secret = new byte[16];
             RANDOM.nextBytes(secret);
             StringBuilder token = new StringBuilder();
@@ -785,6 +788,15 @@ final class ClaudeBridge implements AiModel {
                     break;
                 default:
                     break;
+            }
+        }
+
+        private static InetAddress ipv4Loopback() {
+            try {
+                return InetAddress.getByAddress(new byte[] {127, 0, 0, 1});
+            } catch (UnknownHostException impossible) {
+                // getByAddress throws only for an address of the wrong length.
+                throw new AssertionError(impossible);
             }
         }
 
