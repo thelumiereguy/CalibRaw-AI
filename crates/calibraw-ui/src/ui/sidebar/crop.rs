@@ -219,21 +219,7 @@ impl Sidebar {
             }
         });
 
-        app.develop.geometry = app.develop.geometry.sanitized();
-        let geometry = app.develop.geometry;
-        let containment_transform_changed =
-            (geometry.rotation_degrees - before.rotation_degrees).abs() > 1e-6
-                || (geometry.horizontal_skew_degrees - before.horizontal_skew_degrees).abs() > 1e-6
-                || (geometry.vertical_skew_degrees - before.vertical_skew_degrees).abs() > 1e-6
-                || geometry.perspective != before.perspective
-                || geometry.aspect_stretch != before.aspect_stretch;
-        if containment_transform_changed {
-            app.refit_crop(source_dimensions.0, source_dimensions.1);
-        } else {
-            app.develop
-                .geometry
-                .fit_crop_inside_transformed_source(source_dimensions.0, source_dimensions.1);
-        }
+        app.fit_crop_after_geometry_edit(before, source_dimensions.0, source_dimensions.1);
         if app.develop.geometry != before {
             app.note_geometry_changed();
         }

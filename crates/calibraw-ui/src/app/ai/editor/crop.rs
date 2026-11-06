@@ -195,20 +195,7 @@ impl CalibRawApp {
             }
         }
 
-        *geometry = geometry.sanitized();
-        let after = *geometry;
-        let containment_changed = (after.rotation_degrees - before.rotation_degrees).abs() > 1e-6
-            || (after.horizontal_skew_degrees - before.horizontal_skew_degrees).abs() > 1e-6
-            || (after.vertical_skew_degrees - before.vertical_skew_degrees).abs() > 1e-6
-            || after.perspective != before.perspective
-            || after.aspect_stretch != before.aspect_stretch;
-        if containment_changed {
-            self.refit_crop(width, height);
-        } else {
-            self.develop
-                .geometry
-                .fit_crop_inside_transformed_source(width, height);
-        }
+        self.fit_crop_after_geometry_edit(before, width, height);
         if let Some(requested) = arguments.get("crop") {
             let shown = requested
                 .as_array()

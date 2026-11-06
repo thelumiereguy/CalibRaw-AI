@@ -86,6 +86,33 @@ impl CalibRawApp {
         geometry.fit_crop_inside_transformed_source(source_width, source_height);
     }
 
+    /// Sanitizes the geometry after an edit that started from `before`, then fits the crop
+    /// inside the transformed source. When the rotation, skew, perspective correction or aspect
+    /// stretch changed, the crop is refitted from the user's last one (`refit_crop`); otherwise
+    /// the current crop is only kept inside.
+    pub(crate) fn fit_crop_after_geometry_edit(
+        &mut self,
+        before: GeometryTransform,
+        source_width: u32,
+        source_height: u32,
+    ) {
+        self.develop.geometry = self.develop.geometry.sanitized();
+        let geometry = self.develop.geometry;
+        let containment_transform_changed =
+            (geometry.rotation_degrees - before.rotation_degrees).abs() > 1e-6
+                || (geometry.horizontal_skew_degrees - before.horizontal_skew_degrees).abs() > 1e-6
+                || (geometry.vertical_skew_degrees - before.vertical_skew_degrees).abs() > 1e-6
+                || geometry.perspective != before.perspective
+                || geometry.aspect_stretch != before.aspect_stretch;
+        if containment_transform_changed {
+            self.refit_crop(source_width, source_height);
+        } else {
+            self.develop
+                .geometry
+                .fit_crop_inside_transformed_source(source_width, source_height);
+        }
+    }
+
     /// The 35 mm-equivalent focal length a new perspective correction of the open photo is
     /// made with.
     pub(crate) fn perspective_focal_length(&self) -> f32 {
