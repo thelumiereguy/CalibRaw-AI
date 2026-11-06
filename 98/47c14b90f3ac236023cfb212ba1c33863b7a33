@@ -1,0 +1,71 @@
+crates/calibraw-ui/locales/uk.json
+  s_8f74af7efeeba8::t_28401ca30e36f6 325
+  s_8f74af7efeeba8::t_c8510c6762b28d 1708
+crates/calibraw-ui/locales/zh-TW.json
+  s_8f74af7efeeba8::t_090c55972bfc2c 323
+  s_8f74af7efeeba8::t_d7c9af7bea10e5 1713
+crates/calibraw-ui/locales/ja.json
+  s_8f74af7efeeba8::t_559341fb12928c 1713
+  s_8f74af7efeeba8::t_ec921227d92071 323
+crates/calibraw-ui/locales/ro.json
+  s_8f74af7efeeba8::t_4c92fdad6b49bd 1820
+  s_8f74af7efeeba8::t_8ee7300eea8df9 358
+crates/calibraw-ui/locales/de.json
+  s_8f74af7efeeba8::t_561c10bd2ee0ae 1713
+  s_8f74af7efeeba8::t_c9b248eb5e71b6 323
+crates/calibraw-ui/locales/pl.json
+  s_8f74af7efeeba8::t_66ce5c4dff898b 323
+  s_8f74af7efeeba8::t_eb410875b78c4b 1707
+crates/calibraw-ui/locales/en-posh.json
+  s_8f74af7efeeba8::t_fedec3a6d2bc39 323
+  s_8f74af7efeeba8::t_bd72d552f1a819 1707
+crates/calibraw-ui/locales/es.json
+  s_8f74af7efeeba8::t_cbdc5eb0aa1fab 1820
+  s_8f74af7efeeba8::t_0958c722577b32 358
+crates/calibraw-ui/locales/hi.json
+  s_8f74af7efeeba8::t_d970b6fcd31b79 1713
+  s_8f74af7efeeba8::t_e438d0af65e91b 323
+crates/calibraw-ui/locales/da.json
+  s_8f74af7efeeba8::t_ff7d6851da64e9 358
+  s_8f74af7efeeba8::t_d056f6725dceed 1820
+crates/calibraw-ui/locales/fr.json
+  s_8f74af7efeeba8::t_61c1ecb40ca208 358
+  s_8f74af7efeeba8::t_ed8056c5051ebe 1820
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_6ee6e28f301351 58
+  s_8f74af7efeeba8::t_97dc3cf2acd780 763
+crates/calibraw-ui/locales/it.json
+  s_8f74af7efeeba8::t_22b24d37ec4a74 358
+  s_8f74af7efeeba8::t_0ccbb469f93067 1820
+crates/calibraw-ui/locales/ru.json
+  s_8f74af7efeeba8::t_3f2ad1c4eca39d 325
+  s_8f74af7efeeba8::t_df68e7df749bf1 1708
+crates/calibraw-ui/locales/tr.json
+  s_8f74af7efeeba8::t_194f1d4e0d2566 325
+  s_8f74af7efeeba8::t_d303045b55aac6 1708
+crates/calibraw-ui/locales/ko.json
+  s_8f74af7efeeba8::t_448699e52caa14 1820
+  s_8f74af7efeeba8::t_4e318b9c3fa3e4 358
+crates/calibraw-ui/locales/zh.json
+  s_8f74af7efeeba8::t_cd1a05dc0777ad 1713
+  s_8f74af7efeeba8::t_971450221be505 323
+crates/calibraw-ui/src/ui/settings.rs
+  s_8f74af7efeeba8::t_689ca3182cad09 1299-1304
+  s_8f74af7efeeba8::t_3a1c9a2071d883 1333-1336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9847c14b90f3ac236023cfb212ba1c33863b7a33",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
