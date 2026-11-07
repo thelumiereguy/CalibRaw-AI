@@ -9,16 +9,17 @@
     "img: how the preview must change, metric followed by up, down, same or a bound on the new value such as chroma<4 (see check.py METRICS).",
     "allow: guardrails this request may break on purpose (crush, clip).",
     "answer: a question, which must be answered and change nothing.",
-    "Prompts carry no ( ) ? % ' or quotes: adb's remote shell would read them."
+    "Prompts carry no ( ) ? % ' or quotes: adb's remote shell would read them.",
+    "photos: two RAWs (mountains, city) and two JPEGs (concert, jet), so both kinds of file are edited. A JPEG is the full-size image the phone embedded in its DNG, saved at quality 92."
   ],
   "photos": {
-    "concert": {"file": "IMG20261023192019.dng", "tile": [226, 1025], "genre": "concert|stage|performance|music|singer",
+    "concert": {"file": "IMG20261023192019.jpg", "tile": [874, 595], "genre": "concert|stage|performance|music|singer",
                 "about": "A singer kneeling at the mic in deep blue stage light and haze, drum kit on the right, the crowd a black silhouette at the bottom."},
-    "mountains": {"file": "IMG20261029103631.dng", "tile": [655, 1025], "genre": "mountain|landscape|aerial|alpine",
+    "mountains": {"file": "IMG20261029103631.dng", "tile": [874, 1103], "genre": "mountain|landscape|aerial|alpine",
                   "about": "Snowy Alpine ridges from a plane window, a strong blue cast and haze, valleys in deep shadow, brown rock on the slopes."},
-    "city": {"file": "IMG20261018172103.dng", "tile": [803, 542], "genre": "city|urban|river|bridge|architecture|town|travel",
+    "city": {"file": "IMG20261018172103.dng", "tile": [346, 1103], "genre": "city|urban|river|bridge|architecture|town|travel",
              "about": "Prague at dusk from a hill: bridges over the river, autumn trees, a flat grey sky, dark roofs and trees in the foreground."},
-    "jet": {"file": "IMG20260614172652.dng", "tile": [276, 542], "genre": "jet|fighter|aviation|aircraft|air show|military|plane",
+    "jet": {"file": "IMG20260614172652.jpg", "tile": [346, 595], "genre": "jet|fighter|aviation|aircraft|air show|military|plane",
             "about": "A fighter jet banking under a flat grey overcast sky, small in the frame and nearly a silhouette."}
   },
   "cases": [
