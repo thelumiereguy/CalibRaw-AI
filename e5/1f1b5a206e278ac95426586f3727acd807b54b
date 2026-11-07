@@ -1,0 +1,219 @@
+crates/calibraw-ui/locales/tr.json
+  s_68c5ad4ec17289::t_9bde23ca4d72ef 1497
+  s_68c5ad4ec17289::t_57f72e816a88ef 1034
+  s_68c5ad4ec17289::t_7aa2666e960137 349
+  s_68c5ad4ec17289::t_d743e50d974f77 1137
+  s_68c5ad4ec17289::t_dd92a959c48caa 1265
+  s_68c5ad4ec17289::t_8c17c89aa02be4 825-826
+  s_68c5ad4ec17289::t_4d804e228393c6 47-48
+crates/calibraw-ui/locales/ro.json
+  s_68c5ad4ec17289::t_18a4fc1b0c441b 1217
+  s_68c5ad4ec17289::t_1436c7f1770407 1595
+  s_68c5ad4ec17289::t_ef574a9202d11c 892-893
+  s_68c5ad4ec17289::t_20491178f57b29 67-68
+  s_68c5ad4ec17289::t_80f1061cf48ff4 1123
+  s_68c5ad4ec17289::t_1b99748c11a212 381
+  s_68c5ad4ec17289::t_6bfc0a74bb8786 1358
+crates/calibraw-ui/locales/uk.json
+  s_68c5ad4ec17289::t_f4dbd3d3e93fc6 1265
+  s_68c5ad4ec17289::t_a3bad61b137df9 349
+  s_68c5ad4ec17289::t_4fb190c862d9a3 825-826
+  s_68c5ad4ec17289::t_3f5ce91e3c230c 1497
+  s_68c5ad4ec17289::t_f2e048e9cd5b91 1034
+  s_68c5ad4ec17289::t_eda22ea19ae082 47-48
+  s_68c5ad4ec17289::t_d52c1681a57f70 1137
+crates/calibraw-ui/src/app/job_state.rs
+  s_68c5ad4ec17289::t_c058098dac538b 166-167
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_68c5ad4ec17289::t_ae3512c52dd3c6 18
+  s_68c5ad4ec17289::t_a2065d2ad7df58 252-321,328-394,398-399,404-405,407,409,412-443
+  s_68c5ad4ec17289::t_f57e5f8bb24848 395-397,400-403,406,408,410-411
+  s_68c5ad4ec17289::t_d032982480e6e1 27
+  s_68c5ad4ec17289::t_816f9117e0a38e 322-327
+  s_68c5ad4ec17289::t_df65bd9fd7e001 52-55
+  s_68c5ad4ec17289::t_d1c4b711555a8e 21,25-26,28-30,41,43
+  s_68c5ad4ec17289::t_264d3318bd9c9a 70-73,81-83
+crates/calibraw-ui/locales/da.json
+  s_68c5ad4ec17289::t_a3dad7241bf817 1358
+  s_68c5ad4ec17289::t_31805a179197af 1217
+  s_68c5ad4ec17289::t_0cd9f226b2f037 892-893
+  s_68c5ad4ec17289::t_a0a005972993b7 1595
+  s_68c5ad4ec17289::t_8a03525d8544f5 67-68
+  s_68c5ad4ec17289::t_ef6a6b8c8063f2 381
+  s_68c5ad4ec17289::t_cccf2526f546e7 1123
+crates/calibraw-ui/src/app/preview_capture.rs
+  s_68c5ad4ec17289::t_2af55dcd007a58 1-70
+docs/ARCHITECTURE.md
+  s_68c5ad4ec17289::t_c6d4db9ff3ba8b 150
+  s_68c5ad4ec17289::t_8f85a7d17c8b90 84-97
+  s_68c5ad4ec17289::t_1711dae8f647a7 328-330
+  s_68c5ad4ec17289::t_28b6da272b785f 137
+  s_68c5ad4ec17289::t_06c05b5265dbba 151
+  s_68c5ad4ec17289::t_1fca3cff7ec423 192
+  s_68c5ad4ec17289::t_54e5de03451b42 335
+crates/calibraw-ui/locales/ko.json
+  s_68c5ad4ec17289::t_a666e788a43b87 892-893
+  s_68c5ad4ec17289::t_63190b48446138 1123
+  s_68c5ad4ec17289::t_28da0458e79e41 1217
+  s_68c5ad4ec17289::t_ded84ebc35016a 1358
+  s_68c5ad4ec17289::t_d5af927166c52b 67-68
+  s_68c5ad4ec17289::t_d25add7bdd0c9d 1595
+  s_68c5ad4ec17289::t_abcfdf69bbe161 381
+crates/calibraw-ffi/src/android/gemma.rs
+  s_68c5ad4ec17289::t_6b03b17c47f71f 90-218
+crates/calibraw-ui/locales/zh-TW.json
+  s_68c5ad4ec17289::t_8f032bb0812676 844-845
+  s_68c5ad4ec17289::t_7d68f9d559fc1c 1155
+  s_68c5ad4ec17289::t_42fd8f21e75483 48-49
+  s_68c5ad4ec17289::t_7e84f5f2f82d86 1055
+  s_68c5ad4ec17289::t_6aafbfb85d749a 1281
+  s_68c5ad4ec17289::t_869cede67384d0 1507
+  s_68c5ad4ec17289::t_57e26295bc0e78 347
+crates/calibraw-ui/src/app/ai/sliders.rs
+  s_68c5ad4ec17289::t_f2e44af3bdd821 170-173
+  s_68c5ad4ec17289::t_4ad0966543ef6d 1-169,174-242
+android/app/src/main/assets/gemma/editor_system.md
+  s_68c5ad4ec17289::t_7a3c197ce8d2a5 3,14-16,18
+crates/calibraw-ui/src/app/eframe_impl.rs
+  s_68c5ad4ec17289::t_c1b5c3291fd9cf 220
+  s_68c5ad4ec17289::t_75e66e3546dd43 142-143
+  s_68c5ad4ec17289::t_4904ca2972acc9 403-407,411
+crates/calibraw-ui/src/ui/mod.rs
+  s_68c5ad4ec17289::t_70dacd8c3d5db1 1
+crates/calibraw-ui/locales/pl.json
+  s_68c5ad4ec17289::t_edc66c56dbd333 1138
+  s_68c5ad4ec17289::t_a808d6943fc0ed 1265
+  s_68c5ad4ec17289::t_84ff5eec42dc76 1497
+  s_68c5ad4ec17289::t_f9cd498bc81b47 1038
+  s_68c5ad4ec17289::t_816d7971defcd5 48-49
+  s_68c5ad4ec17289::t_61a90c90581e8a 347
+  s_68c5ad4ec17289::t_b9fa7a5f91bd1c 824-825
+crates/calibraw-ui/src/app/ai/triage.rs
+  s_68c5ad4ec17289::t_1fb7f851d3e987 15-16
+  s_68c5ad4ec17289::t_61e53f4dfaaa9d 267-276,278,280-281,287,289-290,292-293,295
+crates/calibraw-ui/locales/es.json
+  s_68c5ad4ec17289::t_2b827df0a4b313 67-68
+  s_68c5ad4ec17289::t_a95f517774269f 381
+  s_68c5ad4ec17289::t_d2fd45d778d472 892-893
+  s_68c5ad4ec17289::t_bef638aeb91178 1123
+  s_68c5ad4ec17289::t_bc265c35bea84f 1217
+  s_68c5ad4ec17289::t_bec4702bb0feea 1358
+  s_68c5ad4ec17289::t_95258d6dbac8ec 1595
+crates/calibraw-ui/locales/it.json
+  s_68c5ad4ec17289::t_12c43f4f5e4342 1123
+  s_68c5ad4ec17289::t_6e3db7a0dbe0b9 1358
+  s_68c5ad4ec17289::t_e498b412ce9a29 67-68
+  s_68c5ad4ec17289::t_c4fd63ca48b3d3 381
+  s_68c5ad4ec17289::t_b8d1b55ca0e5c9 1217
+  s_68c5ad4ec17289::t_e058b46baa391e 892-893
+  s_68c5ad4ec17289::t_8df9cf12382821 1595
+crates/calibraw-ui/src/app/ai/editor.rs
+  s_68c5ad4ec17289::t_f3c2638443b4ae 1-118,121-122,126-247,251-417
+  s_68c5ad4ec17289::t_9f2c43552427b6 119-120,123-125
+  s_68c5ad4ec17289::t_f2e44af3bdd821 248-250
+crates/calibraw-ui/src/app.rs
+  s_68c5ad4ec17289::t_f2e44af3bdd821 347
+  s_68c5ad4ec17289::t_e3f5b9b7811220 323
+crates/calibraw-ui/src/ui/develop_viewport.rs
+  s_68c5ad4ec17289::t_2fd9ca3fe0dade 34-35,37,39,45-46
+  s_68c5ad4ec17289::t_1349ffc7fc4687 70,77,79,85-88
+  s_68c5ad4ec17289::t_ce27bd4af185f2 108-117
+  s_68c5ad4ec17289::t_7f73f5347f3edd 162-165
+  s_68c5ad4ec17289::t_3cc9e801339293 192-195
+crates/calibraw-ui/locales/en-posh.json
+  s_68c5ad4ec17289::t_309784400e0e6a 1038
+  s_68c5ad4ec17289::t_952df5415ae2eb 48-49
+  s_68c5ad4ec17289::t_c74eade44938e9 347
+  s_68c5ad4ec17289::t_11480286c4aa7e 1138
+  s_68c5ad4ec17289::t_4359c6109ac852 1265
+  s_68c5ad4ec17289::t_c8285889c9de22 1497
+  s_68c5ad4ec17289::t_98a81e14eb0f37 824-825
+crates/calibraw-ui/locales/zh.json
+  s_68c5ad4ec17289::t_2fd764fe19c6a0 1507
+  s_68c5ad4ec17289::t_6641eae25eafb5 48-49
+  s_68c5ad4ec17289::t_ca2cf4264d9499 1155
+  s_68c5ad4ec17289::t_9114886998121b 1055
+  s_68c5ad4ec17289::t_f683ce1404c619 347
+  s_68c5ad4ec17289::t_2d1ac5ad9cd70f 844-845
+  s_68c5ad4ec17289::t_acebdef1859b5b 1281
+crates/calibraw-ui/locales/fr.json
+  s_68c5ad4ec17289::t_789e1e995335e2 1358
+  s_68c5ad4ec17289::t_212c19edc8055a 1595
+  s_68c5ad4ec17289::t_ca83fbe6f5f8e5 1217
+  s_68c5ad4ec17289::t_eef685ad9aacd0 67-68
+  s_68c5ad4ec17289::t_b999c0fa8a9c74 381
+  s_68c5ad4ec17289::t_721ca158a13441 892-893
+  s_68c5ad4ec17289::t_45c2df1562e280 1123
+crates/calibraw-ui/src/platform/service.rs
+  s_68c5ad4ec17289::t_72535522f17cf8 519-555
+crates/calibraw-ui/src/app/edit_history.rs
+  s_68c5ad4ec17289::t_706fbad915c9d1 496-498
+crates/calibraw-ui/src/app/lifecycle/documents.rs
+  s_68c5ad4ec17289::t_3c12525a796cda 322
+crates/calibraw-ui/src/ui/ai_chat.rs
+  s_68c5ad4ec17289::t_f2e44af3bdd821 91
+  s_68c5ad4ec17289::t_486cfae1b5de4b 174
+  s_68c5ad4ec17289::t_d2206c80286e70 95
+  s_68c5ad4ec17289::t_086ebd44498afb 127
+  s_68c5ad4ec17289::t_971d8173a47c00 1-90,92-94,96-126,128-173,175-189
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_68c5ad4ec17289::t_c93d063dba9571 235
+crates/calibraw-ui/locales/ja.json
+  s_68c5ad4ec17289::t_74480d4a7cc5bf 1055
+  s_68c5ad4ec17289::t_6ca2c51c81f2b1 1155
+  s_68c5ad4ec17289::t_ddbb97ee673d63 1281
+  s_68c5ad4ec17289::t_45e2fad4c7ac5c 1507
+  s_68c5ad4ec17289::t_2989a2145231da 347
+  s_68c5ad4ec17289::t_41583f8036c11c 48-49
+  s_68c5ad4ec17289::t_5ede64ba1d7a58 844-845
+crates/calibraw-ui/locales/ru.json
+  s_68c5ad4ec17289::t_3d4bb613cf664c 1265
+  s_68c5ad4ec17289::t_6c3d87779fee3c 47-48
+  s_68c5ad4ec17289::t_a7e612c34e2673 349
+  s_68c5ad4ec17289::t_5150323ac6f870 1137
+  s_68c5ad4ec17289::t_8f7984ce6787ec 1034
+  s_68c5ad4ec17289::t_7b50393760602a 825-826
+  s_68c5ad4ec17289::t_f97206e052105e 1497
+crates/calibraw-ui/locales/hi.json
+  s_68c5ad4ec17289::t_411b60ec8f1ec0 1055
+  s_68c5ad4ec17289::t_1599d9fe0d3238 1155
+  s_68c5ad4ec17289::t_113c7793147193 1281
+  s_68c5ad4ec17289::t_22b0b334c2d8a9 347
+  s_68c5ad4ec17289::t_6dc00d220b4bb0 844-845
+  s_68c5ad4ec17289::t_64dc27ecf61dcd 1507
+  s_68c5ad4ec17289::t_359b3a9a5eb35e 48-49
+crates/calibraw-ui/src/platform/android.rs
+  s_68c5ad4ec17289::t_a650ad3ed748bd 483-511
+crates/calibraw-ui/src/app/sidecar_persistence/developed_thumbnail.rs
+  s_68c5ad4ec17289::t_a7fa44d311aadf 149-156,158
+  s_68c5ad4ec17289::t_b63e16eff745bd 4
+crates/calibraw-ui/locales/de.json
+  s_68c5ad4ec17289::t_db66112f01b12c 48-49
+  s_68c5ad4ec17289::t_adb9652108b241 347
+  s_68c5ad4ec17289::t_20747755ac3972 844-845
+  s_68c5ad4ec17289::t_679759e8f2b77b 1281
+  s_68c5ad4ec17289::t_3af0649da59fb1 1155
+  s_68c5ad4ec17289::t_2ee4090e5343ea 1507
+  s_68c5ad4ec17289::t_e48081bc3588b8 1055
+crates/calibraw-ui/src/ui/top_bar.rs
+  s_68c5ad4ec17289::t_d33e24259d1a65 270-272,282-283,286
+  s_68c5ad4ec17289::t_96d5b1476860d3 310,319-320
+crates/calibraw-ui/src/app/ai/mod.rs
+  s_68c5ad4ec17289::t_4e20a3f4deb3b5 30,35,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e51f1b5a206e278ac95426586f3727acd807b54b",
+  "prompts": {},
+  "sessions": {
+    "s_68c5ad4ec17289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a815b3c6-4dec-4e4e-8467-92afa82191a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

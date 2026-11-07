@@ -1,0 +1,37 @@
+android/app/src/main/assets/gemma/editor_system.md
+  s_68c5ad4ec17289::t_b8ba33d62ac64b 3,7-9,11,15-23,25
+  s_68c5ad4ec17289::t_0a60e94fe89572 6
+  s_68c5ad4ec17289::t_829235a02e65be 14
+  s_68c5ad4ec17289::t_6922cfacc3f362 1
+  s_68c5ad4ec17289::t_e865cc3f3c3bd8 24
+crates/calibraw-ui/src/app/ai/gemma/color.rs
+  s_68c5ad4ec17289::t_cbb56b542d2807 2-4
+crates/calibraw-ui/src/app/ai/gemma/sliders.rs
+  s_68c5ad4ec17289::t_354cb0ed8b6893 2-3
+android/app/src/main/assets/gemma/interpret_system.md
+  s_68c5ad4ec17289::t_b6329e62669ee7 14
+  s_68c5ad4ec17289::t_3f6920189548bc 8
+  s_68c5ad4ec17289::t_03e9f2fb0186fc 21
+  s_68c5ad4ec17289::t_47db50b6e8bf54 3,5-6,16-20,33
+  s_68c5ad4ec17289::t_8ce0f5f42be3ac 7,9-11,15,23-29,31
+crates/calibraw-ui/src/app/ai/gemma/effects.rs
+  s_68c5ad4ec17289::t_5bace2319b8591 3-5
+crates/calibraw-ui/src/app/ai/gemma/tone_curve.rs
+  s_68c5ad4ec17289::t_cd388d4aeec695 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6d4dca1fcc0bd4baa02f2605019c299a2145327",
+  "prompts": {},
+  "sessions": {
+    "s_68c5ad4ec17289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a815b3c6-4dec-4e4e-8467-92afa82191a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

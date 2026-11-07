@@ -1,0 +1,112 @@
+android/app/src/main/assets/gemma/set_sliders_tool.json
+  s_68c5ad4ec17289::t_291b63116cceb0 1-22
+android/app/build.gradle
+  s_68c5ad4ec17289::t_92c7e216a3c56f 159
+  s_68c5ad4ec17289::t_fd4173a2350f74 214-218
+crates/calibraw-ui/src/app/job_state.rs
+  s_68c5ad4ec17289::t_59c6f93bff09f6 164-165
+crates/calibraw-ui/src/ui/top_bar.rs
+  s_68c5ad4ec17289::t_b195af9e1ea12a 302
+  s_68c5ad4ec17289::t_7b658acafa6d84 279-286,289-301,303-304,324-331,345-368,374
+  s_68c5ad4ec17289::t_761f2b651f9f60 305,314-317,319-323
+  s_68c5ad4ec17289::t_6c8360bbc01a93 306-313
+  s_68c5ad4ec17289::t_3be4ee5642dcba 318
+  s_68c5ad4ec17289::t_ad2c35b8706050 692
+  s_68c5ad4ec17289::t_cce157e23b903d 287-288
+  s_68c5ad4ec17289::t_fd8014cd6dc9d0 37-46
+  s_68c5ad4ec17289::t_2a6e6252809523 332-344
+crates/calibraw-ui/src/app/eframe_impl.rs
+  s_68c5ad4ec17289::t_37f90361c89a6d 216-218
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_68c5ad4ec17289::t_805e8db9be5881 62-65,74-75,78,92-93,95-97,107-110,176,195-231,270,299
+  s_68c5ad4ec17289::t_a70682cec09f43 256,260
+  s_68c5ad4ec17289::t_a640e5b6452bf8 43-44,60-61,66,71-73,76-77,98-100
+  s_68c5ad4ec17289::t_3f5766949d3447 4-6
+  s_68c5ad4ec17289::t_83b7d1d716441c 52-58
+  s_68c5ad4ec17289::t_6eea66b266021e 18-19,24-26,34-39
+  s_68c5ad4ec17289::t_778fd79e5ae6b2 271
+  s_68c5ad4ec17289::t_2f951584eb60d2 17
+  s_68c5ad4ec17289::t_4a83128ed7ef16 287
+  s_68c5ad4ec17289::t_a49269c40a58ae 234-255
+  s_68c5ad4ec17289::t_c6d754768092e2 1-3,7-16,20-23,27-30,32-33,40-42,45-51,59,67-70,79-83,89,103-106,117-118,152-157,171,175,232-233,257-259,261-269,272-286,288-298,300-309
+  s_68c5ad4ec17289::t_bf141182ad4432 173
+  s_68c5ad4ec17289::t_e4a192d2a47d5b 31
+  s_68c5ad4ec17289::t_ac22790a56bf7e 84-88,90-91,94,101-102,112-116,119-151,158-170,172,174,177-194
+  s_68c5ad4ec17289::t_f844ec61752e9b 111
+android/app/src/main/AndroidManifest.xml
+  s_68c5ad4ec17289::t_40cbd8283213ee 21-24
+crates/calibraw-ffi/src/android.rs
+  s_68c5ad4ec17289::t_cf8e85eec3f367 25,32
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_68c5ad4ec17289::t_2ce88e36b311e5 52
+  s_68c5ad4ec17289::t_37cc0fed47f8a6 134
+  s_68c5ad4ec17289::t_b01d64e4a2d626 133
+crates/calibraw-ffi/src/android/gemma.rs
+  s_68c5ad4ec17289::t_ab517128dc2aea 90-91,97-107,109-114
+  s_68c5ad4ec17289::t_d68ea4423dde7c 1-3,5,22,34,36-41,50-53,88-89,115-129
+  s_68c5ad4ec17289::t_7a9402d2a22bec 92-96
+  s_68c5ad4ec17289::t_30d549de30651f 4,6-21,23-33,35,42-49,54-87,108
+crates/calibraw-ui/src/platform/service.rs
+  s_68c5ad4ec17289::t_ee6d496343376a 498-507,509-512
+  s_68c5ad4ec17289::t_208ee57db0e6d1 136-152
+  s_68c5ad4ec17289::t_8bf25fbf63424c 514-518
+  s_68c5ad4ec17289::t_03a2f4895fd99a 494-497,508,513,519
+crates/calibraw-ui/src/platform/android.rs
+  s_68c5ad4ec17289::t_c1bf6dc33d5231 477-478
+  s_68c5ad4ec17289::t_d89769e2a5f21f 479-482
+  s_68c5ad4ec17289::t_ffa32c269a478c 6
+  s_68c5ad4ec17289::t_83fd0a8a28aead 460-476
+android/app/src/main/assets/gemma/triage_system.md
+  s_68c5ad4ec17289::t_378f221b54eb27 2-4,6-9
+  s_68c5ad4ec17289::t_97ec8e6cbc8394 1
+  s_68c5ad4ec17289::t_47fa138b476977 5
+crates/calibraw-ui/src/app/ai/triage.rs
+  s_68c5ad4ec17289::t_67fc288b906455 213
+  s_68c5ad4ec17289::t_b9c26eb1e61906 184-188
+  s_68c5ad4ec17289::t_6cd1a995049bb0 20-26
+  s_68c5ad4ec17289::t_4f5ceb753d9cb3 5-7,51,63-71,85-86,106-115,138,173-174,176-183,189-196,215-218,227-232,245-251,265,286
+  s_68c5ad4ec17289::t_67d5412bb9e9f0 87-89,91
+  s_68c5ad4ec17289::t_6d58e9e3a079ac 244,252-261
+  s_68c5ad4ec17289::t_d178b61e4ec84f 233-240
+  s_68c5ad4ec17289::t_0a391857cded1b 1-4,8-19,27-50,52-62,72-84,90,92-105,116-137,139-172,175,197-212,214,219-226,241-243,262-264,266-285,287-290
+crates/calibraw-ui/src/app/lifecycle/documents.rs
+  s_68c5ad4ec17289::t_7e21deae2c0814 321
+  s_68c5ad4ec17289::t_e7578e0caabe23 490-492
+scripts/build-android-macos.sh
+  s_68c5ad4ec17289::t_42d52cb6773c30 1-27
+android/app/proguard-rules.pro
+  s_68c5ad4ec17289::t_611d1d72864e65 16-20
+crates/calibraw-ui/src/app/ai/mod.rs
+  s_68c5ad4ec17289::t_9d8cac7608e88d 37
+  s_68c5ad4ec17289::t_898c875cc03a6a 41
+crates/calibraw-ui/src/platform/caps.rs
+  s_68c5ad4ec17289::t_79a01192f1d573 24-26
+  s_68c5ad4ec17289::t_13a8f476aebdbb 103
+  s_68c5ad4ec17289::t_d567a703686f8c 80
+  s_68c5ad4ec17289::t_41d37f7b71abb1 91
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_68c5ad4ec17289::t_fe5d3de29c8930 234
+android/app/src/main/assets/gemma/editor_system.md
+  s_68c5ad4ec17289::t_178dddb963cb7c 2-17
+  s_68c5ad4ec17289::t_1a07a3b3c0813b 1
+crates/calibraw-ui/src/app.rs
+  s_68c5ad4ec17289::t_bae682100d5c2a 345
+android/app/src/main/assets/gemma/triage_schema.json
+  s_68c5ad4ec17289::t_f919c83f20ee49 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "136203c11f352f1100b795af698ceafc8e1c17d7",
+  "prompts": {},
+  "sessions": {
+    "s_68c5ad4ec17289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a815b3c6-4dec-4e4e-8467-92afa82191a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

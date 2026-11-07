@@ -1,0 +1,20 @@
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_68c5ad4ec17289::t_0317ec96caa1ae 103-107,109,115-117,122
+  s_68c5ad4ec17289::t_95b94b6a661b95 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "52880df1af2dc1c1e4346a0a3c00810caad6a7a3",
+  "prompts": {},
+  "sessions": {
+    "s_68c5ad4ec17289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a815b3c6-4dec-4e4e-8467-92afa82191a2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
