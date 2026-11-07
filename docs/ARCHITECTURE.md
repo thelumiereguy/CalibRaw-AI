@@ -86,49 +86,46 @@ change that establishes a boundary, not in advance.
   (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
   card); it asks for no editing priorities or observations, since
   Gemma edited towards them instead of the photographer's request. The AI
-  editor (`editor.rs`) is a chat in which each request runs in two phases,
-  whose first messages name that card's genre and role; the system prompts
-  name no photo, so Gemma reads them once per process and keeps them across
-  photos, so opening a photo costs only its triage.
-  First Gemma interprets the
-  photographer's words and the preview into a brief of tone, colour, finish
-  and what to keep (`assets/gemma/interpret_system.md`, which names no tools).
-  Then, in a second conversation that never sees the photographer's words,
-  it carries out the brief (`assets/gemma/editor_system.md`); asked to plan a
-  look and write its values in one reply, it crushed a photo to black. Gemma
-  edits through six tools, which the second prompt lists; no tools
-  are declared to LiteRT-LM. Gemma writes each call as a text line, the tool's
-  name and `name=value` pairs (`set_sliders shadows=15`), and the app reads
-  them itself (`calls.rs`), also in Gemma 4's own call syntax and with its
-  slips, such as a brace too many. The declared tools' schemas cost about
-  2,700 tokens of preface where the text list costs about 1,550. The tools are `set_sliders`
+  editor (`editor.rs`) is a chat in which each request is one Gemma reply,
+  whose message names that card's genre and role; the system prompt names no
+  photo, so Gemma reads it once per process and keeps it across photos, so
+  opening a photo costs only its triage. Gemma interprets the photographer's
+  words and the preview into a brief (`assets/gemma/interpret_system.md`,
+  which names no tools): lines of tone, colour, detail and effects items, each
+  a setting, up or down and a size word (a touch to very strong, or stops for
+  exposure), what to keep, and a sentence for the photographer. The app reads
+  the brief into tool calls itself (`brief.rs`), each size a step added to the
+  setting's current value. A second conversation that wrote the values from
+  the brief wrote some with the wrong sign or to the wrong tool, and asked to
+  plan a look and write its values in one reply, Gemma crushed a photo to
+  black. An item the reader cannot read unambiguously is reported in the chat,
+  not guessed. The tools are `set_sliders`
   (`sliders.rs`; on a RAW, Warmth is the white balance in mired around the
   as-shot value and Tint the shown tint less the as-shot one),
   `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
   (`tone_curve.rs`, five outputs at fixed inputs), `set_effect` (`effects.rs`,
   the global Vignette, Grain, Glow and Halation, by slider label) and
-  `set_ai_denoise`. A request is one nudge, the calls of the second phase's
-  first reply, each value sent to the tool that owns its name: each value goes
-  where Gemma writes it within its range (`tools.rs`). A cap
-  per nudge kept Gemma from reaching black and white or a strong effect, and
-  with four nudges every one after the first undid or overdid it, so the
-  photographer steers with follow-ups. Each message to Gemma carries the
-  edit's values away from their defaults. Once `current_preview_snapshot`
-  reports the render current and no AI denoise job or consent holds it, the
-  preview that shows the nudge goes to Gemma with what the app set, as
-  `name=before→after`, and Gemma says what it changed. The nudge is one undo
-  step (`observe_edit_history`). The chat is kept in the app only: each phase
-  runs on a clone of a conversation that holds just its system prompt
-  (`GemmaBridge.startEditorRequest`), both read once, when the first card
-  comes (`prepareEditor`), since a clone takes milliseconds and a new conversation's
-  first prefill took 16–23 s after the process's first. Each phase's first
-  message says what the previous request changed, in the `before→after`
-  syntax, so a follow-up such as "a bit more" or "undo that" works. A
-  request's conversation is closed when it ends, since an open one keeps its
-  memory. The engine holds 4,096 tokens per conversation
+  `set_ai_denoise`; the brief reaches the first four, and each value goes
+  where the reader puts it within its range (`tools.rs`). Tool lines Gemma
+  writes on its own are kept out of the chat's text (`calls.rs`). A request is
+  one nudge, so the photographer steers with follow-ups: with four nudges
+  every one after the first undid or overdid it. Each message to Gemma
+  carries the edit's values away from their defaults and what the previous
+  request changed, as `name=before→after`, so a follow-up such as "a bit
+  more" or "undo that" works; a `back` item returns a value to its `before`.
+  The nudge is one undo step (`observe_edit_history`). The chat is kept in
+  the app only: each request runs on a clone of a conversation that holds
+  just the system prompt (`GemmaBridge.startEditorRequest`), read once, when
+  the first card comes (`prepareEditor`), since a clone takes milliseconds
+  and a new conversation's first prefill took 16–23 s after the process's
+  first. A request's conversation is closed when it ends, since an open one
+  keeps its memory. The engine holds 4,096 tokens per conversation
   (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
   context for every layer up front (LiteRT-LM issue 4096), the largest
-  conversation used about 2,700, and 8,192 left the phone swapping.
+  conversation used about 2,700, and 8,192 left the phone swapping. For the
+  evals (`research/gemma-evals/`), while `files/gemma-trace.on` exists the app
+  writes the preview that shows a request's edit and what it set to the
+  trace GemmaBridge keeps.
 - Calibration (the hue and saturation of the primaries) is folded into the
   camera transform whenever a stage's camera uniforms are packed
   (`pack_camera_params`), after white balance, so like a camera profile it
@@ -188,7 +185,7 @@ job records the value it started with.
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
 | Gemma triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed | none; it ends with Gemma's reply or a 120 s timeout | the receiver is dropped when another photo opens (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
-| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and Gemma replying, one receiver per turn | another photo opening closes the conversation (`forget_ai_editor`, LiteRT's `cancelProcess`) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat; a turn times out after 120 s |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps from capturing the preview to Gemma's reply, and, for the evals, to writing the edited preview to the trace, one receiver per step | another photo opening closes the conversation (`forget_ai_editor`, LiteRT's `cancelProcess`) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat; a turn times out after 120 s |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |
 | Export watermark image | one receiver in `WatermarkState`: the saved image read at start-up, or a newly chosen one decoded and kept as `watermark.png` beside the settings | none; the card cannot choose another image while a load runs, and a picker result that arrives meanwhile replaces it | none; the watermark is an app setting, not part of a document, and each export takes the image it holds when it starts | error dialog; a saved image that cannot be read turns the watermark off |

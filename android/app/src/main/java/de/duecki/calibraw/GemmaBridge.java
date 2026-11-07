@@ -87,16 +87,15 @@ final class GemmaBridge {
     // conversation keeps its history, so each triage takes this one and a new one is made after.
     // Guarded by GemmaBridge.class.
     private static Conversation nextTriage;
-    // The editor's system prompts, each already read by Gemma, by prompt: a request interprets
-    // the photographer's words in one and edits in another. They name no photo, so they are
+    // The editor's system prompt, already read by Gemma, by prompt. It names no photo, so it is
     // kept for the process, and opening a photo costs only its triage.
-    // Each phase runs on a clone of its prompt's: a clone took milliseconds, while a new
+    // Each request runs on a clone of its prompt's: a clone took milliseconds, while a new
     // conversation's first prefill took 16-23 s after the process's first one. Guarded by
     // GemmaBridge.class.
     private static final Map<String, Conversation> editorBases = new LinkedHashMap<>();
-    // Base conversations kept, one per phase; each reserves MAX_NUM_TOKENS.
-    private static final int MAX_EDITOR_BASES = 2;
-    // The running phase's conversation, or null. Written under GemmaBridge.class; volatile so
+    // Base conversations kept; each reserves MAX_NUM_TOKENS. A request runs on one prompt.
+    private static final int MAX_EDITOR_BASES = 1;
+    // The running request's conversation, or null. Written under GemmaBridge.class; volatile so
     // closeEditor can cancel its running turn without waiting for that lock.
     private static volatile Conversation editor;
 
@@ -104,7 +103,9 @@ final class GemmaBridge {
     // lines while LiteRT logs, so each triage card and the editor's messages, replies and request
     // ends are appended to files/gemma-trace.txt, in a debuggable build and only while
     // files/gemma-trace.on exists, which the evals create for their run. A release build never
-    // traces. Null when the build is not debuggable.
+    // traces. The app adds what each request set (app/ai/gemma/editor.rs) while the same switch
+    // exists, which only run-as, and so only a debuggable build, can make. Null when the build is
+    // not debuggable.
     private static volatile File traceFile;
     private static final String TRACE_SWITCH = "gemma-trace.on";
 
@@ -315,8 +316,8 @@ final class GemmaBridge {
     }
 
     /**
-     * Starts a phase of a request on a fresh conversation that holds only {@code systemPrompt},
-     * replacing the earlier phase's. Blocks while Gemma reads a prompt it has not read yet.
+     * Starts a request on a fresh conversation that holds only {@code systemPrompt}, replacing
+     * the earlier request's. Blocks while Gemma reads a prompt it has not read yet.
      */
     public void startEditorRequest(String systemPrompt) throws Exception {
         synchronized (GemmaBridge.class) {

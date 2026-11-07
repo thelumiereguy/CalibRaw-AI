@@ -1,8 +1,7 @@
 //! What Gemma's editing tools share: reading a requested value, keeping it
 //! within its control's range, answering the call, and how
-//! values are written to Gemma. Each tool is described to Gemma by
-//! android/app/src/main/assets/gemma/editor_system.md, whose value names and
-//! ranges its module follows.
+//! values are written to Gemma. The brief reader (brief.rs) writes their
+//! calls from the brief Gemma writes.
 
 use serde_json::{json, Map, Value};
 use std::ops::RangeInclusive;

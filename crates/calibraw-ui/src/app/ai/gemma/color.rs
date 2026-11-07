@@ -1,6 +1,6 @@
 //! The Color Mixer and Color Grading values Gemma's `set_color_mixer` and
-//! `set_color_grading` tools move. editor_system.md gives Gemma the mixer's
-//! names and ranges and the grading's shadow and highlight tints; the other
+//! `set_color_grading` tools move. The brief reader (brief.rs) moves the
+//! mixer's ranges and the grading's shadow and highlight tints; the other
 //! grading values stay settable.
 
 use super::tools::{number, rounded, Limits, Outcome};
@@ -8,7 +8,7 @@ use crate::pipeline::{ColorGradeWheel, ColorGrading, ExposureParams};
 use serde_json::{json, Map, Value};
 
 /// The Color Mixer's ranges, in the order of `ExposureParams::hsl_*`.
-const MIXER_COLORS: [&str; 8] = [
+pub(super) const MIXER_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
 ];
 const MIXER_LIMITS: Limits = Limits::new(-100.0, 100.0, 0);
@@ -55,6 +55,22 @@ pub(super) fn is_mixer_value(name: &str) -> bool {
 /// Whether `name` is a grading value.
 pub(super) fn is_grading_value(name: &str) -> bool {
     grading_value(&mut ColorGrading::default(), name).is_some()
+}
+
+/// The mixer value `name` as `set_color_mixer` reads it, or `None` for
+/// another name.
+pub(super) fn mixer_current(exposure: &ExposureParams, name: &str) -> Option<f32> {
+    let mut exposure = *exposure;
+    let (stored, scale) = mixer_value(&mut exposure, name)?;
+    Some(rounded(*stored / scale, 0))
+}
+
+/// The grading value `name` as `set_color_grading` reads it, or `None` for
+/// another name.
+pub(super) fn grading_current(exposure: &ExposureParams, name: &str) -> Option<f32> {
+    let mut grading = exposure.color_grading;
+    let (value, _) = grading_value(&mut grading, name)?;
+    Some(rounded(*value, 0))
 }
 
 /// The mixer values away from zero, as Gemma reads them.

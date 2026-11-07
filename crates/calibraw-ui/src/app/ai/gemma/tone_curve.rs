@@ -1,7 +1,7 @@
 //! The tone curves Gemma's `set_tone_curve` tool shapes, as five outputs
-//! (0–255) at fixed inputs. editor_system.md no longer lists the tool: the
-//! curves Gemma wrote clipped or cast the photo. Gemma still reads the curves
-//! set by hand, and the tool stays settable.
+//! (0–255) at fixed inputs. The brief has no curve items: the curves Gemma
+//! wrote clipped or cast the photo. Gemma still reads the curves set by hand,
+//! and the tool stays settable.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, PointCurve, MAX_POINT_CURVE_POINTS};

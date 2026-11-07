@@ -1,8 +1,10 @@
-//! Gemma's tool calls, which it writes as text lines in its reply, as
-//! editor_system.md describes them: the tool's name, then `name=value` pairs,
-//! such as `set_sliders shadows=15 exposure=0.3`, with a curve's outputs
-//! joined by `/`. No tools are declared to LiteRT-LM, so the app reads the
-//! calls itself and reads them forgivingly: Gemma 4 also writes pairs without
+//! Tool calls Gemma writes as text lines in its reply: the tool's name, then
+//! `name=value` pairs, such as `set_sliders shadows=15 exposure=0.3`, with a
+//! curve's outputs joined by `/`. The brief asks for none (brief.rs writes
+//! the calls), but Gemma wrote them when a prompt listed the tools, so the
+//! chat keeps them out of the text it shows. No tools are declared to
+//! LiteRT-LM, so the app reads the calls itself and reads them forgivingly:
+//! Gemma 4 also writes pairs without
 //! the `=` (`shadows 15`), its own call syntax (`call:set_sliders{shadows:15}`,
 //! at times with a brace too many), `:` for `=`, `[…]` lists, quotes and list
 //! markers, and lines of pairs without the tool's name (`sharpen_amount=80`),

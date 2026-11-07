@@ -1,8 +1,8 @@
 //! Gemma's triage of the open photo, the first phase of the AI editor. When a
 //! photo opens, its rendered preview goes to on-device Gemma in a session of
 //! its own (`Platform::gemma_triage`), which names the photo's genre and
-//! fills the triage card that the AI editor's system prompt is built from
-//! (android/app/src/main/assets/gemma/editor_system.md). The genre and emoji
+//! fills the triage card whose genre and role each AI editor request's
+//! message names (editor.rs). The genre and emoji
 //! come first, so the badge shows them (`Platform::take_triage_headline`)
 //! while Gemma still writes the rest of the card.
 
