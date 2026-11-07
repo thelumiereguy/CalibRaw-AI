@@ -35,6 +35,13 @@ pub(super) fn pack_camera_params(ctx: &GpuParamContext<'_>) -> CameraUniforms {
     } else {
         camera_transform
     };
+    // Calibration acts on the working RGB the camera transform produces, so
+    // it is part of how the camera's colour is read, ahead of the profile's
+    // tables (`calibraw_core::pipeline::Calibration`).
+    let camera_transform = match exposure.calibration.working_matrix() {
+        Some(calibration) => calibraw_core::matrix::multiply(calibration, camera_transform),
+        None => camera_transform,
+    };
     let mut profile_layout = color.camera_profile.gpu_layout();
     profile_layout.flags[3] = profile_weight.clamp(0.0, 1.0).to_bits();
     let profile_stages = profile_layout.stages();
@@ -285,7 +292,7 @@ pub(super) fn pack_scene_tone_params(ctx: &GpuParamContext<'_>) -> SceneToneUnif
         exposure: exposure.exposure,
         saturation: exposure.saturation,
         vibrance: exposure.vibrance,
-        scene_depth_present: u32::from(masks.scene_depth_image().is_some_and(valid_scene_depth)),
+        _padding: 0,
         basic_tone: [
             exposure.highlights,
             exposure.shadows,
@@ -413,6 +420,5 @@ pub(super) fn pack_effect_params(
         capture_scale_sigma: [0.74, 1.75, 0.58, 1.65],
         capture_thresholds: [0.015, 0.0045, 0.055, 0.28],
         capture_mask_coherence: [0.035, 0.62, 0.055, 0.22],
-        scene_ground: [0.0, -1.0, 0.0, 0.0],
     }
 }

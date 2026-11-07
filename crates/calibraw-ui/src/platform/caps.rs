@@ -24,6 +24,9 @@ pub(crate) struct PlatformCaps {
     /// Gemma runs on the device ([`super::Platform::gemma_triage`]), so an
     /// opened photo gets a triage card and the AI editor is offered.
     pub(crate) on_device_gemma: bool,
+    /// The person can link folders of their own, whose photos are worked on
+    /// where they are, beside the media library.
+    pub(crate) linked_folders: bool,
 }
 
 /// How the person works with the app.
@@ -78,6 +81,7 @@ impl PlatformCaps {
         video_encoder: VideoEncoder::Ffmpeg,
         can_restart: true,
         on_device_gemma: false,
+        linked_folders: false,
     };
 
     pub(crate) const ANDROID: Self = Self {
@@ -89,6 +93,7 @@ impl PlatformCaps {
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
         on_device_gemma: true,
+        linked_folders: true,
     };
 
     #[cfg(target_os = "ios")]
@@ -101,6 +106,7 @@ impl PlatformCaps {
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
         on_device_gemma: false,
+        linked_folders: false,
     };
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

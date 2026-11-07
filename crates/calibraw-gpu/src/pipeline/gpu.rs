@@ -5,9 +5,9 @@ use crate::pipeline::{
     canonical_remove_scene_to_pipeline_scene, effect_params, export_mask_atlas_edge_limit,
     mask_atlas_edge, AiDenoisedImage, BinnedSensor, CfaKind, ExposureParams, FilmSource, FilmStock,
     GeometryMapping, GeometryTransform, HighlightReconstructionMethod, LateralChannel,
-    LensGeometryMap, LoadedRaw, LocalMask, MaskEffect, MaskImage, MaskStack, PixelLayout,
-    PointColor, PointCurve, ProcessingStage, ProfileColor, RawThumbnail, RemoveEditState,
-    RemovePatch, SceneNormals, SensorSaturation, SigmoidParams, GLOBAL_TEMPERATURE_LIMIT,
+    LensGeometryMap, LoadedRaw, LocalMask, MaskEffect, MaskStack, PixelLayout, PointColor,
+    PointCurve, ProcessingStage, ProfileColor, RawThumbnail, RemoveEditState, RemovePatch,
+    SceneDepth, SensorSaturation, SigmoidParams, GLOBAL_TEMPERATURE_LIMIT,
     GLOBAL_TINT_OFFSET_LIMIT, MAX_EFFECT_COMPONENTS, MAX_LOCAL_MASKS, MAX_POINT_COLORS,
     MAX_POINT_CURVE_POINTS,
 };
@@ -25,14 +25,17 @@ mod builder;
 mod clipping;
 mod construction;
 mod effect_inputs;
-mod ground_plane;
 mod histogram;
 mod mask_layers;
 mod preview_budget;
 mod readback;
 mod resources;
-mod scene_depth;
-mod scene_surface;
+mod scene;
+pub use scene::SceneLightQuality;
+use scene::{
+    SceneBake, SceneBakeUniforms, SceneLightKind, SceneLightSet, SceneShadowLight,
+    SCENE_BAKE_LAYERS, SCENE_SHADOW_LIGHTS, SCENE_WORKING_LONG_EDGE_MAX,
+};
 mod shader_manager;
 mod shaders;
 mod wait;
@@ -41,14 +44,12 @@ use builder::*;
 pub use clipping::PreviewClippingGpu;
 use effect_inputs::{
     EffectInputs, FullImageMap, InputBindingSources, InputBoundPass, HAZE_PASSES,
-    SCENE_EMISSION_PASSES, SCENE_MAP_PASSES,
+    SCENE_EMISSION_PASSES,
 };
 pub use histogram::{PreviewHistogram, PreviewHistogramGpu};
 pub use preview_budget::{preview_mask_layer_capacity, MobilePreviewRole, PreviewResourceShape};
 use readback::*;
 use resources::*;
-use scene_depth::valid_scene_depth;
-use scene_surface::SCENE_DEPTH_MIP_LEVELS;
 use shader_manager::ShaderManager;
 pub use wait::GpuWait;
 pub(crate) use wait::SLOW_GPU_WAIT;
@@ -71,6 +72,9 @@ use stage_params::*;
 
 const GPU_PARAMS_ABI_VERSION: u32 = 16;
 const MASK_EFFECT_ID_SHIFT: u32 = 8;
+/// The flag bits of an effect slot's `metadata[3]` that hold its light bake
+/// channel plus one (`assign_scene_bake_lights`).
+const MASK_SCENE_BAKE_LIGHT_BITS: u32 = 0xf;
 pub(super) const FULL_IMAGE_MASK_ATLAS_EDGE: u32 = if cfg!(target_os = "android") {
     256
 } else {
@@ -79,7 +83,7 @@ pub(super) const FULL_IMAGE_MASK_ATLAS_EDGE: u32 = if cfg!(target_os = "android"
 const GPU_PARAMS_ABI_SIZE_BYTES: u32 = 1_120;
 const CAMERA_UNIFORMS_SIZE_BYTES: u32 = 432;
 const SCENE_TONE_UNIFORMS_SIZE_BYTES: u32 = 1_776;
-const EFFECTS_UNIFORMS_SIZE_BYTES: u32 = 240;
+const EFFECTS_UNIFORMS_SIZE_BYTES: u32 = 224;
 const GPU_STAGE_UNIFORM_SIZE_BYTES: u32 =
     CAMERA_UNIFORMS_SIZE_BYTES + SCENE_TONE_UNIFORMS_SIZE_BYTES + EFFECTS_UNIFORMS_SIZE_BYTES;
 const GPU_STAGE_UNIFORM_ALLOCATION_BYTES: u64 = 512 + SCENE_TONE_UNIFORMS_SIZE_BYTES as u64 + 256;
@@ -194,6 +198,15 @@ impl ComputeProgram {
 
     fn is_bayer_demosaic(&self) -> bool {
         self.entry == "bayer_rcd_output"
+    }
+
+    /// The passes of the switched-off effects ([`MaskEffect::is_disabled`]),
+    /// which nothing encodes, so prewarm leaves them uncompiled.
+    fn serves_disabled_effect(&self) -> bool {
+        matches!(
+            self.entry.as_str(),
+            "apply_wet_surfaces" | "apply_weather_air"
+        )
     }
 
     fn for_demosaic_params(&self, camera: &CameraUniforms) -> &wgpu::ComputePipeline {
@@ -351,7 +364,11 @@ impl RawGpuProgramTemplate {
     /// the sensor-denoise variant of the reference demosaic. The other demosaic variants take seconds each and are left to
     /// [`Self::compile_for_params`].
     pub fn compile_common_programs(&self) {
-        for program in &self.pipelines {
+        for program in self
+            .pipelines
+            .iter()
+            .filter(|program| !program.serves_disabled_effect())
+        {
             program.get();
         }
         for variant in COMMON_DEMOSAIC_VARIANTS {
@@ -453,8 +470,12 @@ pub struct RawGpuPipeline {
     post_blur_glow_passes: Vec<Pass>,
     post_blur_pixelate_blocks_pass: Pass,
     post_blur_render_pass: Pass,
-    /// The raster finish program reading a binned source's reconstructed
-    /// camera RGB from highlight work A.
+    /// Whether the last output stage left the image in the second work
+    /// texture, which the render pass then read; otherwise it read the first
+    /// (`post_blur_render_pass`). Point colour samples render from the same one.
+    output_image_in_tex2: AtomicBool,
+    /// The raster finish program reading camera RGB from highlight work A: a
+    /// binned source's reconstruction, or an X-Trans photo's AI-denoised scene.
     binned_finish_pass: Pass,
     passes: Vec<Pass>,
     raw_texture: wgpu::Texture,
@@ -489,10 +510,6 @@ pub struct RawGpuPipeline {
     _tone_guide_b: wgpu::Texture,
     mask_texture: wgpu::Texture,
     full_image_mask_texture: wgpu::Texture,
-    uploaded_scene_depth: Mutex<Option<scene_depth::UploadedSceneDepth>>,
-    /// What the scene shadow map (scene_shadows.wgsl) was last built for; `None` after scene depth
-    /// changes, so the next output stage rebuilds it.
-    scene_shadow_map_key: Mutex<Option<SceneShadowMapKey>>,
     mask_layer_capacity: usize,
     mask_atlas_edge: u32,
     out_texture: wgpu::Texture,
@@ -559,12 +576,6 @@ impl RawGpuPipeline {
     fn upload_params(&self, queue: &wgpu::Queue, params: &GpuParams) {
         self.upload_profile_tables(queue, &params.profile_color);
         self.prepare_effect_inputs(params);
-        self.upload_scene_depth(
-            queue,
-            params.scene_depth.as_ref(),
-            params.scene_normals.as_ref(),
-            params.needs_scene_surface(),
-        );
         let look_lut_uploaded = match self.prepare_look_lut(queue, params.look_lut()) {
             Ok(()) => true,
             Err(error) => {
@@ -594,11 +605,6 @@ impl RawGpuPipeline {
                     );
                     uploaded.scene_tone = scene_tone;
                 }
-                if uploaded.effects.scene_ground != params.effects.scene_ground {
-                    // The scene map holds the ground along this direction.
-                    self.full_image_map_current(FullImageMap::Scene)
-                        .store(false, Ordering::Release);
-                }
                 if bytemuck::bytes_of(&uploaded.effects) != params.effects_bytes() {
                     queue.write_buffer(&self.effects_uniforms_buffer, 0, params.effects_bytes());
                     uploaded.effects = params.effects;
@@ -615,6 +621,9 @@ impl RawGpuPipeline {
             }
         }
         queue.write_buffer(&self.mask_data_buffer, 0, params.mask_data_bytes());
+        // After the camera uniforms, which tell whether this pipeline renders
+        // the whole image.
+        self.upload_scene_bake_depth(queue, params);
     }
 
     pub fn tone_guide_supports_origin(&self, origin_x: i32, origin_y: i32) -> bool {
@@ -795,6 +804,9 @@ impl RawGpuPipeline {
                 encoder.clear_buffer(&resources.cells, 0, None);
             }
         }
+        if let Some(bake) = self.effect_inputs.scene_bake() {
+            bake.outdate_scene();
+        }
         queue.submit(Some(encoder.finish()));
         for map in FullImageMap::ALL {
             self.full_image_map_current(map)
@@ -848,12 +860,6 @@ impl RawGpuPipeline {
 
     /// Allocates the effect inputs `params` reads (`effect_inputs`).
     fn prepare_effect_inputs(&self, params: &GpuParams) {
-        if params.needs_full_image_map(FullImageMap::Scene) {
-            self.effect_inputs.allocate_scene_depth();
-        }
-        if params.scene_shadow_map_key().is_some() {
-            self.effect_inputs.allocate_scene_shadow_map();
-        }
         if params.needs_scene_emission() {
             self.effect_inputs.allocate_scene_emission();
         }
@@ -886,6 +892,7 @@ impl RawGpuPipeline {
     /// them, otherwise left for `ensure_full_image_map`, which most edits
     /// never need.
     fn encode_tone_full_image_maps(&self, encoder: &mut wgpu::CommandEncoder, params: &GpuParams) {
+        self.outdate_scene_bake();
         for map in FullImageMap::ALL {
             if params.needs_full_image_map(map) {
                 self.encode_full_image_map(encoder, map);
@@ -939,6 +946,7 @@ impl RawGpuPipeline {
             self.full_image_map_current(map)
                 .store(true, Ordering::Release);
         }
+        self.inherit_scene_bake(encoder, full_frame, params);
     }
 
     pub fn dispatch_stage_with_remove(
@@ -1049,6 +1057,11 @@ impl RawGpuPipeline {
                 );
             }
         }
+        if params.needs_scene_bake() {
+            if let Some(bake) = self.own_scene_bake(queue, params) {
+                self.accumulate_scene_working_image(&mut encoder, &bake);
+            }
+        }
         queue.submit(Some(encoder.finish()));
         Ok(())
     }
@@ -1067,6 +1080,11 @@ impl RawGpuPipeline {
                 let resolve = self.indices.full_image_map_passes(map).resolve;
                 self.encode_pass_range(&mut encoder, resolve.start, resolve.end);
             }
+        }
+        // Tiles accumulated the bake's working image only if an effect reads
+        // the bake, which allocated it.
+        if let Some(bake) = self.effect_inputs.scene_bake() {
+            self.encode_scene_bake(&mut encoder, &bake);
         }
         queue.submit(Some(encoder.finish()));
         // Resolved from every tile's accumulation; tiles must not rebuild them
@@ -1110,12 +1128,13 @@ impl RawGpuPipeline {
             // A source overwritten by demosaicing leaves the scene as it is;
             // `immutable_ai_source_matches` asks for a new pipeline then.
             if self.ai_scene_intact.load(Ordering::Acquire) {
-                encoder.copy_texture_to_texture(
-                    self.highlight_work_a.as_image_copy(),
-                    self.scene_texture.as_image_copy(),
-                    self.scene_texture.size(),
-                );
+                // The model's demosaiced camera RGB in highlight work A takes
+                // the binned finish: the profiled luminance denoise on the way
+                // into the scene, a plain copy at zero. It only reads
+                // highlight work A, which stays intact for the next render.
+                self.encode_bound_pass(encoder, &self.binned_finish_pass, "AI scene finish");
                 self.encode_chromatic_aberration(encoder, params);
+                self.encode_color_denoise(encoder, params);
             }
             return;
         }
@@ -1191,7 +1210,7 @@ impl RawGpuPipeline {
                 self.ensure_full_image_map(encoder, map);
             }
         }
-        self.encode_scene_shadow_map(encoder, params);
+        self.ensure_scene_bake(encoder, params);
         if params.needs_scene_emission() {
             // Rebuilt for every render: it follows the emitters' settings and
             // masks, which change without a new tone result.
@@ -1260,11 +1279,13 @@ impl RawGpuPipeline {
                     self.encode_pass(encoder, self.indices.pixelate_blocks_pass_index);
                 }
             }
-            self.encode_effects_pass(
-                encoder,
-                self.indices.adjustment_creative_pass_index,
-                &mut image_in_tex2,
-            );
+            if params.needs_creative_pass() {
+                self.encode_effects_pass(
+                    encoder,
+                    self.indices.adjustment_creative_pass_index,
+                    &mut image_in_tex2,
+                );
+            }
             if params.needs_weather_air_pass() {
                 self.encode_effects_pass(
                     encoder,
@@ -1273,6 +1294,13 @@ impl RawGpuPipeline {
                 );
             }
         }
+        self.output_image_in_tex2
+            .store(image_in_tex2, Ordering::Release);
+        self.encode_render_pass(encoder, image_in_tex2);
+    }
+
+    /// Encodes the display transform from the work texture holding the image.
+    fn encode_render_pass(&self, encoder: &mut wgpu::CommandEncoder, image_in_tex2: bool) {
         if image_in_tex2 {
             self.encode_pass(encoder, self.indices.adjustment_render_pass_index);
         } else {
@@ -1310,24 +1338,6 @@ impl RawGpuPipeline {
             pass.workgroups,
         );
         *image_in_tex2 = !*image_in_tex2;
-    }
-
-    /// Rebuilds the scene shadow map when a light it holds or the scene
-    /// depth changed since it was last built. Edits that leave both alone,
-    /// such as tone or colour changes, reuse it.
-    fn encode_scene_shadow_map(&self, encoder: &mut wgpu::CommandEncoder, params: &GpuParams) {
-        let Some(key) = params.scene_shadow_map_key() else {
-            return;
-        };
-        let mut built = self
-            .scene_shadow_map_key
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if *built == Some(key) {
-            return;
-        }
-        self.encode_pass(encoder, self.indices.scene_shadow_map_pass_index);
-        *built = Some(key);
     }
 
     fn encode_pass(&self, encoder: &mut wgpu::CommandEncoder, index: usize) {

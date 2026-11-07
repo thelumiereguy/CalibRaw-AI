@@ -40,6 +40,7 @@ public final class CalibRawActivity extends NativeActivity {
     private static final int OPEN_CAMERA_PROFILE_FOLDER = 1003;
     private static final int OPEN_LUT_FILES = 1004;
     private static final int OPEN_WATERMARK_IMAGE = 1005;
+    private static final int LINK_FOLDER = 1006;
     // A launch with this extra set to true times GPU processing stages
     // (`cargo xtask android-bench`).
     private static final String EXTRA_GPU_STAGE_TIMING = "de.duecki.calibraw.GPU_STAGE_TIMING";
@@ -95,6 +96,15 @@ public final class CalibRawActivity extends NativeActivity {
                 nativeOnImportBatchFinished(importedCount, failedCount, errors);
             }
 
+            @Override
+            public void onFolderLinked(String key, String error) {
+                nativeOnFolderLinked(key, error);
+            }
+
+            @Override
+            public void onLibraryChanged() {
+                nativeOnLibraryChanged();
+            }
         }, new StorageManager.ImportCallbacks() {
             @Override
             public void onFilePickedFd(int fd, String displayName, String libraryUri, String error) {
@@ -161,6 +171,15 @@ public final class CalibRawActivity extends NativeActivity {
             return;
         }
         storageManager.openExternalDocuments(intent);
+    }
+
+    // Sync may have changed a linked folder while another app was in front.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (storageManager != null) {
+            storageManager.checkLinkedFolderForChanges();
+        }
     }
 
     @Override
@@ -322,6 +341,8 @@ public final class CalibRawActivity extends NativeActivity {
             int fd, String displayName, String libraryUri, String error);
     private static native void nativeOnExternalImportBatchFinished(
             int importedCount, int failedCount, String errors);
+    private static native void nativeOnFolderLinked(String key, String error);
+    private static native void nativeOnLibraryChanged();
     private static native void nativeOnCameraProfileFolderImportStarted(String displayName);
     private static native void nativeOnCameraProfileFolderPicked(
             String cachedPath, String displayName, int profileCount, String error);
@@ -333,6 +354,11 @@ public final class CalibRawActivity extends NativeActivity {
     public void openRawDocument() {
         runOnUiThread(() -> startActivityForResult(
                 storageManager.createRawDocumentPickerIntent(), OPEN_RAW_DOCUMENT));
+    }
+
+    public void openLinkFolderPicker() {
+        runOnUiThread(() -> startActivityForResult(
+                storageManager.createLinkFolderPickerIntent(), LINK_FOLDER));
     }
 
     public void openCameraProfileFolder() {
@@ -361,6 +387,8 @@ public final class CalibRawActivity extends NativeActivity {
             watermarkImporter.handleFilePickerResult(resultCode, data);
         } else if (requestCode == OPEN_RAW_DOCUMENT) {
             storageManager.handleRawDocumentResult(resultCode, data);
+        } else if (requestCode == LINK_FOLDER) {
+            storageManager.handleLinkFolderResult(resultCode, data);
         }
     }
 
