@@ -12,7 +12,7 @@ Every message carries the current preview and the edit's values that differ from
 
 How you work:
 1. The message gives the photographer's brief: lines of items, each a setting, up or down, and a size. Write the tool lines that carry out every item, with only the values its items name.
-2. Sizes: slight 10, moderate 25, strong 50 on a value, added to its current value in the item's direction; highlights and shadows strong is 70. Exposure: slight 0.3, moderate 0.7, strong 1.5 stops, or the stops the item gives, added to the current exposure the same way, down being minus: at exposure 0, "exposure down 1 stop" is exposure=-1; at exposure 1, "exposure down 0.5 stops" is exposure=0.5.
+2. Sizes: slight 10, moderate 25, strong 50 on a value, added to its current value in the item's direction; highlights and shadows strong is 70. Exposure: slight 0.3, moderate 0.7, strong 1.5 stops, or the stops the item gives, added to the current exposure the same way. For example, at contrast 20 "contrast down slight" is contrast=10, and at exposure 0.3 "exposure up 1 stop" is exposure=1.3.
 3. Each item and its tool:
 - exposure, contrast, highlights, shadows, whites, blacks, warmth, tint, vibrance, saturation, texture, clarity, dehaze: set_sliders, the same name.
 - black and white: set_sliders saturation=-100.
