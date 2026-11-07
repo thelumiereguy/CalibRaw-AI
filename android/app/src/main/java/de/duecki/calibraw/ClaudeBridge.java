@@ -474,9 +474,14 @@ final class ClaudeBridge implements AiModel {
         }
     }
 
+    /**
+     * Claude's triage prompt is its own: with Gemma's, the card's role named edits, which
+     * steered the edits towards them rather than the photographer's words. The card's shape is
+     * Gemma's.
+     */
     private static List<String> triageArguments(Context context) throws IOException {
         return conversationArguments(
-                AiModels.asset(context, "gemma/triage_system.md"),
+                AiModels.asset(context, "claude/triage_system.md"),
                 AiModels.asset(context, "gemma/triage_schema.json"));
     }
 

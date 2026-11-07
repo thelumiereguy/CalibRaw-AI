@@ -485,13 +485,15 @@ impl CalibRawApp {
                     Outgoing::Request | Outgoing::Applied { .. } => {
                         format!("Request: {}\n\nCurrent values: {edit}", request.text)
                     }
+                    // The system prompt says how to answer a nudge; only
+                    // the last one says more.
                     Outgoing::Nudged { results } if request.nudges < CLAUDE_MAX_NUDGES => {
                         format!(
-                            "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nIf it shows what was asked, say what you changed in one or two sentences, without a tool line; otherwise write the tool lines that correct it."
+                            "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}"
                         )
                     }
                     Outgoing::Nudged { results } => format!(
-                        "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nYou have no corrections left: say what you changed in one or two sentences, without a tool line."
+                        "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nYou have no corrections left, so reply without a tool line."
                     ),
                 };
                 editor.claude_conversation = true;
