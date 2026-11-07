@@ -60,27 +60,36 @@ fn claude_model_control(ui: &mut Ui, app: &mut CalibRawApp) {
         current.as_str().to_owned()
     };
     let mut picked = None;
-    moduwu_design::form_combo_with_help(
-        ui,
-        tr("Claude model"),
-        "settings-claude-model",
-        selected,
-        220.0,
-        tr("Sonnet is the model the AI editor was tried with. Opus, Haiku and Best available always run the newest model of their kind. Other runs the model you name, such as claude-opus-5-5, and stays on that version. Changing the model ends the open photo's chat and triages the photo again."),
-        |ui| {
-            for alias in ClaudeModel::ALIASES {
-                if ui
-                    .selectable_label(!other && current.as_str() == alias, claude_alias_label(alias))
-                    .clicked()
-                {
-                    picked = ClaudeModel::new(alias);
+    let help = tr("Sonnet is the model the AI editor was tried with. Opus, Haiku and Best available always run the newest model of their kind. Other runs the model you name, such as claude-opus-5-5, and stays on that version. Changing the model ends the open photo's chat and triages the photo again.");
+    moduwu_design::form_row_with_help(ui, tr("Claude model"), 220.0, help, |ui, width| {
+        // Sized for the aliases and Other, so the list shows whole: a plain
+        // combo's list is shorter and hid Other below the fold.
+        moduwu_design::responsive_combo_box(
+            ui,
+            "settings-claude-model",
+            selected,
+            width,
+            ClaudeModel::ALIASES.len() + 1,
+            |ui| {
+                for alias in ClaudeModel::ALIASES {
+                    if ui
+                        .selectable_label(
+                            !other && current.as_str() == alias,
+                            claude_alias_label(alias),
+                        )
+                        .clicked()
+                    {
+                        picked = ClaudeModel::new(alias);
+                    }
                 }
-            }
-            if ui.selectable_label(other, tr("Other")).clicked() {
-                other = true;
-            }
-        },
-    );
+                if ui.selectable_label(other, tr("Other")).clicked() {
+                    other = true;
+                }
+            },
+        )
+        .response
+        .on_hover_text(help);
+    });
     if let Some(model) = picked {
         ui.data_mut(|data| {
             data.remove::<bool>(other_id);

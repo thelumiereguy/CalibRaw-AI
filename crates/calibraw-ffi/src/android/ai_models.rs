@@ -116,7 +116,12 @@ pub fn ai_triage(
         )?;
         java_string(env, value)
     })
-    .map_err(|error| format!("The AI model could not triage the photo: {error:#}"))
+    .map_err(|error| {
+        format!(
+            "The AI model could not triage the photo: {}",
+            chat_error(error)
+        )
+    })
 }
 
 /// The newest triage headline reported since the last call.
@@ -196,7 +201,12 @@ pub fn ai_editor_start_request(app: &AndroidApp, system_prompt: &str) -> Result<
         )?;
         Ok(())
     })
-    .map_err(|error| format!("The AI model could not start the request: {error:#}"))
+    .map_err(|error| {
+        format!(
+            "The AI model could not start the request: {}",
+            chat_error(error)
+        )
+    })
 }
 
 /// Sends `text` to the running request, after the JPEGs at `images`, and
@@ -230,7 +240,7 @@ pub fn ai_editor_send(
         )?;
         java_string(env, value)
     })
-    .map_err(|error| format!("The AI model could not reply: {error:#}"))
+    .map_err(|error| format!("The AI model could not reply: {}", chat_error(error)))
 }
 
 /// Closes the AI editor request's conversation and cancels its running reply.
@@ -332,6 +342,23 @@ pub fn render_emoji(
     })
     .map_err(|error| format!("Android could not draw the emoji: {error:#}"))?;
     Ok((!rgba.is_empty()).then_some(rgba))
+}
+
+/// `error` as the AI editor's chat shows it: a Java exception by its message
+/// alone, since the photographer reads it, with its stack trace logged. One
+/// without a message (jni writes a null one as `<NULL>`) goes by its class.
+fn chat_error(error: jni::errors::Error) -> String {
+    match &error {
+        jni::errors::Error::CaughtJavaException { name, msg, .. } => {
+            log::warn!("{error:#}");
+            if msg.is_empty() || msg == "<NULL>" {
+                name.clone()
+            } else {
+                msg.clone()
+            }
+        }
+        _ => format!("{error:#}"),
+    }
 }
 
 fn with_ai_models<T>(

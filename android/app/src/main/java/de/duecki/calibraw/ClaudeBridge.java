@@ -637,6 +637,16 @@ final class ClaudeBridge implements AiModel {
         return hex.toString();
     }
 
+    /**
+     * Claude Code's error text as the chat shows it. For a model it cannot run, Claude Code
+     * suggests its /model command ("Run /model to pick a different model."), which these
+     * conversations turn off, so that sentence points at Settings instead.
+     */
+    private static String withAppHints(String error) {
+        return error.replaceAll("Run /model\\b[^.]*\\.?",
+                "Pick another Claude model in Settings, under AI editor.");
+    }
+
     private static String costOf(JSONObject result) {
         return "$" + result.optDouble("total_cost_usd", 0.0);
     }
@@ -749,7 +759,8 @@ final class ClaudeBridge implements AiModel {
                     throw new IOException("Claude Code stopped; " + ending());
                 }
                 if (result.optBoolean("is_error")) {
-                    throw new IOException("Claude could not reply: " + result.optString("result"));
+                    throw new IOException(
+                            "Claude could not reply: " + withAppHints(result.optString("result")));
                 }
                 return result;
             } catch (InterruptedException interrupted) {
