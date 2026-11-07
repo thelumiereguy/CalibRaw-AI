@@ -1,0 +1,478 @@
+crates/calibraw-ui/src/app/ai/editor/sliders.rs
+  s_8f74af7efeeba8::t_5a9c0efec6db0e 2-3
+  s_8f74af7efeeba8::t_b2d39a553d0e51 249-262
+crates/calibraw-ui/src/app/ai/editor/tone_curve.rs
+  s_8f74af7efeeba8::t_9cc09b80200d6b 2-4
+crates/calibraw-ui/src/app/ai/editor/calls.rs
+  s_8f74af7efeeba8::t_c7a83302ad2789 1-8
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_8f74af7efeeba8::t_56488c0e9687a8 94
+  s_8f74af7efeeba8::t_a360dde94063ad 383-384
+  s_8f74af7efeeba8::t_17d561616e7250 91-93
+  s_8f74af7efeeba8::t_1e21d100cd7757 95-96
+  s_8f74af7efeeba8::t_4a9c95565e133a 4,75,77,81-83,90,98,104-106,111,348-349
+crates/calibraw-ui/src/platform/mod.rs
+  s_8f74af7efeeba8::t_21883f2769129c 48-49
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_c55950c285e551 89-102,108-125,130-133
+  s_8f74af7efeeba8::t_01594f0d72c1e2 144,146-150
+  s_8f74af7efeeba8::t_f8a979193f27aa 235
+  s_8f74af7efeeba8::t_fcfe6c478a5708 423-424
+  s_8f74af7efeeba8::t_013fa2ad2ad3bd 174-179,243-244,265,271,283-284,357-358,362-382,394,396-399,451-471
+crates/calibraw-ui/src/app/ai/editor/triage.rs
+  s_8f74af7efeeba8::t_2696eb4377af5b 4-5
+crates/calibraw-gpu/src/pipeline/gpu.rs
+  s_8f74af7efeeba8::t_edc7106fd5755f 381,473-478,624-626,807-809,895,949,1060-1064,1084-1088,1131-1135,1137,1213,1299-1303,1316,1332
+  s_8f74af7efeeba8::t_fd8e04a63e878b 8-10,33-38,47,75-77,86,203-209,367-371
+crates/calibraw-gpu/src/pipeline/gpu/builder/passes.rs
+  s_8f74af7efeeba8::t_edc7106fd5755f 587
+  s_8f74af7efeeba8::t_0f392998e8dcf2 111-114,171,202,214,774-787
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_55addcf3cbaf4b 5,7-16,19-22,24-33,35,37,41,43,45,48-50,56,59-61,69-72,74-79,91,116-118,141,144,151-155,158,160,162-163,165-166,173-174,186-218,260-262,264,306-307,340,355-367,371-374,383,387,390,393-395,397,399,407-430,461-464,468,482-483,486-493,505,510-511,518-519,548-572,614-624,628,634-651,654-717,725,844,888-889,892,897-914
+  s_8f74af7efeeba8::t_a488d9450ab7a1 17-18
+crates/calibraw-ui/src/app/ai/editor/mod.rs
+  s_8f74af7efeeba8::t_6303c2a697b8e5 24
+  s_8f74af7efeeba8::t_0f52347d618e45 10-12
+crates/calibraw-ui/src/app/ai/editor/color.rs
+  s_8f74af7efeeba8::t_1531a60219019e 82-83
+  s_8f74af7efeeba8::t_e7a6bbfe5f7292 3-5
+  s_8f74af7efeeba8::t_bbc5ca85f161f0 74-78
+  s_8f74af7efeeba8::t_ad7f0394026568 79-81
+  s_8f74af7efeeba8::t_f8a9454cb1f3a6 84-86
+  s_8f74af7efeeba8::t_5f7ed8cd7e4e54 12,87-89
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_1c1267eace2c00 6-8
+  s_8f74af7efeeba8::t_4acb0bd2f0d070 12-15,282-284,291-315,318-320,326-335,464-513,520-522,529,533-568,773-782
+crates/calibraw-gpu/src/pipeline/gpu/effect_wgsl.rs
+  s_8f74af7efeeba8::t_edc7106fd5755f 10,41-43,60
+crates/calibraw-ui/src/app/ai/editor/brief.rs
+  s_8f74af7efeeba8::t_922b02e8bf5fc1 16
+  s_8f74af7efeeba8::t_dcf2634fbc4dc6 14-15
+  s_8f74af7efeeba8::t_94f0214f5b3580 17
+  s_8f74af7efeeba8::t_bbaae5e379122d 1-6,8-12,19-31,33-45,47-53,55-112,114-126,129-142,144,146-149,153-157,159,161-176,179-186,189-220,224-227,229-240,242-260,263-280,282-298,301-307,311-331,333-340,342-366,368-403,406-414,416-443,445-454,457-477,480-495
+crates/calibraw-ui/src/app/ai/editor/tools.rs
+  s_8f74af7efeeba8::t_609bebc5754b7d 322-333
+  s_8f74af7efeeba8::t_4ec5b14675524a 4-7
+Cargo.lock
+  s_8f74af7efeeba8::t_37088189df1fd2 696
+ROADMAP.md
+  s_8f74af7efeeba8::t_de3bc338ad69d7 34-41
+THIRD_PARTY_NOTICES.md
+  s_8f74af7efeeba8::t_025d7ae02adbe3 49-52,76-91
+android/app/build.gradle
+  s_8f74af7efeeba8::t_acfb47be19bffc 199-206,301
+android/app/src/eval/res/values/strings.xml
+  s_8f74af7efeeba8::t_6692a4ebf46ecc 1-4
+android/app/src/main/assets/gemma/interpret_system.md
+  s_8f74af7efeeba8::t_ec29e8f7f738e9 5,7,9,12-13,15-22,24,34
+android/app/src/main/assets/gemma/triage_system.md
+  s_8f74af7efeeba8::t_00e55568440115 3,5
+android/app/src/main/java/de/duecki/calibraw/AndroidStorageContract.java
+  s_8f74af7efeeba8::t_0c70a9f70416b7 12,24-29,141,146,149,161-187
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_8f74af7efeeba8::t_9c876ba33961b2 44,106-114,183-191,374-375,389-393,420-421
+android/app/src/main/java/de/duecki/calibraw/FileLibraryStore.java
+  s_8f74af7efeeba8::t_d016f3e35314f9 1-454
+android/app/src/main/java/de/duecki/calibraw/LibraryStore.java
+  s_8f74af7efeeba8::t_560696d7c60654 1-119
+android/app/src/main/java/de/duecki/calibraw/LinkedFolders.java
+  s_8f74af7efeeba8::t_118d65f733a3af 1-35,37-47,49-81,83-92,96-103,106-124,127-128,130-133,135-136,138-158,161-169,172-197
+android/app/src/main/java/de/duecki/calibraw/StorageManager.java
+  s_8f74af7efeeba8::t_10ce98cf46054f 12-14,27-28,30,50-66,74-76,89-167,259-264,266-267,282,332,334,341,360,362,369,375-376,388-399,403,416,422-435,437-441,445,450,455-457,474,481,520-522,526-527,530,534-535,538-571,573-575,583,585,614-615,623-624,629-632,637-640,642,644,648,678-680,683-689,693-696,698,701,720,722-727,739-750,754-758,762-763,768-782,784,787,789,794,796-797,800
+android/app/src/main/java/de/duecki/calibraw/ThumbnailCache.java
+  s_8f74af7efeeba8::t_6b8f372ea68505 25-32
+android/app/src/main/java/de/duecki/calibraw/TreeLibraryStore.java
+  s_8f74af7efeeba8::t_b6531f00b02edc 1-1032
+crates/calibraw-ai/src/models/depth.rs
+  s_8f74af7efeeba8::t_14955276a1a1ff 1-10,14,20-21,37-54,80-83,87,127,129-135,137-144,173-180,182-183,185-232,234-235,237-239,241,244-261,264-308,311-343,346-347,349-361,363-364,367-377,380-409
+crates/calibraw-ai/src/models/masks.rs
+  s_8f74af7efeeba8::t_2d24f18047fba1 7,43-48,60-62,131,160-161,164-169,171-179,186
+crates/calibraw-ai/src/models/scene_geometry.rs
+  s_8f74af7efeeba8::t_00e98a9e3ac9a4 1-2,6-7,95-96,105-108,140,160-164,170-171,179-183,205-208,214
+crates/calibraw-ai/tests/parity.rs
+  s_8f74af7efeeba8::t_e08321286144e6 35-40,43,60,181-182,199-208,523-528,531-532,538,545,547,557,565,574,577,841-842,844-845,848,861-875,881-882,885,887-888,891-903,923-940,958-965,1042-1049,1057-1084,1135-1139,1141-1142,1145,1148-1149,1152,1156-1161,1163,1171-1189,1198
+crates/calibraw-core/src/display_metadata_cache.rs
+  s_8f74af7efeeba8::t_313cf533d761fe 1-3,5-8,12,19,23-24,38-44,65-73,124-147,150-154,156-159,164,166,169-171,176,179-192,200,206,215-225,227,229-243,250-251,254-270,276-278,284-286,292-295,297
+crates/calibraw-core/src/migrations/mod.rs
+  s_8f74af7efeeba8::t_45086020cf1f3a 53-54,58,61-62,64-95,99-101,103
+crates/calibraw-core/src/migrations/older_readers.rs
+  s_8f74af7efeeba8::t_2f7a8fd26d398d 34-41,54-56,115-117,131-133,139-140,151,220,224-227,274,303-306
+crates/calibraw-core/src/migrations/scene_depth_controls.rs
+  s_8f74af7efeeba8::t_827fe89b50e42e 1-214
+crates/calibraw-core/src/migrations/scene_depth_layout.rs
+  s_8f74af7efeeba8::t_20d06b2a70f07a 1-500
+crates/calibraw-core/src/pipeline/adjustment_blend.rs
+  s_8f74af7efeeba8::t_8af5b760d999c1 5-7,94,145,270-288
+crates/calibraw-core/src/pipeline/adjustment_groups.rs
+  s_8f74af7efeeba8::t_e8c14650cd2bd6 16,20,28,41,195,246-248,302-303
+crates/calibraw-core/src/pipeline/basicadj.rs
+  s_8f74af7efeeba8::t_ce5f05c8da6ee9 1,341-345,432
+crates/calibraw-core/src/pipeline/calibration.rs
+  s_8f74af7efeeba8::t_f76c0dc109f4ce 1-169
+crates/calibraw-core/src/pipeline/geometry/perspective.rs
+  s_8f74af7efeeba8::t_a1b62a237aa770 70-75
+crates/calibraw-core/src/pipeline/masks.rs
+  s_8f74af7efeeba8::t_1e09fe0639e691 8,25,372-375,377,389-398
+crates/calibraw-core/src/pipeline/masks/content_dependencies.rs
+  s_8f74af7efeeba8::t_ca32365d640981 87
+crates/calibraw-core/src/pipeline/masks/effects/fog.rs
+  s_8f74af7efeeba8::t_47d62f6c1a0ccf 16-18,41,83,114
+crates/calibraw-core/src/pipeline/masks/effects/lanes.rs
+  s_8f74af7efeeba8::t_fa78b0854a9da8 76
+crates/calibraw-core/src/pipeline/masks/effects/light_rays.rs
+  s_8f74af7efeeba8::t_38e2fd3f018cd2 7-8
+crates/calibraw-core/src/pipeline/masks/effects/mod.rs
+  s_8f74af7efeeba8::t_dd73045f9c833e 48,62,86,99-100,180,182-183,353,367-368,395-396,405-406,443,453,482-489
+crates/calibraw-core/src/pipeline/masks/effects/params.rs
+  s_8f74af7efeeba8::t_b8e2aef8c484b3 583-585,587,620-621,623,625-626,628,630,928-929
+crates/calibraw-core/src/pipeline/masks/effects/passes.rs
+  s_8f74af7efeeba8::t_a6757ff39bb208 93-112,114-152
+crates/calibraw-core/src/pipeline/masks/effects/relight.rs
+  s_8f74af7efeeba8::t_8a9cdbd2fab9b8 9-11,15-17,30-33,46,58,85,88,115,126,145,154
+crates/calibraw-core/src/pipeline/masks/mask_geometry.rs
+  s_8f74af7efeeba8::t_2eb39184a4b475 87-89
+crates/calibraw-core/src/pipeline/masks/primitives.rs
+  s_8f74af7efeeba8::t_a3429754c78e4d 233
+crates/calibraw-core/src/pipeline/mod.rs
+  s_8f74af7efeeba8::t_1f8a490fde9a15 6,27-28,42,76-77,91
+crates/calibraw-core/src/pipeline/processing.rs
+  s_8f74af7efeeba8::t_42f148acec785b 41-44,122
+crates/calibraw-core/src/pipeline/scene_depth.rs
+  s_8f74af7efeeba8::t_0fa41221e5a54b 1-247
+crates/calibraw-core/src/presets.rs
+  s_8f74af7efeeba8::t_0feeaa7e89c3f2 15,33-37,356,422
+crates/calibraw-core/src/presets/xmp.rs
+  s_8f74af7efeeba8::t_1a89698994b258 13-15,21-24,39-40,164-170,263,594-621
+crates/calibraw-core/src/sidecar.rs
+  s_8f74af7efeeba8::t_28d718eb9bd86e 5-9,24,26,35-38,48-65,68-69,71,73,82-84,88,90-91,285,302,305,307-309,311,315-329,335,458,473,477-481,484,489-495,497,519,522-534,538-541,564,569,572-580
+crates/calibraw-core/src/sidecar/files.rs
+  s_8f74af7efeeba8::t_473097ba7a5595 352-377
+crates/calibraw-core/src/sidecar/mask_assets.rs
+  s_8f74af7efeeba8::t_f31627dd7c5510 1-5,35-66,86-89,95-123,126,129-130,132,146,152-157,160-169,193,197-202,211,217-221,229,235,237-238,241-242,248,253-257,262-273,278-279,283-290,293-295,301-304,312-319,321,323,329-331,355,358-363,365-379,381-391,393-394,397,399
+crates/calibraw-core/src/sidecar/size_limits.rs
+  s_8f74af7efeeba8::t_bbbe7fa868be68 80-85,87,89-97,168-178,273-282,286
+crates/calibraw-core/src/sidecar/validation.rs
+  s_8f74af7efeeba8::t_05d2d60be0d645 528-539,771,790
+crates/calibraw-core/tests/formats.rs
+  s_8f74af7efeeba8::t_445338facef2ed 14-17,19,25,115-156
+crates/calibraw-ffi/Cargo.toml
+  s_8f74af7efeeba8::t_575c4ade3ea388 23
+crates/calibraw-ffi/src/android/callbacks.rs
+  s_8f74af7efeeba8::t_f0c9c3f69bc04e 179-216
+crates/calibraw-ffi/src/android/library.rs
+  s_8f74af7efeeba8::t_2a85685b253d09 32,36-74,88-108,124-179,345-347,356,372-381,410,421-423
+crates/calibraw-ffi/src/android/sidecars.rs
+  s_8f74af7efeeba8::t_fa6a9463781c28 5-45,92-193,243,292,308-311,314-316,320-321,327,337-344,350-355,367-381,429-434,437-442
+crates/calibraw-ffi/src/android/thumbnail_cache.rs
+  s_8f74af7efeeba8::t_bd56d89454f0ba 1-9,12-16,18-54,60-65,68,70-72,75-78,81-92,95-102,106-126,129-131,134-136,138-146,148-198,219-224,227-241,244-246,249-251,255,263-290,293-301,308,310,314,318,327-330,336-401
+crates/calibraw-gpu/src/pipeline/gpu/builder.rs
+  s_8f74af7efeeba8::t_671a58e7205916 40,89
+crates/calibraw-gpu/src/pipeline/gpu/builder/bind_groups.rs
+  s_8f74af7efeeba8::t_4959b30360c21f 660
+crates/calibraw-gpu/src/pipeline/gpu/builder/layouts.rs
+  s_8f74af7efeeba8::t_c2560a9a31c665 44,513-534,715-717,724-725,732,751-764,802
+crates/calibraw-gpu/src/pipeline/gpu/construction.rs
+  s_8f74af7efeeba8::t_f2b4bccebaadbb 347
+crates/calibraw-gpu/src/pipeline/gpu/effect_inputs.rs
+  s_8f74af7efeeba8::t_da33b30f697765 5-6,23-27,55,89-90,104,119,134,404-643,691-700,851-852,864-865,877,889-893,895-896,899-902,918-924,936-944,958-960,969-970,981-984,992-994,1007-1009,1012-1017,1019,1105-1112,1133-1140,1143-1214,1217-1221,1223-1252
+crates/calibraw-gpu/src/pipeline/gpu/layout_contract_tests.rs
+  s_8f74af7efeeba8::t_8a888348b192e3 11-19,25-26,244,442-449,644,646,699-800
+crates/calibraw-gpu/src/pipeline/gpu/mask_params.rs
+  s_8f74af7efeeba8::t_250c1002c1e63f 55-62,145,282,285-311
+crates/calibraw-gpu/src/pipeline/gpu/params.rs
+  s_8f74af7efeeba8::t_8fa2f11259fba5 5,182-183,253,304,353-356,629,634-635,685-699,852-857,865-866,912-943,947-1005
+crates/calibraw-gpu/src/pipeline/gpu/readback.rs
+  s_8f74af7efeeba8::t_91ee042fec3861 590-591
+crates/calibraw-gpu/src/pipeline/gpu/scene/bake.rs
+  s_8f74af7efeeba8::t_92d310c3ead450 1-591
+crates/calibraw-gpu/src/pipeline/gpu/scene/camera.rs
+  s_8f74af7efeeba8::t_0e506461552dfb 1-59
+crates/calibraw-gpu/src/pipeline/gpu/scene/ground.rs
+  s_8f74af7efeeba8::t_2dfec93dbb5725 1-201
+crates/calibraw-gpu/src/pipeline/gpu/scene/lights.rs
+  s_8f74af7efeeba8::t_e71e0de7fde6c7 1-1223
+crates/calibraw-gpu/src/pipeline/gpu/scene/mod.rs
+  s_8f74af7efeeba8::t_8e6bc43cb6d8be 1-4,6-10,12-54,57-109,111-121,123-124,126,130-276,278-299,302-387,389,391-465,468-526,528-558,563-567,570-604,608-613,616-625,627-634,638-650,652-681,683,685-703,705-713,718-723,727-736,738-739,741-756,759-761,764-779,782-797,801-814
+crates/calibraw-gpu/src/pipeline/gpu/shader_manager.rs
+  s_8f74af7efeeba8::t_d372b9e870e027 1,44-60
+crates/calibraw-gpu/src/pipeline/gpu/shaders.rs
+  s_8f74af7efeeba8::t_b7352af857db63 90-94,167-178,207,215-217,242,354-363,365,383-391
+crates/calibraw-gpu/src/pipeline/gpu/stage_params.rs
+  s_8f74af7efeeba8::t_e245fce7137ea4 38-44,295
+crates/calibraw-gpu/src/pipeline/mod.rs
+  s_8f74af7efeeba8::t_1b68e9f9ed71c2 25
+crates/calibraw-gpu/src/shaders/common.wgsl
+  s_8f74af7efeeba8::t_f0761d8d8e2f93 39-41,43,129-130
+crates/calibraw-gpu/src/shaders/creative_effects.wgsl
+  s_8f74af7efeeba8::t_5a56bee8a76e10 9-11
+crates/calibraw-gpu/src/shaders/mask_effects/effect_api.wgsl
+  s_8f74af7efeeba8::t_bf50a9db86ec4a 65-70,212-214
+crates/calibraw-gpu/src/shaders/mask_effects/fog.wgsl
+  s_8f74af7efeeba8::t_cd09202934db36 1-9,14-16,18-26,28-38,40-41,44,51-52,59-61,63-64,68-128
+crates/calibraw-gpu/src/shaders/mask_effects/light_rays.wgsl
+  s_8f74af7efeeba8::t_cbf64817f0c789 140-143,147-148
+crates/calibraw-gpu/src/shaders/mask_effects/medium.wgsl
+  s_8f74af7efeeba8::t_22888a06942231 41-66,70-73,79,107,118,120-124,126,138-145
+crates/calibraw-gpu/src/shaders/mask_effects/rain.wgsl
+  s_8f74af7efeeba8::t_b0761cf106e797 15,138-166,170,174-176,185,213,218-228,256-259,296,432-436,438-439,446-447,458,465,473-476,479,486-497,500,558,564-566,569,571,573,592,600,608,611-615,617,622-648
+crates/calibraw-gpu/src/shaders/mask_effects/relight.wgsl
+  s_8f74af7efeeba8::t_8e92290bd7e29e 1-2,4-18,21-25,27-44,46-49,52-75,79-82,85-91,93-104,106-109,111-116,118-128,130,132,135-147,150,159,164,167-185,187-197,199-200
+crates/calibraw-gpu/src/shaders/mask_effects/scene_emission.wgsl
+  s_8f74af7efeeba8::t_1d3949688db625 21,23-25,57-58,65,67,156-164,179,218-221,229-230,232,239,243-244,258,260,262-267,269-274,287,310,340,345,347,451-461,467,469-501
+crates/calibraw-gpu/src/shaders/mask_effects/scene_environment.wgsl
+  s_8f74af7efeeba8::t_1df16f6ceb24be 12-16,19,21-25,28-29,31-34
+crates/calibraw-gpu/src/shaders/mask_effects/scene_lights.wgsl
+  s_8f74af7efeeba8::t_babe740b4e481e 6-17,19-20,22-25,28-31,36-39,43-46,48-54,57,61,65-66,69-70,73,75,79-83,86,88-90,92-98,100,102-112,115-135,137,158-176,183-186,190,220-221,224-259,261-263,266-272,279-284,286
+crates/calibraw-gpu/src/shaders/mask_effects/smoke.wgsl
+  s_8f74af7efeeba8::t_cbfad86f1aa39d 12-15,79-91
+crates/calibraw-gpu/src/shaders/mask_effects/wet_surfaces.wgsl
+  s_8f74af7efeeba8::t_4e136a7f23ffff 11-20,24-30,33-34,45-52,54-57,85-91,94,98-99,107,109-110,112-113,120,124-168,171-211,218,264-268,275-280,294,315-318,380-393,395,398-406,408-410,435-436,448,455-456,460,463-493,496-499,503-504,506-507,514-519,521-526,529,536,543-558
+crates/calibraw-gpu/src/shaders/scene/air_light.wgsl
+  s_8f74af7efeeba8::t_365ecf539e710c 1-109
+crates/calibraw-gpu/src/shaders/scene/bake_accumulate.wgsl
+  s_8f74af7efeeba8::t_074be9a5b89944 1-40
+crates/calibraw-gpu/src/shaders/scene/bake_common.wgsl
+  s_8f74af7efeeba8::t_1278af28a79d2a 1-282
+crates/calibraw-gpu/src/shaders/scene/bake_coverage.wgsl
+  s_8f74af7efeeba8::t_436ed4436efef3 1,3,5-12,14-27,29-32,34-60,62-75,77-79,81-99,101-103,105-117,120-122,124-126,129-130,133-135,137-149,152-153,155-159,161-170,172,174-175,177,179-185,187-189,191-204,207-231,233,236-245,248-253,256-264,266-285,287-288,291-311,313-323,325-335,338-340,342-349,352-359,362-371,374-385,388-391,393-394,397-406,408-451,453-456,458,460-470,474-480,482-483,485-504,507-565,568
+crates/calibraw-gpu/src/shaders/scene/bake_depth.wgsl
+  s_8f74af7efeeba8::t_20de66f2194ad9 1-84
+crates/calibraw-gpu/src/shaders/scene/bake_focus.wgsl
+  s_8f74af7efeeba8::t_da2f9189248d08 1-233
+crates/calibraw-gpu/src/shaders/scene/bake_layers.wgsl
+  s_8f74af7efeeba8::t_35a57ee5ac5d0c 1-4,6-20,22-31,33-50,52-59,62-79,82-86,88-143,146-159,161-167,170-195,199,202-216,218,220-231,234,236-247,249-263,265,269-280,282,285-304,307-322,325-343,346-363
+crates/calibraw-gpu/src/shaders/scene/bake_mips.wgsl
+  s_8f74af7efeeba8::t_6c0589322c1d3d 1-77
+crates/calibraw-gpu/src/shaders/scene/camera.wgsl
+  s_8f74af7efeeba8::t_849e850434c8cc 1-127
+crates/calibraw-gpu/src/shaders/scene/geometry.wgsl
+  s_8f74af7efeeba8::t_63c54f81faa591 1-14,16-27,29-50,53-60,62-63,66-70,73-76,79-82,85-106,109-128,131-135,138-139,142-144,147-233,236-247,250-276,278-279,282-308,310-354,356,359-381,383-417,420-425,428-432,435-441,443-446,449-452,455-468,471-484,486-489,492-515,518-524,527-560,562-610,612-622,624,626-628
+crates/calibraw-gpu/src/shaders/scene/lights_common.wgsl
+  s_8f74af7efeeba8::t_f8d594860d8a98 1-249
+crates/calibraw-gpu/src/shaders/scene/shadow_raster.wgsl
+  s_8f74af7efeeba8::t_febb109f2baecd 1-183
+crates/calibraw-gpu/src/shaders/scene/visibility.wgsl
+  s_8f74af7efeeba8::t_94e3eaa6897500 1-76
+crates/calibraw-ui/locales/da.json
+  s_8f74af7efeeba8::t_2fbe9cf4603dfa 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/de.json
+  s_8f74af7efeeba8::t_66c84154ca324d 35,106,194,226,240,279,415,476,546,583-584,839,841-844,846-847,850-851,856-857,860,865-866,868-875,1290,1340,2034
+crates/calibraw-ui/locales/en-posh.json
+  s_8f74af7efeeba8::t_15c226dd472f8f 35,106,194,226,240,279,415,476,546,583-584,884,969-972,1016-1017,1019-1022,1263,1313,1358,1672,1679,1749,1786-1788,1800-1802,1838,2032
+crates/calibraw-ui/locales/es.json
+  s_8f74af7efeeba8::t_09fcbe98d4db9d 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/fr.json
+  s_8f74af7efeeba8::t_6f32ff4a75ebd9 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/hi.json
+  s_8f74af7efeeba8::t_b79ba6fc89bbbc 35,106,194,226,240,279,415,476,546,583-584,839,841-844,846-847,850-851,856-857,860,865-866,868-875,1290,1340,2034
+crates/calibraw-ui/locales/it.json
+  s_8f74af7efeeba8::t_d71e529a8f874b 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/ja.json
+  s_8f74af7efeeba8::t_1f789afc4f4671 35,106,194,226,240,279,415,476,546,583-584,839,841-844,846-847,850-851,856-857,860,865-866,868-875,1290,1340,2034
+crates/calibraw-ui/locales/ko.json
+  s_8f74af7efeeba8::t_9125948e50c95e 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/pl.json
+  s_8f74af7efeeba8::t_f2ef44d876eaf7 35,106,194,226,240,279,415,476,546,583-584,884,969-972,1016-1017,1019-1022,1263,1313,1358,1672,1679,1749,1786-1788,1800-1802,1838,2032
+crates/calibraw-ui/locales/ro.json
+  s_8f74af7efeeba8::t_ef5755b466446b 35,106,108-110,113,117-119,121-122,132,134-137,139-140,143-144,149-150,153,158-159,161,163-165,930-933,1366,1417,2034
+crates/calibraw-ui/locales/ru.json
+  s_8f74af7efeeba8::t_3f6528ec5a8680 35,108,196,228,242,281,417,478,548,584-585,887,972-975,1124,1170,1250-1251,1261,1311,1329,1366,1566,1673,1680,1750,1787-1789,1801-1803,1839,2034
+crates/calibraw-ui/locales/tr.json
+  s_8f74af7efeeba8::t_6af49a3d0f58cf 35,108,196,228,242,281,417,478,548,584-585,887,972-975,1124,1170,1250-1251,1261,1311,1329,1366,1566,1673,1680,1750,1787-1789,1801-1803,1839,2034
+crates/calibraw-ui/locales/uk.json
+  s_8f74af7efeeba8::t_2206b49d7f1a2d 35,108,196,228,242,281,417,478,548,584-585,887,972-975,1124,1170,1250-1251,1261,1311,1329,1366,1566,1673,1680,1750,1787-1789,1801-1803,1839,2034
+crates/calibraw-ui/locales/zh-TW.json
+  s_8f74af7efeeba8::t_6fbd360969a933 35,106,194,226,240,279,415,476,546,583-584,839,841-844,846-847,850-851,856-857,860,865-866,868-875,1290,1340,2034
+crates/calibraw-ui/locales/zh.json
+  s_8f74af7efeeba8::t_98b385cc31de25 35,106,194,226,240,279,415,476,546,583-584,839,841-844,846-847,850-851,856-857,860,865-866,868-875,1290,1340,2034
+crates/calibraw-ui/src/app.rs
+  s_8f74af7efeeba8::t_94e26b8389ed11 13,48
+crates/calibraw-ui/src/app/ai/editor/effects.rs
+  s_8f74af7efeeba8::t_d26ff7dcbb7c1e 4-6,97-113
+crates/calibraw-ui/src/app/ai/generated.rs
+  s_8f74af7efeeba8::t_5f9222efcee077 61-62,163,185-188,192-197,199-216,220,224,272,275-281,285,328,333-345,361-365,370,386,389,392-393,395-403
+crates/calibraw-ui/src/app/ai/mod.rs
+  s_8f74af7efeeba8::t_cdb13414c7d948 2
+crates/calibraw-ui/src/app/ai/people.rs
+  s_8f74af7efeeba8::t_ca7eafd55750f7 678,682,686-688
+crates/calibraw-ui/src/app/ai/state.rs
+  s_8f74af7efeeba8::t_e41905e5904558 8-10,12-14,25-27,33,35-38
+crates/calibraw-ui/src/app/ai/update.rs
+  s_8f74af7efeeba8::t_709da7ed766da3 310
+crates/calibraw-ui/src/app/ai_denoise.rs
+  s_8f74af7efeeba8::t_56beb33a3807c4 53-55,57-71,351-357,361-363,365,373-379
+crates/calibraw-ui/src/app/develop_cards.rs
+  s_8f74af7efeeba8::t_24a18b28c54929 20,24,35-36,51,68
+crates/calibraw-ui/src/app/develop_state.rs
+  s_8f74af7efeeba8::t_7f1b51886c1111 220,239
+crates/calibraw-ui/src/app/effect_handles.rs
+  s_8f74af7efeeba8::t_fe994aaf9ab379 283
+crates/calibraw-ui/src/app/error_dialogs.rs
+  s_8f74af7efeeba8::t_bd444064c8475d 54,69
+crates/calibraw-ui/src/app/geometry.rs
+  s_8f74af7efeeba8::t_b4ebe98efdece0 128-136
+crates/calibraw-ui/src/app/interactive_preview.rs
+  s_8f74af7efeeba8::t_883a96a7e96969 28,435-479,483,787-788,893-894
+crates/calibraw-ui/src/app/lifecycle/document_load.rs
+  s_8f74af7efeeba8::t_deec8b422c1db6 297-321
+crates/calibraw-ui/src/app/lifecycle/pickers.rs
+  s_8f74af7efeeba8::t_311bbbcbb0eb7e 94-142,194,325-335
+crates/calibraw-ui/src/app/lifecycle/settings.rs
+  s_8f74af7efeeba8::t_66554feb2210ea 324-331,413
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_8f74af7efeeba8::t_95db27923b6267 157,379,397
+crates/calibraw-ui/src/app/mask_state.rs
+  s_8f74af7efeeba8::t_be6fb0a7d6fef7 93
+crates/calibraw-ui/src/app/photo_companions.rs
+  s_8f74af7efeeba8::t_9337c3faf6f998 1-66
+crates/calibraw-ui/src/app/preview_state.rs
+  s_8f74af7efeeba8::t_792a7b27d0e1d1 454-458
+crates/calibraw-ui/src/app/preview_visibility.rs
+  s_8f74af7efeeba8::t_65023b926c32da 115
+crates/calibraw-ui/src/app/processing_export/preview/detail.rs
+  s_8f74af7efeeba8::t_6c469e870c2230 321,330-332
+crates/calibraw-ui/src/app/processing_export/preview/interactive_crop.rs
+  s_8f74af7efeeba8::t_d68173a43b4fa6 10,64-65,126-127
+crates/calibraw-ui/src/app/processing_export/preview/processing.rs
+  s_8f74af7efeeba8::t_2483e5d9e9d252 152,165-167,377,385-386,415
+crates/calibraw-ui/src/app/sidecar_persistence/library_actions.rs
+  s_8f74af7efeeba8::t_441bd79deed169 34-61
+crates/calibraw-ui/src/app/ui_state.rs
+  s_8f74af7efeeba8::t_457e4ee47e11c2 115-119
+crates/calibraw-ui/src/performance_settings.rs
+  s_8f74af7efeeba8::t_b0e8e91f05ee31 118-119,340
+crates/calibraw-ui/src/platform/ios_library.rs
+  s_8f74af7efeeba8::t_43e28c68c6e093 4,176
+crates/calibraw-ui/src/ui/icons.rs
+  s_8f74af7efeeba8::t_ac060997a38d78 41-60,66
+crates/calibraw-ui/src/ui/library/actions.rs
+  s_8f74af7efeeba8::t_fc5b7da38f57a2 855-862
+crates/calibraw-ui/src/ui/library/deferred_metadata.rs
+  s_8f74af7efeeba8::t_1662448f5172a2 1-204
+crates/calibraw-ui/src/ui/library/dialogs.rs
+  s_8f74af7efeeba8::t_9d096b83e39765 18-19,44-56,290-361
+crates/calibraw-ui/src/ui/library/folders/catalog.rs
+  s_8f74af7efeeba8::t_d3b59c053bc506 59,235-237,252
+crates/calibraw-ui/src/ui/library/media_library/catalog.rs
+  s_8f74af7efeeba8::t_f06c47c5074f68 1-88
+crates/calibraw-ui/src/ui/library/media_library/local.rs
+  s_8f74af7efeeba8::t_de65b4858d6456 8-59,80
+crates/calibraw-ui/src/ui/library/media_library/mod.rs
+  s_8f74af7efeeba8::t_7b1675c3af1efd 9,35-36,46,54-58,83-89,104,110-158,169-176,247,252-254,267-290,293-343,353-354
+crates/calibraw-ui/src/ui/library/mod.rs
+  s_8f74af7efeeba8::t_f00da791b8d0d0 30,59,66-69,101-104,700-721,726,729-730
+crates/calibraw-ui/src/ui/library/review.rs
+  s_8f74af7efeeba8::t_29cb6636e05df5 726
+crates/calibraw-ui/src/ui/library/state.rs
+  s_8f74af7efeeba8::t_4821e1e3562cbb 75,78-95,123-130,234-235
+crates/calibraw-ui/src/ui/library/state/scan.rs
+  s_8f74af7efeeba8::t_b60b7aaf443923 7,9-17,22-25,132-134,136-137,142-156,160,168-181,195-200,205-207,223-290,313,402,410-412,422-425,541-548
+crates/calibraw-ui/src/ui/library/thumbnails/loaders.rs
+  s_8f74af7efeeba8::t_0fb57d73196e18 1,5-6,54,101,121-122,132,165-169,171-172,178-278,280-290,293-340,342-369,371-380
+crates/calibraw-ui/src/ui/library/thumbnails/workers.rs
+  s_8f74af7efeeba8::t_ec1da5c48930c5 5,43,221-273
+crates/calibraw-ui/src/ui/library/view.rs
+  s_8f74af7efeeba8::t_38ef52b1da00a6 108,127-141,301,332-336,341-360,381-386,388-452,459-462,604,607
+crates/calibraw-ui/src/ui/preview/tools/effect_handles/point.rs
+  s_8f74af7efeeba8::t_86b47957f6861a 59,182,211
+crates/calibraw-ui/src/ui/sidebar/adjustment_cards.rs
+  s_8f74af7efeeba8::t_0a7ee85907d875 127
+crates/calibraw-ui/src/ui/sidebar/develop.rs
+  s_8f74af7efeeba8::t_d4976f1cb0d830 642,644-654,657-697,808-882
+crates/calibraw-ui/src/ui/sidebar/mask_effects/fog.rs
+  s_8f74af7efeeba8::t_34c997ff59f0f7 27,116,122,143,160
+crates/calibraw-ui/src/ui/sidebar/mask_effects/picker.rs
+  s_8f74af7efeeba8::t_da98529abc08cb 205
+crates/calibraw-ui/src/ui/sidebar/mask_effects/relight.rs
+  s_8f74af7efeeba8::t_eeb8937f8831da 44,61
+crates/calibraw-ui/src/ui/sidebar/navigation.rs
+  s_8f74af7efeeba8::t_38e7009bb3935b 454-456,529-531
+crates/calibraw-ui/src/ui/sidebar/navigation/mobile.rs
+  s_8f74af7efeeba8::t_7b6cd44d8b9650 161
+data/ai-parity/SHA256SUMS
+  s_8f74af7efeeba8::t_4a7645ef353871 3,6-8,11-12
+data/ai-parity/depth-low-camera.txt
+  s_8f74af7efeeba8::t_cc76227652a0f9 1
+data/ai-parity/depth-medium-camera.txt
+  s_8f74af7efeeba8::t_aec8788c1c8b03 1
+data/formats/preset/scene-controls.expected.json
+  s_8f74af7efeeba8::t_b26673ef0186ff 1-454
+data/formats/preset/scene-controls.json
+  s_8f74af7efeeba8::t_cb65989f924091 1-1604
+data/formats/sidecar/effect-instances.expected.json
+  s_8f74af7efeeba8::t_adb3728dc92ac3 2,137,147,158,160,459
+data/formats/sidecar/newer-schema.expected.json
+  s_8f74af7efeeba8::t_43ad4929fb1f1a 2
+data/formats/sidecar/people.expected.json
+  s_8f74af7efeeba8::t_cca5804c2dba73 260-263
+data/formats/sidecar/scene-depth-dev.expected.json
+  s_8f74af7efeeba8::t_b79e53ba91d3ad 1-339
+data/formats/sidecar/scene-depth-dev.json
+  s_8f74af7efeeba8::t_d6b8ab042e737b 1-883
+data/formats/sidecar/scene-depth-v1.4.expected.json
+  s_8f74af7efeeba8::t_e7b81f1f3d3a04 1-327
+data/formats/sidecar/scene-depth-v1.4.json
+  s_8f74af7efeeba8::t_95edc8af9bc5cc 1-859
+data/formats/sidecar/scene-normals.expected.json
+  s_8f74af7efeeba8::t_5e5a2a3037efa2 2,136,138,156-167,172-175,180-183,191-202
+data/formats/xmp/calibration.expected.json
+  s_8f74af7efeeba8::t_a89fd013004ccf 1-158
+data/formats/xmp/calibration.xmp
+  s_8f74af7efeeba8::t_ac858b9b4dcf80 1-22
+data/formats/xmp/legacy.expected.json
+  s_8f74af7efeeba8::t_71467ae5e0b1b0 12-25,165-166
+data/render-parity/scene/calibration-opposed-hues.json
+  s_8f74af7efeeba8::t_ed0033b78a78fe 1-11
+data/render-parity/scene/calibration.json
+  s_8f74af7efeeba8::t_4067742c53fb43 1-11
+data/render-parity/scene/fog-glow-light-behind-subject.json
+  s_8f74af7efeeba8::t_f87b6d4737748f 1-47
+data/render-parity/scene/fog-silhouette-sky.json
+  s_8f74af7efeeba8::t_a356e773762510 1-27
+data/render-parity/scene/rain-occlusion-layers.json
+  s_8f74af7efeeba8::t_07fff89e62da2a 1-27
+data/render-parity/scene/relight-cast-shadow.json
+  s_8f74af7efeeba8::t_05a186dfc63b95 1-33
+data/render-parity/scene/relight-defocused-horizon.json
+  s_8f74af7efeeba8::t_26b564c0085372 1-32
+data/render-parity/scene/relight-eight-lights-shadows.json
+  s_8f74af7efeeba8::t_f2232d34c5d3e8 1-139
+data/render-parity/scene/relight-rim-behind.json
+  s_8f74af7efeeba8::t_b65c864f0f7ae9 1-32
+data/render-parity/scene/relight-silhouette-sky.json
+  s_8f74af7efeeba8::t_ec6e2674a66b2f 1-31
+data/render-parity/scene/wet-object-on-floor.json
+  s_8f74af7efeeba8::t_cf59ca3f51edb6 1-27
+docs/DEVELOPMENT.md
+  s_8f74af7efeeba8::t_ecb3c41b92db72 170-172,183-184,191,737-743
+research/fine-tuning.md
+  s_8f74af7efeeba8::t_fb287ab6c5c19d 1-106,108-178,180-184,186,188,190,192-272,275,278-330,332-577,579-635
+research/gemma-evals/cases.json
+  s_8f74af7efeeba8::t_03c76eae5b1c46 3-4,7-9,11-13,16-23,26-36,38-68,70-78,80-87,89,91-112
+research/gemma-evals/check.py
+  s_8f74af7efeeba8::t_e18c14bd9753b1 14-16,54-56,58,73-81,96-97,100-102,260
+research/gemma-evals/run.py
+  s_8f74af7efeeba8::t_f6bb358ae31fa2 9-16,29-31,68-84,88-89,156,159-160,186
+crates/calibraw-ffi/src/android.rs
+  s_8f74af7efeeba8::t_655eae13483019 56-57,66-79,148-150,191-194,298-305,317-329
+crates/calibraw-ui/src/platform/caps.rs
+  s_8f74af7efeeba8::t_00f020cbffb1c5 25-27,81,92,104
+crates/calibraw-ui/src/platform/service.rs
+  s_8f74af7efeeba8::t_f4025a398c511d 3-7,35-49,59-77,453-485,592-680,691-692,696-726
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85328cf715cdf0e570542c0e0f47819b0608e72d",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
