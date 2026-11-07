@@ -1,9 +1,10 @@
 //! What the editing tools share: their names, which tool sets each value,
 //! reading a requested value, keeping it within its control's range,
 //! answering the call, how values are written to the model, and what a
-//! request's calls changed. Each tool is described to Gemma by
-//! android/app/src/main/assets/gemma/editor_system.md, whose value names and
-//! ranges its module follows.
+//! request's calls changed. Each tool is described to Claude by
+//! android/app/src/main/assets/claude/editor_system.md, whose value names and
+//! ranges its module follows; Gemma writes no calls, and the brief reader
+//! (brief.rs) writes them from the brief Gemma writes.
 
 use super::calls::Call;
 use super::color::{is_grading_value, is_mixer_value};
@@ -316,6 +317,18 @@ pub(super) fn record_changes(changes: &mut Vec<Change>, tool: &str, response: &V
             }),
         }
     }
+}
+
+/// The value `name` of the edit had before the request whose `changes` these
+/// are, when it changed it; a mask's values, which share names such as
+/// `exposure` with the edit's, are not.
+pub(super) fn previous_value(changes: &[Change], name: &str) -> Option<f32> {
+    changes
+        .iter()
+        .find(|change| {
+            change.name == name && change.was != change.now && !change.tool.starts_with(SET_MASK)
+        })
+        .and_then(|change| number(&change.was))
 }
 
 /// The request `text` and its `changes` for the next request's first

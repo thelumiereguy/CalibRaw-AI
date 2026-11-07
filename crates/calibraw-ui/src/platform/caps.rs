@@ -22,6 +22,9 @@ pub(crate) struct PlatformCaps {
     /// AI editor, through on-device Gemma or Claude Code: an opened photo gets
     /// a triage card and the AI editor is offered.
     pub(crate) ai_editor: bool,
+    /// The person can link folders of their own, whose photos are worked on
+    /// where they are, beside the media library.
+    pub(crate) linked_folders: bool,
 }
 
 /// How the person works with the app.
@@ -75,6 +78,7 @@ impl PlatformCaps {
         configurable_ai_runtime: true,
         video_encoder: VideoEncoder::Ffmpeg,
         ai_editor: false,
+        linked_folders: false,
     };
 
     pub(crate) const ANDROID: Self = Self {
@@ -85,6 +89,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         ai_editor: true,
+        linked_folders: true,
     };
 
     #[cfg(target_os = "ios")]
@@ -96,6 +101,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         ai_editor: false,
+        linked_folders: false,
     };
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

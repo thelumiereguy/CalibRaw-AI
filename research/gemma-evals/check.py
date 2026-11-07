@@ -11,8 +11,9 @@ runs/LABEL/summary.md. Each cell (a case on a photo) passes when every check pas
   the edges, the shadows were not crushed nor the highlights clipped (unless the case allows it).
 
 Two process checks are reported apart and do not fail a cell, since the photographer judged
-the photo, not the process (2026-11-06): the app rejected nothing Gemma wrote, and the edit's
-reply stayed under the token count where the phone's GPU garbles digits (LiteRT-LM #4001).
+the photo, not the process (2026-11-06): the app rejected nothing Gemma wrote (a value it could
+not set, or an item of the brief it could not read), and the edit's reply stayed under the
+token count where the phone's GPU garbles digits (LiteRT-LM #4001).
 
 With --against, it lists the cells that passed there and fail here, and the reverse.
 """
@@ -50,7 +51,11 @@ def read_turns(trace_text):
                           "applied": "", "failures": []})
         elif not turns:
             continue
+        elif kind == "APPLIED":
+            # The app reads the brief into tool calls itself and reports what they set.
+            turns[-1]["applied"] = rest.replace("|", "\n")
         elif kind == "SEND" and rest.startswith("The app set:"):
+            # Runs from before 2026-11-07, when a second conversation wrote the calls.
             turns[-1]["applied"] = rest.split("||The preview")[0].replace("|", "\n")
         elif kind == "REPLY":
             m = re.match(r"(\d+) ms (\d+) tok (.*)", rest)
@@ -65,8 +70,15 @@ def read_turns(trace_text):
     for turn in turns:
         replies = turn["replies"]
         turn["brief"] = replies[0]["text"] if replies else ""
-        turn["edit"] = replies[1] if len(replies) > 1 else None
-        turn["summary"] = replies[2]["text"] if len(replies) > 2 else ""
+        if len(replies) > 1:
+            # Older runs: the brief, the edit's reply with its tool lines, then the summary.
+            turn["edit"] = replies[1]
+            turn["summary"] = replies[2]["text"] if len(replies) > 2 else ""
+        else:
+            # One reply, the brief, whose Summary: line is the chat's reply.
+            turn["edit"] = replies[0] if replies else None
+            summary = re.search(r"^Summary:(.*)$", turn["brief"], re.MULTILINE)
+            turn["summary"] = summary.group(1).strip() if summary else ""
     return triage, turns
 
 
@@ -81,9 +93,13 @@ def value(text):
 
 
 def read_applied(applied):
-    """The app's report as {(tool, name): (was, now)}, and the names it did not set."""
+    """The app's report as {(tool, name): (was, now)}, and the names it did not set and the
+    brief's items it could not read."""
     changes, not_set = {}, []
     for line in applied.splitlines():
+        if line.startswith("not understood:"):
+            not_set += [item.strip() for item in line[len("not understood:"):].split(";")]
+            continue
         if not line.startswith("set_"):
             continue
         main, *notes = line.split("; ")
@@ -241,7 +257,7 @@ def check_cell(case, folder):
         else:
             add("replied", last["edit"] is not None and not last["failures"], "; ".join(last["failures"])[:120])
             add("set something", bool(changes), "" if changes else (last["edit"] or {}).get("text", "")[:120])
-            add("nothing rejected", not not_set, " ".join(not_set), process=True)
+            add("nothing rejected", not not_set, "; ".join(not_set), process=True)
             bright = [f"{n2}={now}" for (t, n2), (was, now) in changes.items()
                       if n2 == "vignette_amount" and isinstance(now, float) and now > 0]
             add("vignette darkens", not bright, " ".join(bright))

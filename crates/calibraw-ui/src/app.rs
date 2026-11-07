@@ -10,7 +10,7 @@ use crate::pipeline::{
     MobilePreviewRole, PerspectiveGuide, PipelineOptions, PreviewResourceShape, ProcessingQuality,
     ProcessingStage, ProxySpec, RawGpuPipeline, RawGpuProgramTemplate, RemoveBrushPoint,
     RemoveBrushStroke, RemoveEditState, RemoveSceneContext, RetouchAlignment, RetouchStroke,
-    RetouchTool, SubjectRefinement, TileSpec, TiledExportJob, MAX_LOCAL_MASKS,
+    RetouchTool, SceneDepth, SubjectRefinement, TileSpec, TiledExportJob, MAX_LOCAL_MASKS,
 };
 use crate::platform::{Platform, PlatformCaps};
 use crate::sidecar::{
@@ -45,6 +45,7 @@ mod actions;
 pub(crate) use actions::AppAction;
 mod ai_denoise;
 mod discord_presence;
+mod photo_companions;
 use discord_presence::DiscordPresence;
 mod edit_history;
 use edit_history::EditHistory;

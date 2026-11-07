@@ -1,8 +1,9 @@
 //! The finish effects the `set_effect` tool moves: the sliders of the
 //! global Vignette, Grain, Glow and Halation, named `effect_setting` after
 //! each slider's label (Preserve highlights is `vignette_preserve_highlights`).
-//! editor_system.md lists only each effect's amount; Gemma left the rest at
-//! odd values, such as a vignette with no feather. The rest stay settable.
+//! The brief reader (brief.rs) moves only each effect's amount; Gemma, given
+//! the rest, left them at odd values, such as a vignette with no feather. The
+//! rest stay settable.
 //! Colours, positions and pattern seeds are left to the photographer.
 
 use super::tools::{number, rounded, Limits, Outcome};
@@ -91,6 +92,23 @@ pub(super) fn is_effect_value(name: &str) -> bool {
     parse_name(name).is_some_and(|(effect, setting)| {
         slider_value(&MaskEffectSettings::initial(effect), effect, setting).is_some()
     })
+}
+
+/// The effect value `name` as `set_effect` reads it in `effects`, or `None`
+/// for another name. An effect that is off shows nothing, so its amount is 0
+/// and its other sliders are where a new effect starts.
+pub(super) fn effect_current(effects: &[EffectComponent], name: &str) -> Option<f32> {
+    let (effect, setting) = parse_name(name)?;
+    let shown = effects
+        .iter()
+        .find(|component| component.effect == effect && component.enabled);
+    match shown {
+        Some(component) => slider_value(&component.settings, effect, setting),
+        None if setting == "amount" => {
+            slider_value(&MaskEffectSettings::initial(effect), effect, setting).map(|_| 0.0)
+        }
+        None => slider_value(&MaskEffectSettings::initial(effect), effect, setting),
+    }
 }
 
 /// The enabled effects' amounts and their other sliders away from where a

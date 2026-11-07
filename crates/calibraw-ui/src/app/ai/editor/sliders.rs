@@ -1,6 +1,6 @@
 //! The sliders the `set_sliders` tool moves, read from and written to the
-//! edit. editor_system.md gives Gemma the names and ranges of those a brief
-//! asks for; hue and the sharpening and noise details stay settable.
+//! edit. For Gemma, the brief reader (brief.rs) moves those a brief asks for;
+//! Claude's editor_system.md gives it every name and range.
 
 use super::tools::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, LoadedRaw, HUE_ROTATION_LIMIT_DEGREES};
@@ -244,6 +244,20 @@ fn set_white_balance(
 /// Whether `name` is one of the sliders.
 pub(super) fn is_slider(name: &str) -> bool {
     SLIDERS.iter().any(|slider| slider.name() == name)
+}
+
+/// The slider `name`'s value as `set_sliders` reads it, or `None` for another
+/// name and for warmth and tint where the photo has no white balance they
+/// can move.
+pub(super) fn slider_value(
+    exposure: &ExposureParams,
+    raw: Option<&LoadedRaw>,
+    name: &str,
+) -> Option<f32> {
+    SLIDERS
+        .iter()
+        .find(|slider| slider.name() == name)?
+        .value(exposure, raw)
 }
 
 /// The sliders away from their defaults, as the model reads them.

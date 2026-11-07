@@ -525,6 +525,18 @@ fn validate_exposure(exposure: &ExposureParams) -> Result<(), SidecarError> {
             return invalid("film negative base must be positive");
         }
     }
+    let calibration = exposure.calibration;
+    finite(
+        "calibration",
+        &[
+            calibration.red.hue,
+            calibration.red.saturation,
+            calibration.green.hue,
+            calibration.green.saturation,
+            calibration.blue.hue,
+            calibration.blue.saturation,
+        ],
+    )?;
     finite("global HSL hue", &exposure.hsl_hue)?;
     finite("global HSL saturation", &exposure.hsl_saturation)?;
     finite("global HSL luminance", &exposure.hsl_luminance)?;
@@ -756,7 +768,7 @@ fn bounded(label: &str, value: f32, minimum: f32, maximum: f32) -> Result<(), Si
     }
 }
 
-pub(super) fn validate_image(
+pub(crate) fn validate_image(
     width: u32,
     height: u32,
     bytes: usize,
@@ -775,6 +787,6 @@ pub(super) fn validate_image(
     Ok(())
 }
 
-pub(super) fn invalid<T>(message: &str) -> Result<T, SidecarError> {
+pub(crate) fn invalid<T>(message: &str) -> Result<T, SidecarError> {
     Err(SidecarError::Invalid(message.to_owned()))
 }

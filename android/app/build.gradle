@@ -196,6 +196,14 @@ android {
             versionNameSuffix "-profiling"
             signingConfig signingConfigs.debug
         }
+        // The debug app for the AI editor's evals (research/gemma-evals): it installs beside
+        // the debug one and keeps its own library, edits and Gemma model, so the evals never
+        // touch the photographer's.
+        eval {
+            initWith debug
+            applicationIdSuffix ".eval"
+            versionNameSuffix "-eval"
+        }
     }
 
     externalNativeBuild {
@@ -290,6 +298,7 @@ if (buildRustEnabled) {
         }
     }
     wireNativeBuild("Debug", "buildRustDebug")
+    wireNativeBuild("Eval", "buildRustDebug")
     wireNativeBuild("Release", "buildRustRelease")
     wireNativeBuild("Profiling", "buildRustProfiling")
 }

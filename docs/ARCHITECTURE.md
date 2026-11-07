@@ -86,52 +86,51 @@ change that establishes a boundary, not in advance.
   (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
   card); it asks for no editing priorities or observations, since
   Gemma edited towards them instead of the photographer's request. The AI
-  editor (`chat.rs`) is a chat in which each request runs in two phases,
-  whose first messages name that card's genre and role; the system prompts
-  name no photo, so Gemma reads them once per process and keeps them across
-  photos, so opening a photo costs only its triage.
-  First Gemma interprets the
-  photographer's words and the preview into a brief of tone, colour, finish
-  and what to keep (`assets/gemma/interpret_system.md`, which names no tools).
-  Then, in a second conversation that never sees the photographer's words,
-  it carries out the brief (`assets/gemma/editor_system.md`); asked to plan a
-  look and write its values in one reply, it crushed a photo to black. Gemma
-  edits through six tools, which the second prompt lists; no tools
-  are declared to LiteRT-LM. Gemma writes each call as a text line, the tool's
-  name and `name=value` pairs (`set_sliders shadows=15`), and the app reads
-  them itself (`calls.rs`), also in Gemma 4's own call syntax and with its
-  slips, such as a brace too many. The declared tools' schemas cost about
-  2,700 tokens of preface where the text list costs about 1,550. The tools are `set_sliders`
+  editor (`chat.rs`) is a chat in which each request is one Gemma reply,
+  whose message names that card's genre and role; the system prompt names no
+  photo, so Gemma reads it once per process and keeps it across photos, so
+  opening a photo costs only its triage. Gemma interprets the photographer's
+  words and the preview into a brief (`assets/gemma/interpret_system.md`,
+  which names no tools): lines of tone, colour, detail and effects items, each
+  a setting, up or down and a size word (a touch to very strong, or stops for
+  exposure), what to keep, and a sentence for the photographer. The app reads
+  the brief into tool calls itself (`brief.rs`), each size a step added to the
+  setting's current value. A second conversation that wrote the values from
+  the brief wrote some with the wrong sign or to the wrong tool, and asked to
+  plan a look and write its values in one reply, Gemma crushed a photo to
+  black. An item the reader cannot read unambiguously is reported in the chat,
+  not guessed. The tools are `set_sliders`
   (`sliders.rs`; on a RAW, Warmth is the white balance in mired around the
   as-shot value and Tint the shown tint less the as-shot one),
   `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
   (`tone_curve.rs`, five outputs at fixed inputs), `set_effect` (`effects.rs`,
   the global Vignette, Grain, Glow and Halation, by slider label) and
-  `set_ai_denoise` (`denoise.rs`). A request is one nudge, the calls of the second phase's
-  first reply, each value sent to the tool that owns its name: each value goes
-  where Gemma writes it within its range (`tools.rs`). A cap
-  per nudge kept Gemma from reaching black and white or a strong effect, and
-  with four nudges every one after the first undid or overdid it, so the
-  photographer steers with follow-ups. Each message to Gemma carries the
-  edit's values away from their defaults. Once `current_preview_snapshot`
-  reports the render current and no foreground job (AI denoise, an AI mask),
-  consent dialog or people mask from the analysis holds it, the
-  preview that shows the nudge goes to Gemma with what the app set, as
-  `name=before→after`, and Gemma says what it changed. The nudge is one undo
-  step (`observe_edit_history`), and undo and redo are off while a request
-  runs (`can_undo_edit`); an explicit save meanwhile commits what is there.
-  The chat is kept in the app only: each phase runs on a clone of a
-  conversation that holds just its system prompt
-  (`GemmaBridge.startEditorRequest`), both read once, when the first card
-  comes (`prepareEditor`), since a clone takes milliseconds and a new conversation's
-  first prefill took 16–23 s after the process's first. Each phase's first
-  message says what the previous request changed, in the `before→after`
-  syntax, so a follow-up such as "a bit more" or "undo that" works. A
+  `set_ai_denoise` (`denoise.rs`); the brief reaches `set_sliders`, the colour
+  tools and `set_effect`, and each value goes where the reader puts it within
+  its range (`tools.rs`). Tool lines Gemma writes on its own are kept out of
+  the chat's text (`calls.rs`). A request is one nudge, so the photographer
+  steers with follow-ups: with four nudges every one after the first undid or
+  overdid it. Each message to Gemma carries the edit's values away from their
+  defaults and what the previous request changed, as `name=before→after`, so
+  a follow-up such as "a bit more" or "undo that" works; a `back` item
+  returns a value to its `before`. A message waits until
+  `current_preview_snapshot` reports the render current and no foreground job
+  (AI denoise, an AI mask), consent dialog or people mask from the analysis
+  holds it. The nudge is one undo step (`observe_edit_history`), and undo and
+  redo are off while a request runs (`can_undo_edit`); an explicit save
+  meanwhile commits what is there. The chat is kept in the app only: each
+  request runs on a clone of a conversation that holds just the system prompt
+  (`GemmaBridge.startEditorRequest`), read once, when the first card comes
+  (`prepareEditor`), since a clone takes milliseconds and a new
+  conversation's first prefill took 16–23 s after the process's first. A
   request's conversation is closed when it ends, since an open one keeps its
   memory. The engine holds 4,096 tokens per conversation
   (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
   context for every layer up front (LiteRT-LM issue 4096), the largest
-  conversation used about 2,700, and 8,192 left the phone swapping.
+  conversation used about 2,700, and 8,192 left the phone swapping. For the
+  evals (`research/gemma-evals/`), while `files/gemma-trace.on` exists the app
+  writes the preview that shows a request's edit and what it set to the
+  trace GemmaBridge keeps.
 - Claude Code in Termux (Android) is the other model behind the same triage
   and AI editor, chosen in Settings (`AiEditorModel`, `app/ai/editor/model.rs`).
   Java holds one `AiModel` at a time, `GemmaBridge` or `ClaudeBridge`, which
@@ -142,11 +141,13 @@ change that establishes a boundary, not in advance.
   stream-json over that connection. The triage uses Gemma's prompt and
   schema (`--json-schema`), and waits until the AI editor's chat opens
   (`TriageState::waiting`), so a photo goes to Anthropic only when the
-  photographer asks Claude about it. The editor needs no phases: one
+  photographer asks Claude about it. The editor writes no brief: one
   conversation per photo holds the whole chat, plans and writes its tool
-  lines in the same reply (`assets/claude/editor_system.md`), and looks at the
-  preview after each nudge to correct it, up to ten nudges a request; it ends
-  sooner with a reply without tool lines. Claude also has three tools Gemma
+  lines in the same reply (`assets/claude/editor_system.md`), which the app
+  reads itself (`calls.rs`), and looks at the preview after each nudge, with
+  what the app set as `name=before→after`, to correct it, up to ten nudges a
+  request; it ends sooner with a reply without tool lines. Claude also sets
+  the tone curves, which the brief does not reach, and has three tools Gemma
   is not given: `set_mask`
   and `set_mask_part` (`masks.rs`) make and edit masks by a name Claude gives
   them, with their parts (radial, linear, luminance, colour and the model
@@ -170,6 +171,12 @@ change that establishes a boundary, not in advance.
   keep Claude. Only the start decides, since a switch ends the open photo's
   chat. Settings checks how far Claude Code is set up (`claude auth status`) and
   runs each missing step.
+- Calibration (the hue and saturation of the primaries) is folded into the
+  camera transform whenever a stage's camera uniforms are packed
+  (`pack_camera_params`), after white balance, so like a camera profile it
+  changes how the samples' colour is read and nothing cached from the decode.
+  Its changes rerun the pipeline from the Tone stage, the first that applies
+  the camera transform.
 
 ## Inside `calibraw-ui`
 
@@ -225,7 +232,7 @@ job records the value it started with.
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
 | Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed; it waits (`waiting`) until Develop shows the photo and its render is current (`current_preview_snapshot`), and with Claude Code until the AI editor's chat is open too. A worker reads the preview back and applies the geometry | none; it ends with the model's reply or after 120 s with Gemma, and with Claude Code after up to 35 s for its process to connect plus 120 s for the reply | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`, which the chat shows with a retry (`retry_photo_triage`); the photo stays editable and the editor cannot send |
-| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or `Session.end`, which closes Claude Code's connection: its process exits once the running turn's API call, already billed, has finished) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id, which keeps counting across photos | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s, and with Claude Code a request first waits up to 35 s for its process to connect |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn, and, for the evals, to writing Gemma's edited preview to the trace | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or `Session.end`, which closes Claude Code's connection: its process exits once the running turn's API call, already billed, has finished) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id, which keeps counting across photos | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s, and with Claude Code a request first waits up to 35 s for its process to connect |
 | Claude Code setup check (Android) | one receiver in `ClaudeSetupState`; no second check starts while one runs | none; it ends when `claude auth status` exits or after 60 s | none; the setup is an app setting | the failure is shown in Settings; Termux not running the check reads as blocked |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |
@@ -233,6 +240,8 @@ job records the value it started with.
 | Sidecar save | `VecDeque` of requests, one write in flight | none; writes are short | requests carry `generation` and `revision`; stale completions are ignored | failure keeps a recovery request and shows a dialog |
 | Heap purge (Android, Linux glibc) | one `calibraw-heap-purge` thread in `calibraw_core::system_memory`; requests made while a purge is queued or running are served by one more | none; a purge takes up to a few hundred milliseconds | none; it only returns pages the allocator already freed | a thread that cannot start leaves memory with the allocator; an Android without `M_PURGE` changes nothing |
 | Library ratings and flags | one `calibraw-review-writer` thread per library, started by the first change; saves run in the order they were made | none; a later change to a photo queues behind the earlier one, and the grid shows a saved review only once its photo has no save waiting | the open photo changes through its document: on Android its review is saved with the edits, on desktop with its editing time | each save reports the review its sidecar then holds; failures show the error dialog; library photo actions, opening a photo and exit wait up to two seconds for queued saves, as a media-library save rewrites the whole sidecar |
+| Linked folder tree | one `calibraw-library-folders` thread at a time, beside the photo scan; started by a refresh, not by selecting a folder within the tree; a refresh during a walk walks again after it | none; bounded by the folder limits | its folders carry the linked folder walked and are shown only while it is; switching linked folders abandons the walk | logged; the photo scan reaches the same folder and shows the error dialog |
+| Linked folder AI results | one thread per finished AI job, polled through `AndroidState::companion_publishes` | none | copies to the photo the job finished for | error dialog; the result stays usable until the photo closes |
 | Library thumbnails | shared work queue for a worker pool | `AtomicU64` generation; workers exit when it changes | generation bump on folder change | each item's result, success or error, is sent with its generation; older generations are ignored |
 
 Job channels are unbounded `std::sync::mpsc` channels: each job sends a
@@ -253,13 +262,13 @@ GPU readbacks wait on one-slot channels.
 | `DEVELOPED_THUMBNAIL_GPU` | `ui::library::thumbnails::developed` | thumbnail workers | one headless device for developed thumbnails, used by one render at a time |
 | thumbnail work queue and request receiver | `ThumbnailWorkerContext` | thumbnail workers | short critical sections; never held while decoding |
 | rendered-thumbnail permits (counting semaphore) | `calibraw_core::thumbnail_cache` | thumbnail workers rendering a full RAW (no embedded preview, or edited) | at most four such renders, fewer with fewer workers, bounding indexing memory |
+| `ExtractionPermits` (counting semaphore) | one per media-library scan | its thumbnail workers while reading a photo (preview or display metadata) | at most the thumbnail-worker setting of photo reads at once; the scan has more workers, which serve cached previews without a permit |
 | model runtime slot | `calibraw_ai::slot` | the running AI job | one ONNX session at a time; evicted models unload once released |
 | `RUNTIME_INIT_LOCK`, runtime probe cache, runtime install lock | `calibraw_ai::runtime` | AI jobs, the Settings runtime picker | serialize ONNX Runtime initialization, probes and automatic runtime installs |
 | provider statuses | `calibraw_ai::placement` | AI jobs, Settings | the provider each model's latest session uses |
 | out-of-memory records | `calibraw_ai::placement::out_of_memory` | AI jobs, also under the model runtime slot; Settings when GPU AI is switched | which models ran out of GPU memory and when they may retry; a leaf lock, never held while a session is created or run |
 | AI settings (`RwLock`) | `calibraw_ai::config` | the UI thread writes at startup and on Settings changes; AI jobs read | runtime source and model root; never held across a load or download |
-| `SHARED_SURFACE` | `calibraw_gpu` scene-depth upload | any thread uploading scene depth: preview pipelines on the UI thread, export workers | the relighting surface is derived once per depth result and shared by every pipeline; held while deriving, so a concurrent upload of the same result waits instead of repeating it |
-| effect inputs (`EffectInputs`) | each `RawGpuPipeline` | threads encoding that pipeline | allocates scene depth, the scene shadow map, the image-light map, haze map, scene map, contour grid or scene emission textures the first time an effect reads them, and the LUT texture when a LUT is uploaded, and rebinds the passes that read them; encoding holds it only to clone a bind group, never while waiting on the GPU |
+| effect inputs (`EffectInputs`) | each `RawGpuPipeline` | threads encoding that pipeline | allocates the image-light map, haze map, contour grid or scene emission textures, and the scene bake and its light bake (`calibraw_gpu::pipeline::gpu::scene`, shared by `Arc` with views of part of the image), the first time an effect reads them, and the LUT texture when a LUT is uploaded, and rebinds the passes that read them; encoding holds it only to clone a bind group, never while waiting on the GPU |
 | LUT cache | `calibraw_core::luts::LutStore`, shared by its clones | the UI thread, document loads, batch export and thumbnail workers | the recently parsed LUTs; a leaf lock, never held while a file is read or parsed |
 | `SIDECAR_SAVE_LOCK` | `calibraw_core::sidecar::files` | sidecar writers | one sidecar write at a time |
 | decoded-RAW cache state and condvar | `DecodedRawCache` | document loads and the prefetch worker | short critical sections; decodes run unlocked, and a second request for a decoding entry waits on the condvar |
@@ -271,8 +280,8 @@ GPU readbacks wait on one-slot channels.
 
 Apart from the serialized-read gate, only these nestings exist, each in a fixed
 order: the reference-preview serial lock is taken before the decode gate; a
-thumbnail worker takes `DEVELOPED_THUMBNAIL_GPU` while holding the decode gate
-for reading; and a decode that owns a decoded-RAW cache entry takes the decode
+thumbnail worker takes `DEVELOPED_THUMBNAIL_GPU` or an `ExtractionPermits`
+permit while holding the decode gate for reading; and a decode that owns a decoded-RAW cache entry takes the decode
 gate without holding the cache lock, so waiting for an entry never holds the
 gate. No code takes the decode gate while holding any other lock in this
 table. The serialized-read gate may be taken while holding any of them, but none
@@ -345,31 +354,34 @@ halos and scene depth generation read it there; `calibraw-gpu` writes the IDs, l
 and the creative pass's per-slot dispatch into the creative module (`effect_wgsl.rs`)
 and decides from it which passes and maps to prepare. Fog, Smoke, Grain and Vignette
 read the photo and the scene through `mask_effects/effect_api.wgsl` and `medium.wgsl`;
-Relight, Rain and Wet Surfaces shade the scene's surfaces, use its camera or find its
-ground, and read the scene files below directly.
+Relight, Rain and Wet Surfaces shade the scene's surfaces through the scene bake
+(`shaders/scene/geometry.wgsl`).
 
 Every mask effect and the scene it reads compile into one module
 (`creative_effects.wgsl` with `mask_effects/`), and every effect pass binds the same
-scene, so an effect may read any of it whichever pass it runs in:
+scene, so an effect may read any of it whichever pass it runs in. An effect names what
+it reads in its registry row (`scene: [Geometry, LightBake, AirLight, Image]`), and
+`GpuParams::needs_*` build only that:
 
-- `scene_depth.wgsl` is the one depth (`scene_depth_at`). Fog, Smoke and Wet Surfaces
-  read it directly; Relight asks it which part of the surface derived from depth a
-  pixel lies on (`scene_surface_taps_at`), since shading needs that surface's own
-  smooth depth and gradient. It is relative distance, converted from the generated map
-  (linear in inverse depth) on upload (`scene_depth.rs`); Depth Range masks select on
-  the map itself.
+- **The scene bake** (`calibraw-gpu/src/pipeline/gpu/scene/`, `shaders/scene/bake_*.wgsl`)
+  holds, once per depth result and unedited scene, up to two surfaces per pixel (depth,
+  normal, colour and how much the near one covers) and the working image with a mip
+  chain, in the full-image frame at the working size, so every crop and export tile reads
+  the same values. The preview or export pipeline that renders the whole image owns it,
+  filling its working image itself; views of part of it share it. Without a depth result
+  it holds the working image alone. `geometry.wgsl` is how effects read it:
+  `scene_pixel` gives the two surfaces, `scene_split` and `scene_blend` shade each on
+  its own, `scene_image` reads the photo with a footprint, `scene_trace` follows a ray
+  through the visible surfaces and `scene_ground_*` give the ground plane fitted to the
+  photo. The camera (`camera.wgsl`) maps the depth model's disparity to distance and
+  defines the control depth sliders use.
+- **The light bake** (`scene/lights.rs`, `lights_common.wgsl`) holds a shadow cube per
+  light, each surface's visibility of it and, for the air, the share of each light that
+  reaches a view ray. `scene_lights.wgsl` turns Relight's lights and Light Rays' sources
+  into lights in that frame (a flat plane without depth) and receivers read them:
+  `medium.wgsl` is what Fog, Smoke and Rain's mist share to scatter them.
 - `scene_environment.wgsl` is the scene's light as effects receive it: its ambient
   level, the photo's coarse colour and the light sources in the photo.
-- `scene_lights.wgsl` turns each of Relight's lights and Light Rays' sources into a
-  light any effect receives, and `medium.wgsl` is what Fog, Smoke and Rain's mist
-  share to scatter them.
-- `scene_shadows.wgsl` says how much of each of those lights reaches a point past the
-  surfaces depth describes: one full-image map, traced in the output stage only when
-  depth or a light's placement changes (`GpuParams::scene_shadow_map_key`), holds the
-  surface and slices of the air for up to four lights. Every receiver reads it
-  (`scene_shadow_air_at`, `scene_shadow_surface_at`), so a light behind a subject
-  lights nothing in front of it; Relight's own shading applies it with its Shadows
-  strength.
 - `scene_emission.wgsl` makes effects that emit over an area (a self-illuminating
   Glow, Neon's lines) lights too. Each emitter gives its radiance at a full-image
   point from full-image inputs only (its parameters, its mask in the full-image mask
@@ -379,16 +391,12 @@ scene, so an effect may read any of it whichever pass it runs in:
   along view rays through the media's depth cells, and receivers read only those
   maps, whatever the number of emitters. A new emitter is one case in
   `scene_emission_slot_at` and `scene_emission_present`, and one in
-  `MaskEffect::reads_full_image_mask`.
+  `MaskEffect::reads_full_image_mask`. Emitters cast no shadows.
 
-All of it but the lights comes from the scene map (`scene_analysis.wgsl`), a
-`FullImageMap` holding the photo's coarse colour, a guided filter's coefficients that
-refine scene depth against the photo, how much sky lies around each cell and how
-bright what stands before it is (so that light fades out toward a soft sky outline,
-`scene_sky_at`), stored depth's range around each cell, the ground with its terrain
-height, and how much the lens blurs each depth. It depends on
-the scene, scene depth and the direction of up (`GpuParams::with_vignette_geometry`),
-not on the rest of the edit, and is rebuilt when any of them changes.
+The bake depends on the scene and the depth result, the light bake on the lights'
+placement and the bake, not on the rest of the edit, and each is rebuilt when any of
+them changes. While a control is dragged the light bake is built in a cheaper tier and
+rebuilt in the full one afterwards.
 
 Rain and Wet Surfaces do not run inside the creative pass: `apply_wet_surfaces`
 runs before it and `apply_weather_air` after it, so their result does not depend on
@@ -412,7 +420,8 @@ production `ShaderManager` composes.
   else compiles on every target and branches at run time:
   - `PlatformCaps` (`form_factor`, `storage`, `memory`,
     `tasks_need_foreground`, `configurable_ai_runtime`, `video_encoder`,
-    `ai_editor`) is what views and handlers read. Views take it, or
+    `ai_editor`, `linked_folders`) is what views and handlers read. Views take
+    it, or
     `app.caps()`, and return actions; leaf widgets without the app use
     `PlatformCaps::CURRENT`. Data that already names its kind is matched
     instead: `LibraryLocator`, `SidecarTarget` and `ExportDestination`.
@@ -439,5 +448,26 @@ production `ShaderManager` composes.
 - Library storage lives in `ui/library/folders/` (folders on disk) and
   `ui/library/media_library/` (the Android library); `ui/library/sources.rs`
   dispatches on `PlatformCaps::storage`.
+- The Android library has one `LibraryStore` per place photos live:
+  `FileLibraryStore` (`.library`, by path) and one `TreeLibraryStore` per linked
+  folder (the Storage Access Framework, no manifest permission).
+  `StorageManager` picks the store from the photo's URI, so Rust keeps treating
+  URIs as opaque. Linked photos are `calibraw-tree://{key}/{path}/{name}`, as a
+  document URI gives no parent and can change on rename. Android's persisted
+  grants are the list of linked folders. `TreeLibraryStore` replaces a file by
+  writing beside it and renaming, as SAF has no atomic replace, and the next read
+  restores a sidecar a crash left moved aside. Native code reads and writes AI
+  companions by path, so a linked photo's live in the cache and are copied with
+  `fetch_photo_companion` (document load) and `publish_photo_companion` (after the
+  job).
+- Media-library previews: Java owns the cache directory (`ThumbnailCache`:
+  trimming, size, clearing); `calibraw-ffi` names, reads and writes the files in
+  it, so a cached preview needs no JNI call. The listing reports each photo's
+  sidecar size and time. The folder cache (`calibraw_core::display_metadata_cache`,
+  one file per folder in the same directory) keeps each photo's dimensions and a
+  summary of its sidecar, so a scan shows final tile shapes and ratings at once
+  and reads a sidecar once per change (`ui/library/media_library/catalog.rs`,
+  `ui/library/deferred_metadata.rs`). A scan runs `MEDIA_LIBRARY_PREVIEW_WORKERS`
+  workers; `ExtractionPermits` keeps photo reads within the worker setting.
 - Edit replay picks FFmpeg or the platform encoder from
   `PlatformCaps::video_encoder` (`services/replay/`).

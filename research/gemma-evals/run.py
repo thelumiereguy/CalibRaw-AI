@@ -6,10 +6,14 @@ Each request runs in a fresh app process on the photo with its edits removed, ty
 editor as a photographer would. Per case and photo, runs/LABEL/<case>/<photo>/ keeps the trace
 (the app's files/gemma-trace.txt: Gemma's messages, replies and what the app set), the preview
 Gemma saw before each turn and after it, and a screenshot. A finished cell is skipped when the
-run is resumed, unless --redo. The photographer's own edits are restored from
-runs/sidecar-originals/ when the run ends, however it ends.
+run is resumed, unless --redo.
 
-Needs the debug app with the trace logging in GemmaBridge, the phone unlocked and left alone.
+Runs in the eval app (./gradlew assembleEval), which installs beside the photographer's and keeps
+its own library, so the evals never touch their photos or edits. Its library holds only the
+photos in photos/, which the run copies to the phone when they are missing. Once per phone, copy
+the Gemma model to the eval app's models/ folder and finish its setup screens. Then leave the
+phone unlocked and alone. GemmaBridge writes the trace only in a debuggable build and only while
+files/gemma-trace.on exists, which the run creates at its start and removes at its end.
 """
 
 import argparse
@@ -22,8 +26,9 @@ import sys
 import time
 
 HERE = pathlib.Path(__file__).resolve().parent
-PKG = "de.duecki.calibraw"
-LIBRARY = "/sdcard/Android/media/de.duecki.calibraw/.library"
+PKG = "de.duecki.calibraw.eval"
+TRACE_SWITCH = "files/gemma-trace.on"
+LIBRARY = f"/sdcard/Android/media/{PKG}/.library"
 # On the 1080x2376 screen: the AI editor's button in the editor's top bar, and its text field.
 AI_BUTTON = (992, 198)
 AI_FIELD = (476, 2249)
@@ -60,22 +65,28 @@ def pull(remote, local):
     return len(data) > 0
 
 
-def restore_sidecars():
-    failed = []
-    for sidecar in sorted((HERE / "runs" / "sidecar-originals").glob("*.calibraw")):
-        pushed = subprocess.run(["adb", "push", str(sidecar), f"{LIBRARY}/{sidecar.name}"], capture_output=True)
-        if pushed.returncode != 0:
-            failed.append(sidecar.name)
-    if failed:
-        print("WARNING: could not restore " + ", ".join(failed)
-              + "; push them from runs/sidecar-originals/ before editing these photos", flush=True)
-    else:
-        print("sidecars restored", flush=True)
+def copy_photos(photos):
+    """Copies the photos missing from the eval app's library. A file adb pushes belongs to the
+    shell, and Android refuses the app an image it does not own, so the media store is told
+    the app owns them."""
+    present = set(adb("shell", "ls", LIBRARY).split())
+    missing = [photo["file"] for photo in photos.values() if photo["file"] not in present]
+    for name in missing:
+        print(f"copying {name} to the phone", flush=True)
+        subprocess.run(["adb", "push", str(HERE / "photos" / name), f"{LIBRARY}/{name}"],
+                       capture_output=True, check=True)
+        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+            "-d", f"file://{LIBRARY}/{name}")
+    if missing:
+        time.sleep(3)
+        adb("shell", "content", "update", "--uri", "content://media/external/file",
+            "--bind", f"owner_package_name:s:{PKG}",
+            "--where", f"\"_data LIKE '%/{PKG}/.library/%'\"")
 
 
 def reset_photo(photo):
-    """Closes the app and removes the photo's edits, so neither the next cell nor the
-    photographer finds the AI's edit on it."""
+    """Closes the app and removes the photo's edits, so the next cell starts from the
+    unedited photo."""
     adb("shell", "am", "force-stop", PKG)
     adb("shell", "rm", "-f", f"{LIBRARY}/{photo['file']}.calibraw")
 
@@ -142,9 +153,11 @@ def main():
     out = HERE / "runs" / args.label
     out.mkdir(parents=True, exist_ok=True)
 
-    # A kill ends the run through the finally below, so the sidecars come back.
+    # A kill ends the run through the finally below, so the trace switch goes away.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     started = time.time()
+    copy_photos(spec["photos"])
+    adb("shell", "run-as", PKG, "touch", TRACE_SWITCH)
     try:
         for index, (case, name) in enumerate(cells, start=1):
             folder = out / case["id"] / name
@@ -170,7 +183,7 @@ def main():
         print(f"done in {round((time.time() - started) / 60)} min", flush=True)
     finally:
         adb("shell", "am", "force-stop", PKG)
-        restore_sidecars()
+        adb("shell", "run-as", PKG, "rm", "-f", TRACE_SWITCH, "files/gemma-trace.txt")
 
 
 if __name__ == "__main__":

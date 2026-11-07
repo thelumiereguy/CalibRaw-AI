@@ -3,6 +3,7 @@ pub mod adjustment_groups;
 pub use adjustment_groups::{AdjustmentGroup, AdjustmentGroupSet};
 pub mod alignment;
 pub mod basicadj;
+mod calibration;
 mod chromatic_aberration;
 pub mod color_profile;
 mod display_raster;
@@ -23,6 +24,8 @@ pub mod processing;
 pub mod raw_loader;
 pub mod remove;
 mod rendered_loader;
+mod scene_depth;
+pub use scene_depth::{DisparityMap, SceneCamera, SceneDepth};
 pub mod sigmoid;
 pub mod source_format;
 mod tiff_loader;
@@ -36,6 +39,7 @@ pub use basicadj::{
     GLOBAL_TINT_OFFSET_LIMIT, HSL_HUE_LIMIT, HUE_ROTATION_LIMIT_DEGREES, MAX_POINT_CURVE_POINTS,
     MAX_TEMPERATURE_KELVIN, MAX_WHITE_BALANCE_TINT, MIN_TEMPERATURE_KELVIN, MIN_WHITE_BALANCE_TINT,
 };
+pub use calibration::{Calibration, PrimaryCalibration, CALIBRATION_LIMIT};
 pub use chromatic_aberration::{LateralChannel, LateralChromaticAberration, MAX_LATERAL_SHIFT};
 pub use color_profile::{
     CameraProfile, DcpMatrixSet, DcpProfile, HsvMap, ProfileEncoding, SrgbOutputTransform,
@@ -69,8 +73,8 @@ pub use masks::{
     MaskComponent, MaskEffect, MaskEffectCategory, MaskEffectSettings, MaskGeometry, MaskImage,
     MaskKind, MaskRgbImage, MaskStack, MotionBlurEffectSettings, NeonEffectSettings, ObjectStroke,
     PackContext, PathPoint, PersonPart, PixelateEffectSettings, RadialBlurEffectSettings,
-    RadialBlurMode, RainEffectSettings, ReachGroup, RelightEffectSettings, RelightLight,
-    SceneMapUse, SceneNormals, SharpenEffectSettings, SmokeEffectSettings, SubjectRefinement,
+    RadialBlurMode, RainEffectSettings, ReachGroup, RelightEffectSettings, RelightLight, SceneNeed,
+    SceneNeeds, SceneNormals, SharpenEffectSettings, SmokeEffectSettings, SubjectRefinement,
     TiltShiftEffectSettings, VignetteEffectSettings, WetSurfacesEffectSettings,
     DEFAULT_COLOR_TOLERANCE, LUMINANCE_FEATHER_MAX, LUMINANCE_FEATHER_WIDTH, MAX_EFFECT_COMPONENTS,
     MAX_EFFECT_INSTANCES, MAX_LOCAL_MASKS, MAX_MASK_COMPONENTS, MAX_MASK_PEOPLE, MAX_PATH_POINTS,
@@ -84,8 +88,7 @@ pub use processing::{
     required_export_tile_halo, ExportTile, ProcessingStage, ProxySpec, TilePlan, TileSpec,
     CA_WINDOW_RADIUS, CHROMATIC_ABERRATION_SUPPORT, DETAIL_CLARITY_SUPPORT, DETAIL_TEXTURE_SUPPORT,
     EXPORT_TILE_HALO, HAZE_BOX_SUPPORT, HAZE_GUIDE_SUPPORT, MAX_RESOLUTION_SCALE,
-    MIN_EXPORT_TILE_HALO, SCENE_EDGE_SUPPORT, TONE_GUIDE_CELL_SIZE, TONE_GUIDE_RADIUS_CELLS,
-    WET_SURFACES_SUPPORT,
+    MIN_EXPORT_TILE_HALO, TONE_GUIDE_CELL_SIZE, TONE_GUIDE_RADIUS_CELLS, WET_SURFACES_SUPPORT,
 };
 pub use raw_loader::{
     decodes_as_raster, is_supported_raw_path, is_unsupported_raw_error,

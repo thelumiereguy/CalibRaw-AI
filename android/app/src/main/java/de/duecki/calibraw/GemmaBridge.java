@@ -1,6 +1,7 @@
 package de.duecki.calibraw;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -71,37 +72,43 @@ final class GemmaBridge implements AiModel {
     // conversation keeps its history, so each triage takes this one and a new one is made after.
     // Guarded by GemmaBridge.class.
     private static Conversation nextTriage;
-    // The editor's system prompts, each already read by Gemma, by prompt: a request interprets
-    // the photographer's words in one and edits in another. They name no photo, so they are
+    // The editor's system prompt, already read by Gemma, by prompt. It names no photo, so it is
     // kept for the process, and opening a photo costs only its triage.
-    // Each phase runs on a clone of its prompt's: a clone took milliseconds, while a new
+    // Each request runs on a clone of its prompt's: a clone took milliseconds, while a new
     // conversation's first prefill took 16-23 s after the process's first one. Guarded by
     // GemmaBridge.class.
     private static final Map<String, Conversation> editorBases = new LinkedHashMap<>();
-    // Base conversations kept, one per phase; each reserves MAX_NUM_TOKENS.
-    private static final int MAX_EDITOR_BASES = 2;
-    // The running phase's conversation, or null. Written under GemmaBridge.class; volatile so
+    // Base conversations kept; each reserves MAX_NUM_TOKENS. A request runs on one prompt.
+    private static final int MAX_EDITOR_BASES = 1;
+    // The running request's conversation, or null. Written under GemmaBridge.class; volatile so
     // closeEditor can cancel its running turn without waiting for that lock.
     private static volatile Conversation editor;
     // Whether Gemma is the selected model, so background preparations do not load the engine
     // again after release.
     private static volatile boolean active;
 
-    // Experiment (edit-quality runs): the phone's log quota drops most of the app's lines while
-    // LiteRT logs, so the editor's messages, replies and request ends, and each triage card, are
-    // also appended to files/gemma-trace.txt.
+    // For the evals (research/gemma-evals) only: the phone's log quota drops most of the app's
+    // lines while LiteRT logs, so each triage card and the editor's messages, replies and request
+    // ends are appended to files/gemma-trace.txt, in a debuggable build and only while
+    // files/gemma-trace.on exists, which the evals create for their run. A release build never
+    // traces. The app adds what each request set (app/ai/editor/chat.rs) while the same switch
+    // exists, which only run-as, and so only a debuggable build, can make. Null when the build is
+    // not debuggable.
     private static volatile File traceFile;
+    private static final String TRACE_SWITCH = "gemma-trace.on";
 
     private final Context context;
 
     GemmaBridge(Context context) {
         this.context = context.getApplicationContext();
-        traceFile = new File(this.context.getFilesDir(), "gemma-trace.txt");
+        boolean debuggable =
+                (this.context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        traceFile = debuggable ? new File(this.context.getFilesDir(), "gemma-trace.txt") : null;
     }
 
     private static void trace(String line) {
         File file = traceFile;
-        if (file == null) {
+        if (file == null || !new File(file.getParentFile(), TRACE_SWITCH).isFile()) {
             return;
         }
         synchronized (TRACE_LOCK) {
@@ -338,8 +345,8 @@ final class GemmaBridge implements AiModel {
     }
 
     /**
-     * Starts a phase of a request on a fresh conversation that holds only {@code systemPrompt},
-     * replacing the earlier phase's. Blocks while Gemma reads a prompt it has not read yet.
+     * Starts a request on a fresh conversation that holds only {@code systemPrompt}, replacing
+     * the earlier request's. Blocks while Gemma reads a prompt it has not read yet.
      */
     @Override
     public void startEditorRequest(String systemPrompt) throws Exception {
@@ -373,9 +380,8 @@ final class GemmaBridge implements AiModel {
         }
         Engine loaded = engine(context);
         long started = SystemClock.elapsedRealtime();
-        // No tools are declared: the prompt lists them and Gemma writes its calls as text lines,
-        // which the app parses (app/ai/editor/calls.rs). The preface is read now, not at the
-        // first request.
+        // No tools are declared: Gemma writes a brief, which the app reads into tool calls
+        // (app/ai/editor/brief.rs). The preface is read now, not at the first request.
         Conversation base = loaded.createConversation(new ConversationConfig(
                 Contents.Companion.of(systemPrompt),
                 Collections.emptyList(),

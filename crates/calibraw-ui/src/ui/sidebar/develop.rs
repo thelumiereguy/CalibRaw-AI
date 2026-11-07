@@ -639,64 +639,62 @@ impl Sidebar {
             moduwu_design::strong_with_help(
                 ui,
                 tr("Noise reduction"),
-                tr("Profiled noise reduction follows the a·signal+b noise model estimated from the photo: its sensor data for RAWs, its pixels for rendered photos. AI Denoise replaces these manual controls while enabled."),
+                tr("Profiled noise reduction follows the a·signal+b noise model estimated from the photo: its sensor data for RAWs, its pixels for rendered photos."),
             );
-            ui.add_enabled_ui(!exposure.ai_denoise_enabled, |ui| {
-                changed |= AdjustmentSlider::new(
-                    tr("Luminance"),
-                    &mut exposure.luminance_denoise,
-                    0.0..=100.0,
-                )
+            changed |= AdjustmentSlider::new(
+                tr("Luminance"),
+                &mut exposure.luminance_denoise,
+                0.0..=100.0,
+            )
+            .decimals(0)
+            .step(1.0)
+            .reset_to(defaults.luminance_denoise)
+            .show(ui);
+            let mut color_percent = exposure.chroma_denoise.clamp(0.0, 1.0) * 100.0;
+            if AdjustmentSlider::new(tr("Color"), &mut color_percent, 0.0..=100.0)
                 .decimals(0)
                 .step(1.0)
-                .reset_to(defaults.luminance_denoise)
-                .show(ui);
-                let mut color_percent = exposure.chroma_denoise.clamp(0.0, 1.0) * 100.0;
-                if AdjustmentSlider::new(tr("Color"), &mut color_percent, 0.0..=100.0)
-                    .decimals(0)
-                    .step(1.0)
-                    .reset_to(defaults.chroma_denoise.clamp(0.0, 1.0) * 100.0)
-                    .show(ui)
-                {
-                    exposure.chroma_denoise = color_percent / 100.0;
-                    changed = true;
-                }
-                changed |= AdjustmentSlider::new(
-                    tr("Denoise Detail"),
-                    &mut exposure.denoise_detail,
-                    0.0..=100.0,
-                )
-                .decimals(0)
-                .step(1.0)
-                .reset_to(defaults.denoise_detail)
-                .show(ui);
-                let previous_quality = exposure.denoise_quality;
-                moduwu_design::form_combo(
-                    ui,
-                    tr("Denoise quality"),
-                    "develop-denoise-quality",
-                    tr(exposure.denoise_quality.label()),
-                    150.0,
-                    |ui| {
-                        ui.selectable_value(
-                            &mut exposure.denoise_quality,
-                            DenoiseQuality::Fast,
-                            tr(DenoiseQuality::Fast.label()),
-                        );
-                        ui.selectable_value(
-                            &mut exposure.denoise_quality,
-                            DenoiseQuality::Balanced,
-                            tr(DenoiseQuality::Balanced.label()),
-                        );
-                        ui.selectable_value(
-                            &mut exposure.denoise_quality,
-                            DenoiseQuality::High,
-                            tr(DenoiseQuality::High.label()),
-                        );
-                    },
-                );
-                changed |= previous_quality != exposure.denoise_quality;
-            });
+                .reset_to(defaults.chroma_denoise.clamp(0.0, 1.0) * 100.0)
+                .show(ui)
+            {
+                exposure.chroma_denoise = color_percent / 100.0;
+                changed = true;
+            }
+            changed |= AdjustmentSlider::new(
+                tr("Denoise Detail"),
+                &mut exposure.denoise_detail,
+                0.0..=100.0,
+            )
+            .decimals(0)
+            .step(1.0)
+            .reset_to(defaults.denoise_detail)
+            .show(ui);
+            let previous_quality = exposure.denoise_quality;
+            moduwu_design::form_combo(
+                ui,
+                tr("Denoise quality"),
+                "develop-denoise-quality",
+                tr(exposure.denoise_quality.label()),
+                150.0,
+                |ui| {
+                    ui.selectable_value(
+                        &mut exposure.denoise_quality,
+                        DenoiseQuality::Fast,
+                        tr(DenoiseQuality::Fast.label()),
+                    );
+                    ui.selectable_value(
+                        &mut exposure.denoise_quality,
+                        DenoiseQuality::Balanced,
+                        tr(DenoiseQuality::Balanced.label()),
+                    );
+                    ui.selectable_value(
+                        &mut exposure.denoise_quality,
+                        DenoiseQuality::High,
+                        tr(DenoiseQuality::High.label()),
+                    );
+                },
+            );
+            changed |= previous_quality != exposure.denoise_quality;
             moduwu_design::section_separator(ui);
             moduwu_design::strong_with_help(
                 ui,
@@ -805,6 +803,81 @@ impl Sidebar {
             }
         });
         changed |= action.apply(exposure, AdjustmentGroup::ColorMixer);
+        changed
+    }
+
+    /// The Calibration card: the hue and saturation of the red, green and
+    /// blue primaries ([`crate::pipeline::Calibration`]).
+    pub(super) fn show_calibration(
+        ui: &mut Ui,
+        exposure: &mut ExposureParams,
+        foldable: bool,
+    ) -> bool {
+        use crate::pipeline::CALIBRATION_LIMIT;
+        use crate::ui::theme::HSL_CHANNELS as CHANNELS;
+
+        let mut changed = false;
+        let action = Self::adjustment_card(ui, "Calibration", false, foldable, true, |ui| {
+            let calibration = &mut exposure.calibration;
+            // Each primary with the channels its hue track runs through, as
+            // the hue turns it (negative, neutral, positive).
+            let primaries = [
+                (
+                    &mut calibration.red,
+                    tr("Red Primary"),
+                    tr("Turns the red primary towards magenta or orange and makes it more or less saturated. Every color that contains red shifts with it."),
+                    [7, 0, 1],
+                ),
+                (
+                    &mut calibration.green,
+                    tr("Green Primary"),
+                    tr("Turns the green primary towards yellow or cyan and makes it more or less saturated. Every color that contains green shifts with it."),
+                    [2, 3, 4],
+                ),
+                (
+                    &mut calibration.blue,
+                    tr("Blue Primary"),
+                    tr("Turns the blue primary towards cyan or purple and makes it more or less saturated. Every color that contains blue shifts with it."),
+                    [4, 5, 6],
+                ),
+            ];
+            for (index, (primary, heading, help, [negative, neutral, positive])) in
+                primaries.into_iter().enumerate()
+            {
+                if index > 0 {
+                    moduwu_design::section_separator(ui);
+                }
+                moduwu_design::strong_with_help(ui, heading, help);
+                let accent = CHANNELS[neutral].1;
+                ui.push_id(("calibration-primary", index), |ui| {
+                    changed |= AdjustmentSlider::new(
+                        tr("Hue"),
+                        &mut primary.hue,
+                        -CALIBRATION_LIMIT..=CALIBRATION_LIMIT,
+                    )
+                    .decimals(0)
+                    .step(1.0)
+                    .accent(accent)
+                    .gradient(SliderGradient::ChannelHue {
+                        left: CHANNELS[negative].1,
+                        center: accent,
+                        right: CHANNELS[positive].1,
+                    })
+                    .show(ui);
+                    changed |= AdjustmentSlider::new(
+                        tr("Saturation"),
+                        &mut primary.saturation,
+                        -CALIBRATION_LIMIT..=CALIBRATION_LIMIT,
+                    )
+                    .decimals(0)
+                    .step(1.0)
+                    .accent(accent)
+                    .gradient(SliderGradient::Saturation(accent))
+                    .show(ui);
+                });
+            }
+        });
+        changed |= action.apply(exposure, AdjustmentGroup::Calibration);
         changed
     }
 }
