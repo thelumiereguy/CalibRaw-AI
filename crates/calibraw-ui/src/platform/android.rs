@@ -4,7 +4,7 @@ use super::service::{
     CameraProfileFolderResult, ExportPublishResult, ImportProgress, ImportedLibraryDocument,
     LibraryDocument, LibraryFolder, LinkFolderResult, LinkedFolder, ListedSidecar, PickedDocument,
     PickerResult, Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult,
-    TaskNotification,
+    TaskNotification, TriageHeadline,
 };
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
@@ -579,6 +579,54 @@ impl Platform for AndroidPlatform {
 
     fn thumbnail_cache_size_bytes(&self) -> Result<u64, String> {
         calibraw_ffi::thumbnail_cache_size_bytes(&self.app)
+    }
+
+    fn gemma_triage(
+        &self,
+        image_path: &Path,
+        hint: &str,
+        request_id: u64,
+        badge_px: u32,
+    ) -> Result<String, String> {
+        calibraw_ffi::gemma_triage(&self.app, image_path, hint, request_id, badge_px)
+    }
+
+    fn take_triage_headline(&self) -> Option<TriageHeadline> {
+        calibraw_ffi::take_triage_headline().map(|headline| TriageHeadline {
+            request_id: headline.request_id,
+            genre: headline.genre,
+            emoji: headline.emoji,
+            badge: headline.badge,
+        })
+    }
+
+    fn render_emoji(&self, emoji: &str, size_px: u32) -> Result<Option<Vec<u8>>, String> {
+        calibraw_ffi::render_emoji(&self.app, emoji, size_px)
+    }
+
+    fn gemma_editor_prepare(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::gemma_editor_prepare(&self.app, system_prompt)
+    }
+
+    fn gemma_editor_start_request(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::gemma_editor_start_request(&self.app, system_prompt)
+    }
+
+    fn gemma_editor_send(
+        &self,
+        request_id: u64,
+        text: &str,
+        image_path: Option<&Path>,
+    ) -> Result<String, String> {
+        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, image_path)
+    }
+
+    fn gemma_editor_close(&self) -> Result<(), String> {
+        calibraw_ffi::gemma_editor_close(&self.app)
+    }
+
+    fn take_editor_text(&self) -> Option<(u64, String)> {
+        calibraw_ffi::take_editor_text().map(|text| (text.request_id, text.text))
     }
 
     fn prepare_direct_export(

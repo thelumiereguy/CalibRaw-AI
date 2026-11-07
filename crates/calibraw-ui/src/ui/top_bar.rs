@@ -266,11 +266,67 @@ impl TopBar {
         }
     }
 
+    /// The AI editor's button, badged with the emoji of the genre Gemma
+    /// triaged the open photo as, or a spinner while it looks. A tap opens
+    /// or closes the editor's chat in place of the tools.
+    fn show_ai_editor_control(ui: &mut Ui, app: &mut CalibRawApp) {
+        if !app.caps().on_device_gemma || app.develop.loaded_raw.is_none() {
+            return;
+        }
+        let triage = &app.ai.triage;
+        let tooltip = match triage.headline() {
+            Some((genre, _)) => tr_fmt("AI editor: {genre}", &[("genre", &genre)]),
+            None if triage.running() => tr("Gemma is looking at the photo…").to_owned(),
+            None => tr("AI editor").to_owned(),
+        };
+        let open = app.ai.editor.open;
+        let response = moduwu_design::ghost_icon_toggle_button(
+            ui,
+            egui_phosphor::regular::SPARKLE,
+            open,
+            moduwu_design::toolbar_icon_size(),
+            &tooltip,
+        );
+        let badge = egui::Rect::from_center_size(
+            response.rect.right_top() + egui::vec2(-6.0, 7.0),
+            egui::vec2(14.0, 14.0),
+        );
+        if let Some((_, emoji)) = triage.headline() {
+            ui.painter()
+                .circle_filled(badge.center(), 8.0, ui.visuals().panel_fill);
+            match &triage.badge {
+                Some(texture) => {
+                    ui.painter().image(
+                        texture.id(),
+                        badge,
+                        egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
+                None => {
+                    ui.painter().text(
+                        badge.center(),
+                        egui::Align2::CENTER_CENTER,
+                        crate::ui::ai_chat::badge_glyph(emoji),
+                        egui::FontId::proportional(12.0),
+                        ui.visuals().text_color(),
+                    );
+                }
+            }
+        } else if triage.running() {
+            egui::Spinner::new().size(badge.width()).paint_at(ui, badge);
+        }
+        if response.clicked() {
+            app.set_ai_editor_open(!open);
+        }
+    }
+
     pub(crate) fn show_portrait(ui: &mut Ui, app: &mut CalibRawApp, _frame: &eframe::Frame) {
         moduwu_design::prepare_toolbar(ui);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             app.show_background_tasks(ui);
 
+            Self::show_ai_editor_control(ui, app);
             Self::show_save_control(ui, app, false);
             crate::ui::library::show_current_photo_review(ui, app, true);
 
@@ -588,6 +644,7 @@ impl TopBar {
                 ui.separator();
                 Self::show_history_controls(ui, app, false);
                 Self::show_save_control(ui, app, false);
+                Self::show_ai_editor_control(ui, app);
                 Self::show_capture_summary(ui, app, None);
             });
         });

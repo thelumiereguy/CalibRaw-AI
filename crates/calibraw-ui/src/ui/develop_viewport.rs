@@ -31,17 +31,19 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
         .data(|data| data.get_temp::<f32>(height_id))
         .filter(|height| *height > COLLAPSED_HEIGHT + 1.0)
         .unwrap_or(default_height);
+    let bottom = chat_bottom(&context, app, canvas.bottom());
+    let room = bottom - canvas.top();
     let mut height = if app.develop_ui.sidebar_open {
-        sheet_height(canvas.height(), requested)
+        sheet_height(room, requested)
     } else {
-        sheet_height(canvas.height(), COLLAPSED_HEIGHT)
+        sheet_height(room, COLLAPSED_HEIGHT)
     };
 
     show_top_controls(&context, top, app, frame);
 
     let sheet = Rect::from_min_max(
-        egui::pos2(canvas.left(), canvas.bottom() - height),
-        canvas.max,
+        egui::pos2(canvas.left(), bottom - height),
+        egui::pos2(canvas.right(), bottom),
     );
     egui::Area::new(egui::Id::new("portrait-tool-sheet"))
         .order(egui::Order::Middle)
@@ -65,24 +67,25 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
             );
             if response.dragged() {
                 if let Some(pointer) = response.interact_pointer_pos() {
-                    height = sheet_height(
-                        canvas.height(),
-                        canvas.bottom() - pointer.y + HANDLE_HEIGHT * 0.5,
-                    );
+                    height = sheet_height(room, bottom - pointer.y + HANDLE_HEIGHT * 0.5);
                     app.develop_ui.sidebar_open = height > COLLAPSED_HEIGHT + 1.0;
                     context.data_mut(|data| data.insert_temp(height_id, height));
                 }
             } else if response.clicked() {
                 app.develop_ui.sidebar_open = !app.develop_ui.sidebar_open;
                 height = if app.develop_ui.sidebar_open {
-                    sheet_height(canvas.height(), requested)
+                    sheet_height(room, requested)
                 } else {
-                    sheet_height(canvas.height(), COLLAPSED_HEIGHT)
+                    sheet_height(room, COLLAPSED_HEIGHT)
                 };
             }
             let content = Rect::from_min_max(egui::pos2(sheet.left(), handle.bottom()), sheet.max);
             let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(content));
             content_ui.set_clip_rect(content);
+            if app.ai.editor.open {
+                crate::ui::ai_chat::show(&mut content_ui, app);
+                return;
+            }
             if app.ui.sidebar_tab == SidebarTab::Masks && height > COLLAPSED_HEIGHT + 100.0 {
                 egui::Panel::top("portrait-mask-strip")
                     .resizable(false)
@@ -100,6 +103,16 @@ pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
         egui::pos2(canvas.right(), sheet.top()),
     );
     app.show_preview(ui, frame, Some(exposed));
+}
+
+/// Where the tool surfaces end: above the on-screen keyboard while the AI
+/// editor's chat, which types into it, is open.
+fn chat_bottom(context: &egui::Context, app: &CalibRawApp, canvas_bottom: f32) -> f32 {
+    if app.ai.editor.open {
+        canvas_bottom.min(moduwu_design::unobscured_content_rect(context).bottom())
+    } else {
+        canvas_bottom
+    }
 }
 
 fn show_top_controls(
@@ -146,7 +159,10 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
     };
     let tools = Rect::from_min_max(
         egui::pos2(rail.left() - tools_width, top.bottom()),
-        rail.left_bottom(),
+        egui::pos2(
+            rail.left(),
+            chat_bottom(&context, app, rail.bottom()).max(top.bottom() + 1.0),
+        ),
     );
     egui::Area::new(egui::Id::new("landscape-overlay-tool-rail"))
         .order(egui::Order::Middle)
@@ -173,6 +189,10 @@ fn show_landscape(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
                 ui.painter()
                     .rect_filled(tools, 0.0, ui.visuals().panel_fill.gamma_multiply(0.97));
                 let mut content = ui.new_child(egui::UiBuilder::new().max_rect(tools.shrink(8.0)));
+                if app.ai.editor.open {
+                    crate::ui::ai_chat::show(&mut content, app);
+                    return;
+                }
                 if app.ui.sidebar_tab == SidebarTab::Masks {
                     egui::Panel::top("landscape-overlay-masks")
                         .resizable(false)

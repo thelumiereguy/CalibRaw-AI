@@ -21,6 +21,9 @@ pub(crate) struct PlatformCaps {
     /// The app can start itself again, so a lost GPU device ends in a
     /// native notice and a restart.
     pub(crate) can_restart: bool,
+    /// Gemma runs on the device ([`super::Platform::gemma_triage`]), so an
+    /// opened photo gets a triage card and the AI editor is offered.
+    pub(crate) on_device_gemma: bool,
     /// The person can link folders of their own, whose photos are worked on
     /// where they are, beside the media library.
     pub(crate) linked_folders: bool,
@@ -77,6 +80,7 @@ impl PlatformCaps {
         configurable_ai_runtime: true,
         video_encoder: VideoEncoder::Ffmpeg,
         can_restart: true,
+        on_device_gemma: false,
         linked_folders: false,
     };
 
@@ -88,6 +92,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
+        on_device_gemma: true,
         linked_folders: true,
     };
 
@@ -100,6 +105,7 @@ impl PlatformCaps {
         configurable_ai_runtime: false,
         video_encoder: VideoEncoder::Platform,
         can_restart: false,
+        on_device_gemma: false,
         linked_folders: false,
     };
 

@@ -25,14 +25,6 @@ pub(super) fn sidecar_interaction_active(ctx: &egui::Context) -> bool {
     super::interaction::pointer_engaged(ctx) || ctx.egui_wants_keyboard_input()
 }
 
-fn edited_preview_is_current_for_thumbnail(
-    original_requested: bool,
-    original_rendered_state: Option<(bool, u64)>,
-    preview_revision: u64,
-) -> bool {
-    !original_requested && original_rendered_state == Some((false, preview_revision))
-}
-
 impl CalibRawApp {
     pub(super) fn capture_sidecar_edit_state(&self) -> SidecarEditState {
         let masks = self.committed_mask_state_for_persistence();

@@ -27,6 +27,7 @@ pub(super) fn ai_mask_source_proxy_edge(width: u32, height: u32) -> u32 {
 }
 
 mod consent;
+mod gemma;
 mod generated;
 mod models;
 mod object;
@@ -36,5 +37,6 @@ mod state;
 mod tasks;
 mod update;
 
+pub(crate) use gemma::{ChatRole, EditorState, TriageState};
 pub(crate) use people::PeopleState;
 pub(crate) use update::AiUpdate;

@@ -81,6 +81,51 @@ change that establishes a boundary, not in advance.
   `DecodedRawCache` entry therefore serves every camera-profile request; only
   a decode with the embedded matrix alone, which did not read the RAW's
   calibration signature, cannot serve requests that match DCPs.
+- On-device Gemma (Android, `app/ai/gemma/`) never touches pixels; it reads the
+  preview and sets the edit's values. Opening a photo triages it
+  (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
+  card); it asks for no editing priorities or observations, since
+  Gemma edited towards them instead of the photographer's request. The AI
+  editor (`editor.rs`) is a chat in which each request is one Gemma reply,
+  whose message names that card's genre and role; the system prompt names no
+  photo, so Gemma reads it once per process and keeps it across photos, so
+  opening a photo costs only its triage. Gemma interprets the photographer's
+  words and the preview into a brief (`assets/gemma/interpret_system.md`,
+  which names no tools): lines of tone, colour, detail and effects items, each
+  a setting, up or down and a size word (a touch to very strong, or stops for
+  exposure), what to keep, and a sentence for the photographer. The app reads
+  the brief into tool calls itself (`brief.rs`), each size a step added to the
+  setting's current value. A second conversation that wrote the values from
+  the brief wrote some with the wrong sign or to the wrong tool, and asked to
+  plan a look and write its values in one reply, Gemma crushed a photo to
+  black. An item the reader cannot read unambiguously is reported in the chat,
+  not guessed. The tools are `set_sliders`
+  (`sliders.rs`; on a RAW, Warmth is the white balance in mired around the
+  as-shot value and Tint the shown tint less the as-shot one),
+  `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
+  (`tone_curve.rs`, five outputs at fixed inputs), `set_effect` (`effects.rs`,
+  the global Vignette, Grain, Glow and Halation, by slider label) and
+  `set_ai_denoise`; the brief reaches the first four, and each value goes
+  where the reader puts it within its range (`tools.rs`). Tool lines Gemma
+  writes on its own are kept out of the chat's text (`calls.rs`). A request is
+  one nudge, so the photographer steers with follow-ups: with four nudges
+  every one after the first undid or overdid it. Each message to Gemma
+  carries the edit's values away from their defaults and what the previous
+  request changed, as `name=before→after`, so a follow-up such as "a bit
+  more" or "undo that" works; a `back` item returns a value to its `before`.
+  The nudge is one undo step (`observe_edit_history`). The chat is kept in
+  the app only: each request runs on a clone of a conversation that holds
+  just the system prompt (`GemmaBridge.startEditorRequest`), read once, when
+  the first card comes (`prepareEditor`), since a clone takes milliseconds
+  and a new conversation's first prefill took 16–23 s after the process's
+  first. A request's conversation is closed when it ends, since an open one
+  keeps its memory. The engine holds 4,096 tokens per conversation
+  (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
+  context for every layer up front (LiteRT-LM issue 4096), the largest
+  conversation used about 2,700, and 8,192 left the phone swapping. For the
+  evals (`research/gemma-evals/`), while `files/gemma-trace.on` exists the app
+  writes the preview that shows a request's edit and what it set to the
+  trace GemmaBridge keeps.
 - Calibration (the hue and saturation of the primaries) is folded into the
   camera transform whenever a stage's camera uniforms are packed
   (`pack_camera_params`), after white balance, so like a camera profile it
@@ -126,6 +171,7 @@ job records the value it started with.
 | egui-wgpu renderer (texture registration and release) | UI thread, through `frame.wgpu_render_state()`. `PreviewPipeline` owns a registration; dropping it queues the texture in `TextureRetirement`, which the UI thread releases at the start of the next frame, after the current frame can no longer paint it |
 | JNI environment | the calling thread; `with_activity` attaches it for the call's duration. Java→Rust callbacks run on Java threads and only enqueue results and request a repaint |
 | ONNX Runtime sessions | one process-wide slot in `calibraw-ai::slot`, locked by the running job; every AI job runs on its own `jobs::spawn_job` thread |
+| LiteRT-LM engine and Gemma conversations (Android) | one process-wide engine in `GemmaBridge`; triage and AI editor turns run on UI worker threads (`spawn_ui_worker`) and hold `GemmaBridge`'s class lock, so one turn runs at a time. Streamed text arrives on LiteRT's callback thread (`nativeOnTriageHeadline`, `nativeOnEditorText`), which only fills an FFI slot and requests a repaint |
 
 ### Background jobs
 
@@ -138,6 +184,8 @@ job records the value it started with.
 | Full-resolution preview (desktop) | one `RunningRender` in `PreviewState::full_resolution`, started after the editor has been idle; no second one starts until its result arrives | `AtomicBool`, set by `FullResolutionState::observe` when the fitted preview shows another `FittedOutput` (texture and `output_revision`), and at once by an edit, a moved view or a pressed pointer. The worker renders one stage at a time and waits for the GPU between them (`wait_for_gpu`), so a cancel is noticed before the next stage | the result is installed only when `FittedOutput` and `document_generation` still match | a photo whose graph does not fit the adapter's free memory or texture limit is skipped with a diagnostics line; a failed render is an error dialog; neither is retried for the document |
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
+| Gemma triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed | none; it ends with Gemma's reply or a 120 s timeout | the receiver is dropped when another photo opens (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`; the photo stays editable and the editor cannot send |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps from capturing the preview to Gemma's reply, and, for the evals, to writing the edited preview to the trace, one receiver per step | another photo opening closes the conversation (`forget_ai_editor`, LiteRT's `cancelProcess`) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id | the request ends with a failure message in the chat; a turn times out after 120 s |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |
 | Export watermark image | one receiver in `WatermarkState`: the saved image read at start-up, or a newly chosen one decoded and kept as `watermark.png` beside the settings | none; the card cannot choose another image while a load runs, and a picker result that arrives meanwhile replaces it | none; the watermark is an app setting, not part of a document, and each export takes the image it holds when it starts | error dialog; a saved image that cannot be read turns the watermark off |
@@ -180,7 +228,7 @@ GPU readbacks wait on one-slot channels.
 | per-entry recoloured-copy slot | `DecodedRaw` | document loads and the prefetch worker | held while another camera profile is applied to the decode (reading its DCP); never held with the lens-correction slot |
 | serialized-read gate (HDD mode) | `calibraw_core::serialized_reads` | thumbnail, display-metadata and RAW loads, only while HDD mode is on | one photo file read at a time; decoding stays outside; a leaf lock, re-entered inline on the holding thread |
 | `TextureRetirement` | `PreviewState` | any thread dropping a `PreviewPipeline`; drained by the UI thread | short pushes and one drain per frame |
-| FFI result queues, `REPAINT_NOTIFIER` | `calibraw_ffi::android` | Java callback threads push; the UI thread pops | short critical sections; no JNI call while held |
+| FFI result queues, `REPAINT_NOTIFIER`, Gemma's `TRIAGE_HEADLINE` and `EDITOR_TEXT` slots | `calibraw_ffi::android` | Java callback threads push; the UI thread pops | short critical sections; no JNI call while held |
 
 Apart from the serialized-read gate, only these nestings exist, each in a fixed
 order: the reference-preview serial lock is taken before the decode gate; a
@@ -315,13 +363,15 @@ production `ShaderManager` composes.
 ## Platform boundaries
 
 - Android: `calibraw-ffi` exposes content-URI storage, document pickers,
-  MediaStore publishing, background-task notifications and the MediaCodec replay
-  encoder. Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
+  MediaStore publishing, background-task notifications, the MediaCodec replay
+  encoder and on-device Gemma through LiteRT-LM (`GemmaBridge`, `android/gemma.rs`).
+  Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
 - `calibraw-ui/src/platform/` decides platform differences once. Everything
   else compiles on every target and branches at run time:
   - `PlatformCaps` (`form_factor`, `storage`, `memory`,
     `tasks_need_foreground`, `configurable_ai_runtime`, `video_encoder`,
-    `can_restart`, `linked_folders`) is what views and handlers read. Views take it, or
+    `can_restart`, `on_device_gemma`, `linked_folders`) is what views and handlers read.
+    Views take it, or
     `app.caps()`, and return actions; leaf widgets without the app use
     `PlatformCaps::CURRENT`. Data that already names its kind is matched
     instead: `LibraryLocator`, `SidecarTarget` and `ExportDestination`.

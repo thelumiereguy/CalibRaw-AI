@@ -171,6 +171,23 @@ pub(crate) struct TaskNotification<'a> {
     pub(crate) queued_count: usize,
 }
 
+/// A triage's genre and emoji, reported while Gemma still writes the rest of
+/// its card.
+#[cfg_attr(
+    not(target_os = "android"),
+    allow(dead_code, reason = "constructed only by the Android backend")
+)]
+#[derive(Debug)]
+pub(crate) struct TriageHeadline {
+    /// The `request_id` the triage was started with.
+    pub(crate) request_id: u64,
+    pub(crate) genre: String,
+    pub(crate) emoji: String,
+    /// The emoji drawn in colour as premultiplied RGBA rows, `None` where
+    /// it could not be drawn.
+    pub(crate) badge: Option<Vec<u8>>,
+}
+
 /// Encodes replay frames into a video file through the platform's codec.
 pub(crate) trait ReplayVideoEncoder: Send {
     /// One NV12 frame of the size the encoder was started with.
@@ -665,6 +682,67 @@ pub(crate) trait Platform: Send + Sync {
     }
     fn thumbnail_cache_size_bytes(&self) -> Result<u64, String> {
         Err(unavailable("the thumbnail cache"))
+    }
+
+    // --- On-device Gemma ---
+
+    /// Gemma's triage card for the JPEG at `image_path`, as JSON. `hint` is
+    /// the photographer's own genre, or empty. Blocks for the whole model
+    /// call, so only workers call it. The card's genre and emoji arrive
+    /// earlier through [`Self::take_triage_headline`], tagged with
+    /// `request_id` and with the emoji drawn in a `badge_px` square.
+    fn gemma_triage(
+        &self,
+        _image_path: &Path,
+        _hint: &str,
+        _request_id: u64,
+        _badge_px: u32,
+    ) -> Result<String, String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// The newest triage headline reported since the last call.
+    fn take_triage_headline(&self) -> Option<TriageHeadline> {
+        None
+    }
+    /// `emoji` drawn in colour by the system's emoji font in a `size_px`
+    /// square, as premultiplied RGBA rows; `None` when the font lacks it.
+    fn render_emoji(&self, _emoji: &str, _size_px: u32) -> Result<Option<Vec<u8>>, String> {
+        Ok(None)
+    }
+    /// Has Gemma read the AI editor's `system_prompt` in the background, so
+    /// the open photo's first request does not wait for it. Returns at once.
+    fn gemma_editor_prepare(&self, _system_prompt: &str) -> Result<(), String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Starts an AI editor request on a fresh conversation that holds only
+    /// `system_prompt`, replacing the earlier request's. Blocks while Gemma
+    /// reads a prompt it has not read yet, so only workers call it.
+    fn gemma_editor_start_request(&self, _system_prompt: &str) -> Result<(), String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Sends `text` to the running request, after the JPEG at `image_path`
+    /// when there is one, and returns Gemma's reply as JSON: `{"text": ...,
+    /// "tool_calls": [...]}`, the calls only where LiteRT-LM parsed Gemma's
+    /// own call syntax. Blocks for the whole reply, so only workers call it;
+    /// the reply's text arrives earlier through [`Self::take_editor_text`],
+    /// tagged with `request_id`.
+    fn gemma_editor_send(
+        &self,
+        _request_id: u64,
+        _text: &str,
+        _image_path: Option<&Path>,
+    ) -> Result<String, String> {
+        Err(unavailable("on-device Gemma"))
+    }
+    /// Closes the AI editor request's conversation and cancels its running
+    /// reply, when the request ends or another photo opens. Returns at once.
+    fn gemma_editor_close(&self) -> Result<(), String> {
+        Ok(())
+    }
+    /// The newest editor reply's request id and the text it gained since
+    /// the last call.
+    fn take_editor_text(&self) -> Option<(u64, String)> {
+        None
     }
 
     // --- Publishing exports to the shared media store ---

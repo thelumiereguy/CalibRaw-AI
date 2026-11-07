@@ -50,6 +50,7 @@ public final class CalibRawActivity extends NativeActivity {
     private StagedFileImporter lutImporter;
     private StagedFileImporter watermarkImporter;
     private ExportPublisher exportPublisher;
+    private GemmaBridge gemmaBridge;
     private TaskNotificationController taskNotificationController;
     // Created on first use; UI thread only.
     private NumericInputView numericInputView;
@@ -139,6 +140,8 @@ public final class CalibRawActivity extends NativeActivity {
                 StagedFileImporter.WATERMARK,
                 CalibRawActivity::nativeOnWatermarkImagePicked);
         exportPublisher = new ExportPublisher(this, CalibRawActivity::nativeOnExportPublished);
+        gemmaBridge = new GemmaBridge(this);
+        gemmaBridge.preload();
 
         configureSystemBarsAndInsets();
         scavengeTemporaryFilesAsync();

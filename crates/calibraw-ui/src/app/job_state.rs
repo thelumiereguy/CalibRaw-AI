@@ -161,6 +161,10 @@ pub(crate) struct AiState {
     pub(crate) object_pending_target: Option<(usize, usize)>,
     pub(crate) object_cache: Option<((usize, usize), ObjectInferenceCache)>,
     pub(crate) people: PeopleState,
+    /// Gemma's triage card for the open photo.
+    pub(crate) triage: TriageState,
+    /// The AI editor's chat about the open photo.
+    pub(crate) editor: EditorState,
     pub(crate) denoise_resume_pending: bool,
 }
 
