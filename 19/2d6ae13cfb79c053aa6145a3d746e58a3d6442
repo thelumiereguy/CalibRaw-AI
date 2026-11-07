@@ -1,0 +1,28 @@
+android/app/src/main/java/de/duecki/calibraw/ClaudeBridge.java
+  s_8f74af7efeeba8::t_7d551dd2d2bd09 477-481,484
+android/app/src/main/assets/claude/triage_system.md
+  s_8f74af7efeeba8::t_ec42a21650410c 1-7
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_f63694f05f3147 488-489,492,496
+android/app/src/main/assets/claude/editor_system.md
+  s_8f74af7efeeba8::t_25d0b765f4fd06 22
+  s_8f74af7efeeba8::t_af8ac4d083ef54 29
+  s_8f74af7efeeba8::t_caf92425d9e985 3
+  s_8f74af7efeeba8::t_b1dde7e4bf1ae4 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "192d6ae13cfb79c053aa6145a3d746e58a3d6442",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
