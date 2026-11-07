@@ -1,0 +1,46 @@
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_bfc5cf50cc7d86 102-115
+  s_8f74af7efeeba8::t_4bc864882166c2 6-7
+  s_8f74af7efeeba8::t_7cb244e00111e1 616-636
+crates/calibraw-ffi/src/android.rs
+  s_8f74af7efeeba8::t_08b84a5b625af8 26,34
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_8f74af7efeeba8::t_b356bcad20ae84 368
+crates/calibraw-ui/src/app/ui_state.rs
+  s_8f74af7efeeba8::t_69eccefd62336a 105-106
+crates/calibraw-ffi/src/android/keyboard.rs
+  s_8f74af7efeeba8::t_50cfc86c7d4a5f 1-105
+crates/calibraw-ui/src/platform/service.rs
+  s_8f74af7efeeba8::t_76a9042148a5b9 137-147
+  s_8f74af7efeeba8::t_ad42a4be85fee2 255-256,259-263
+  s_8f74af7efeeba8::t_cf48a34c482c0e 264
+crates/calibraw-ui/src/app/eframe_impl.rs
+  s_8f74af7efeeba8::t_efbc6a0e98bc1a 536-541
+  s_8f74af7efeeba8::t_4e4e48839d1333 159-169
+  s_8f74af7efeeba8::t_d725034a68f2e4 3
+android/app/src/main/java/de/duecki/calibraw/TextInputView.java
+  s_8f74af7efeeba8::t_5ac4d186b0facb 55-56
+  s_8f74af7efeeba8::t_ce14c26bd11086 1-54,57-168
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_8f74af7efeeba8::t_55b3020a3d9298 54-56,58,60-61
+  s_8f74af7efeeba8::t_1a96c2ebd303c8 261-265,268-280,282-285,287-292,296-312
+  s_8f74af7efeeba8::t_4dc27657625309 313-314
+crates/calibraw-ui/src/platform/mod.rs
+  s_8f74af7efeeba8::t_c8be3309d4e138 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63dd4c3c32e49cd79c95dc1cd439b045b2c2e714",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

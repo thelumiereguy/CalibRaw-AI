@@ -1,0 +1,35 @@
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_f153b66a60fd4c 484
+  s_8f74af7efeeba8::t_0f2eaf07e6e837 51
+  s_8f74af7efeeba8::t_2644cf0e6b6929 66
+  s_8f74af7efeeba8::t_1397f172847a7f 474
+crates/calibraw-ui/src/app/ai/editor/triage.rs
+  s_8f74af7efeeba8::t_39fc3f269bc118 200
+  s_8f74af7efeeba8::t_1e4f707fb5ec2e 50
+  s_8f74af7efeeba8::t_331fd50b560393 264
+  s_8f74af7efeeba8::t_d06072a926442e 255
+  s_8f74af7efeeba8::t_0a233b2c109abf 315,318,322-324,326,328-329,335,337,340
+  s_8f74af7efeeba8::t_dddc41f8efb769 284
+  s_8f74af7efeeba8::t_5391d024978ea3 237
+  s_8f74af7efeeba8::t_dac324bbe50fb7 17-21
+research/gemma-evals/run.py
+  s_8f74af7efeeba8::t_822336d19cb0b3 94
+  s_8f74af7efeeba8::t_15eda1e13dec5c 114
+  s_8f74af7efeeba8::t_707d6632f90d5c 118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "47cc2c558f5c6f8687a1cee00ee07efb063cdd3e",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

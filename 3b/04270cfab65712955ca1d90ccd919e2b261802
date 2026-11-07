@@ -1,0 +1,22 @@
+android/app/src/main/java/de/duecki/calibraw/ClaudeBridge.java
+  s_8f74af7efeeba8::t_b204d3f46336ea 560-561
+  s_8f74af7efeeba8::t_7a3b15ad9653fe 28
+  s_8f74af7efeeba8::t_912aca43ca18a6 794-802
+  s_8f74af7efeeba8::t_d86007a16f02b7 537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b04270cfab65712955ca1d90ccd919e2b261802",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_45fb7a03950947 410
+  s_8f74af7efeeba8::t_c741f9c263322c 417-419
+crates/calibraw-ui/src/app/gpu_recovery.rs
+  s_8f74af7efeeba8::t_5fa9fcdbf1a11f 88
+  s_8f74af7efeeba8::t_3450a7d66fe557 44-46
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_8f74af7efeeba8::t_b5c53707c2c469 443-444
+crates/calibraw-ffi/src/android.rs
+  s_8f74af7efeeba8::t_c6ca80270c2fef 431-454
+crates/calibraw-ui/src/platform/service.rs
+  s_8f74af7efeeba8::t_4ab0717ee553cb 291-296
+crates/calibraw-ui/src/app/eframe_impl.rs
+  s_8f74af7efeeba8::t_512ed8b60dbafd 329
+  s_8f74af7efeeba8::t_7bc0a389a98a26 521-523
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_3687a3b5aef998 146-153
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_8f74af7efeeba8::t_62dc51531c27af 47-48
+  s_8f74af7efeeba8::t_8c136428c47ce2 12
+  s_8f74af7efeeba8::t_b71173f0277a47 441-456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d231463008edf0251b283592208b2a17bf3f78ca",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}

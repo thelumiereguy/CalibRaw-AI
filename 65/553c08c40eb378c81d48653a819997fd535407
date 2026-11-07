@@ -1,0 +1,80 @@
+crates/calibraw-ui/locales/zh-TW.json
+  s_8f74af7efeeba8::t_de1a6f95f69d92 323
+  s_8f74af7efeeba8::t_003a05841bd10a 859
+crates/calibraw-ui/locales/hi.json
+  s_8f74af7efeeba8::t_c1c9d0c9d99b8e 859
+  s_8f74af7efeeba8::t_2bc41e146a6569 323
+crates/calibraw-ui/locales/tr.json
+  s_8f74af7efeeba8::t_6f9e6fe5a0becb 840
+  s_8f74af7efeeba8::t_3eb3ab59faf266 325
+crates/calibraw-ui/locales/ja.json
+  s_8f74af7efeeba8::t_fed31bd8038c07 859
+  s_8f74af7efeeba8::t_c1c34b75634d7a 323
+crates/calibraw-ui/src/app/ai/gemma/triage.rs
+  s_8f74af7efeeba8::t_bbc8a447917ac0 12
+  s_8f74af7efeeba8::t_52c55c17324c7e 123-125,131,134-144,146-148,151-154,164-180,182-211,214-222
+  s_8f74af7efeeba8::t_3831edaccbea41 84-86
+  s_8f74af7efeeba8::t_e2fa24153f7357 104-110
+  s_8f74af7efeeba8::t_42ca09530f7325 274
+crates/calibraw-ui/locales/en-posh.json
+  s_8f74af7efeeba8::t_1dee25f4d126ab 839
+  s_8f74af7efeeba8::t_b48f110c174dc8 323
+crates/calibraw-ui/locales/it.json
+  s_8f74af7efeeba8::t_d138ed96b18f83 358
+  s_8f74af7efeeba8::t_58afc3ccf28a0e 907
+crates/calibraw-ui/locales/de.json
+  s_8f74af7efeeba8::t_29a1029f480218 323
+  s_8f74af7efeeba8::t_dc3260c315fe71 859
+crates/calibraw-ui/locales/uk.json
+  s_8f74af7efeeba8::t_e08cbea319ea12 325
+  s_8f74af7efeeba8::t_be81aa7677a558 840
+crates/calibraw-ui/locales/zh.json
+  s_8f74af7efeeba8::t_cfba7d9464521c 859
+  s_8f74af7efeeba8::t_5f0d756cfde32d 323
+crates/calibraw-ui/locales/ko.json
+  s_8f74af7efeeba8::t_268247f7a0d055 907
+  s_8f74af7efeeba8::t_1833b30e84d031 358
+crates/calibraw-ui/locales/fr.json
+  s_8f74af7efeeba8::t_27843310dc848a 358
+  s_8f74af7efeeba8::t_0c8730a072b63b 907
+crates/calibraw-ui/locales/es.json
+  s_8f74af7efeeba8::t_30e85b840640b7 358
+  s_8f74af7efeeba8::t_58c8fdb1dee231 907
+crates/calibraw-ui/locales/pl.json
+  s_8f74af7efeeba8::t_8f5ac0e677534f 839
+  s_8f74af7efeeba8::t_32cfaefc51af5b 323
+crates/calibraw-ui/locales/da.json
+  s_8f74af7efeeba8::t_a96c73517ff3a1 358
+  s_8f74af7efeeba8::t_20069ba126abc4 907
+crates/calibraw-ui/locales/ru.json
+  s_8f74af7efeeba8::t_84e77ec1d478c8 840
+  s_8f74af7efeeba8::t_f7bb246ef88df8 325
+crates/calibraw-ui/locales/ro.json
+  s_8f74af7efeeba8::t_4b4d9b1276565e 907
+  s_8f74af7efeeba8::t_dd42f003fc79e0 358
+crates/calibraw-ui/src/ui/ai_chat.rs
+  s_8f74af7efeeba8::t_2bb621479e417a 100-103
+  s_8f74af7efeeba8::t_a758acfc84a58e 75-77
+  s_8f74af7efeeba8::t_b60e86b30aaf26 57
+  s_8f74af7efeeba8::t_c63942d8e43132 15-16
+  s_8f74af7efeeba8::t_cfc00ef97d9925 183
+  s_8f74af7efeeba8::t_bc8ad80c3ee928 144-146,148-162,164,167-169,175
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_d1e9a91fa95a62 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "65553c08c40eb378c81d48653a819997fd535407",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyush.pradeepkumar@deliveryhero.com>"
+    }
+  }
+}
