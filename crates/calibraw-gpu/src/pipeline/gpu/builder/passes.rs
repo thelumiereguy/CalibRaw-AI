@@ -309,6 +309,13 @@ impl PassAssembler<'_> {
                 cache: self.pipeline_cache.cloned(),
                 compiled: OnceLock::new(),
                 demosaic_variants: std::array::from_fn(|_| OnceLock::new()),
+                creative_variants: if is_creative_entry(entry) {
+                    (1..effect_wgsl::creative_variant_count())
+                        .map(|_| OnceLock::new())
+                        .collect()
+                } else {
+                    Box::new([])
+                },
             })
         };
         Pass {
@@ -599,7 +606,7 @@ pub(in crate::pipeline::gpu) fn assemble_passes(
         ),
         assembler.make_pass(
             shaders.creative_effects_module.as_ref(),
-            "apply_creative_effects",
+            CREATIVE_ENTRY,
             &layouts.bgl_adjust_creative,
             InputBoundPass::EffectsFromTex1,
             image_workgroups,

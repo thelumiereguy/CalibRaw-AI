@@ -587,10 +587,10 @@ impl RawGpuPipeline {
         let render = |label| {
             let mut encoder = device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
-            if params.needs_blur_passes() {
-                self.encode_bound_pass(&mut encoder, &self.post_blur_render_pass, label);
-            } else {
+            if self.output_image_in_tex2.load(Ordering::Acquire) {
                 self.encode_pass(&mut encoder, self.indices.adjustment_render_pass_index);
+            } else {
+                self.encode_bound_pass(&mut encoder, &self.post_blur_render_pass, label);
             }
             queue.submit(Some(encoder.finish()));
         };

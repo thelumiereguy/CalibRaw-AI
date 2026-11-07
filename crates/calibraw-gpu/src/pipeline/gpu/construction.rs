@@ -371,6 +371,7 @@ impl RawGpuPipeline {
             full_image_mask_texture: surfaces.full_image_mask_texture,
             uploaded_scene_depth: Mutex::new(None),
             scene_shadow_map_key: Mutex::new(None),
+            output_image_in_tex2: AtomicBool::new(true),
             full_image_maps_current: Default::default(),
             mask_layer_capacity: geometry.mask_layer_capacity,
             mask_atlas_edge: geometry.mask_atlas_edge,

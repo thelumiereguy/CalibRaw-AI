@@ -883,6 +883,37 @@ impl GpuParams {
         self.mask_slots().iter().any(is_self_illuminating_glow)
     }
 
+    /// Whether the creative pass (`apply_creative_effects` in
+    /// creative_effects.wgsl) changes the image: an active Creative or
+    /// CreativeLight slot, or light that Glow or Neon emits onto the scene.
+    /// Mirrors the slot checks of the functions it calls. Without one the pass
+    /// would only copy the image, yet the effects compiled into it cost about
+    /// 0.5 µs a pixel on Adreno, enough for a zoomed view to outlast the
+    /// driver's GPU timeout.
+    pub(super) fn needs_creative_pass(&self) -> bool {
+        self.needs_scene_emission()
+            || self.mask_slots().iter().any(|mask| {
+                mask.runs_in(EffectPass::Creative) || mask.runs_in(EffectPass::CreativeLight)
+            })
+    }
+
+    /// The creative effects an active slot applies, one bit each in the order
+    /// of `effect_wgsl::creative_slot_effects`: the creative pass's variant.
+    pub(super) fn creative_slot_effects(&self) -> u32 {
+        let mut effects = 0;
+        for mask in self.mask_slots() {
+            let Some(effect) = mask.active_effect() else {
+                continue;
+            };
+            if let Some(bit) =
+                super::effect_wgsl::creative_slot_effects().position(|creative| creative == effect)
+            {
+                effects |= 1 << bit;
+            }
+        }
+        effects
+    }
+
     /// Whether an active Pixelate effect reads the block cache. Mirrors
     /// `pixelate_is_active` in `pixelate.wgsl`; block sizes too small to be
     /// cached still run the pass, which then writes nothing.

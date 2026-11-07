@@ -165,6 +165,14 @@ fn demosaic_variant_constants(variant: usize) -> [(&'static str, f64); 2] {
     ]
 }
 
+/// The creative pass's entry point, compiled once per set of creative effects
+/// (`ComputeProgram::for_effects_params`).
+const CREATIVE_ENTRY: &str = "apply_creative_effects";
+
+fn is_creative_entry(entry: &str) -> bool {
+    entry == CREATIVE_ENTRY
+}
+
 // Templates share both compiled programs and deferred programs. Keep the explicit
 // layouts so reusing a template never compiles an inactive effect just to get its layout.
 struct ComputeProgram {
@@ -175,6 +183,9 @@ struct ComputeProgram {
     cache: Option<Arc<PersistentGpuPipelineCache>>,
     compiled: OnceLock<wgpu::ComputePipeline>,
     demosaic_variants: [OnceLock<wgpu::ComputePipeline>; DEMOSAIC_VARIANT_COUNT - 1],
+    /// The creative pass's variants with creative effects compiled in, by
+    /// `GpuParams::creative_slot_effects` less one; empty for other programs.
+    creative_variants: Box<[OnceLock<wgpu::ComputePipeline>]>,
 }
 
 impl ComputeProgram {
@@ -186,6 +197,8 @@ impl ComputeProgram {
         self.compiled.get_or_init(|| {
             if self.is_bayer_demosaic() {
                 self.compile(&demosaic_variant_constants(0))
+            } else if is_creative_entry(&self.entry) {
+                self.compile_creative_variant(0)
             } else {
                 self.compile(&[])
             }
@@ -194,6 +207,26 @@ impl ComputeProgram {
 
     fn is_bayer_demosaic(&self) -> bool {
         self.entry == "bayer_rcd_output"
+    }
+
+    /// The program rendering `params` takes: for the creative pass, the
+    /// variant with only the creative effects they apply compiled in.
+    fn for_effects_params(&self, params: &GpuParams) -> &wgpu::ComputePipeline {
+        let effects = params.creative_slot_effects() as usize;
+        match effects.checked_sub(1) {
+            Some(variant) if is_creative_entry(&self.entry) => self.creative_variants[variant]
+                .get_or_init(|| self.compile_creative_variant(effects as u32)),
+            _ => self.get(),
+        }
+    }
+
+    fn compile_creative_variant(&self, effects: u32) -> wgpu::ComputePipeline {
+        let constants = effect_wgsl::creative_variant_constants(effects);
+        let constants: Vec<(&str, f64)> = constants
+            .iter()
+            .map(|(name, value)| (name.as_str(), *value))
+            .collect();
+        self.compile(&constants)
     }
 
     fn for_demosaic_params(&self, camera: &CameraUniforms) -> &wgpu::ComputePipeline {
@@ -361,10 +394,16 @@ impl RawGpuProgramTemplate {
         }
     }
 
-    /// Compiles the demosaic variant that rendering `params` selects.
+    /// Compiles the demosaic and creative variants that rendering `params`
+    /// selects.
     pub fn compile_for_params(&self, params: &GpuParams) {
         for program in self.bayer_demosaic_programs() {
             program.for_demosaic_params(&params.camera);
+        }
+        for program in &self.pipelines {
+            if is_creative_entry(&program.entry) {
+                program.for_effects_params(params);
+            }
         }
     }
 
@@ -493,6 +532,9 @@ pub struct RawGpuPipeline {
     /// What the scene shadow map (scene_shadows.wgsl) was last built for; `None` after scene depth
     /// changes, so the next output stage rebuilds it.
     scene_shadow_map_key: Mutex<Option<SceneShadowMapKey>>,
+    /// Whether the last output stage left the image in tex2 for the view
+    /// pass, which the point colour sampler then renders from too.
+    output_image_in_tex2: AtomicBool,
     mask_layer_capacity: usize,
     mask_atlas_edge: u32,
     out_texture: wgpu::Texture,
@@ -1227,6 +1269,7 @@ impl RawGpuPipeline {
             if params.needs_wet_surfaces_pass() {
                 self.encode_effects_pass(
                     encoder,
+                    params,
                     self.indices.wet_surfaces_pass_index,
                     &mut image_in_tex2,
                 );
@@ -1260,19 +1303,25 @@ impl RawGpuPipeline {
                     self.encode_pass(encoder, self.indices.pixelate_blocks_pass_index);
                 }
             }
-            self.encode_effects_pass(
-                encoder,
-                self.indices.adjustment_creative_pass_index,
-                &mut image_in_tex2,
-            );
+            if params.needs_creative_pass() {
+                self.encode_effects_pass(
+                    encoder,
+                    params,
+                    self.indices.adjustment_creative_pass_index,
+                    &mut image_in_tex2,
+                );
+            }
             if params.needs_weather_air_pass() {
                 self.encode_effects_pass(
                     encoder,
+                    params,
                     self.indices.weather_air_pass_index,
                     &mut image_in_tex2,
                 );
             }
         }
+        self.output_image_in_tex2
+            .store(image_in_tex2, Ordering::Release);
         if image_in_tex2 {
             self.encode_pass(encoder, self.indices.adjustment_render_pass_index);
         } else {
@@ -1285,10 +1334,11 @@ impl RawGpuPipeline {
     }
 
     /// Encodes the pass of effects at `index` from the work texture holding the
-    /// image into the other.
+    /// image into the other, in the variant `params` selects.
     fn encode_effects_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
+        params: &GpuParams,
         index: usize,
         image_in_tex2: &mut bool,
     ) {
@@ -1301,7 +1351,7 @@ impl RawGpuPipeline {
         dispatch_compute(
             encoder,
             &pass.pipeline.entry,
-            pass.pipeline.get(),
+            pass.pipeline.for_effects_params(params),
             &[
                 &self.effect_inputs.bind_group(input),
                 &self.scene_tone_bind_group,

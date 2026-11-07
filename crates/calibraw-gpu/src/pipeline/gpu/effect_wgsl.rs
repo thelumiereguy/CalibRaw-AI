@@ -7,11 +7,46 @@
 //! - `<NAME>_<LANE>_LANE` for every lane an effect packs, and `<OPTION>_OPTION`;
 //! - `is_creative_slot_effect(id)` and `apply_creative_slot_effect(id, pos, rgb,
 //!   params)`, which calls `apply_<name>(pos, rgb, params)` of each effect that
-//!   runs in [`EffectPass::Creative`].
+//!   runs in [`EffectPass::Creative`] while its override `CREATIVE_<NAME>` is
+//!   true ([`creative_variant_constants`]).
 //!
 //! `<NAME>` is [`MaskEffect::shader_name`] in upper case.
 
 use crate::pipeline::{effect_lanes::options, EffectPass, MaskEffect};
+
+/// The effects of [`EffectPass::Creative`], in the order of their bits in a
+/// creative variant (`GpuParams::creative_slot_effects`).
+pub(super) fn creative_slot_effects() -> impl Iterator<Item = MaskEffect> {
+    MaskEffect::ALL
+        .into_iter()
+        .filter(|effect| *effect != MaskEffect::Adjustment && effect.runs_in(EffectPass::Creative))
+}
+
+/// Creative variants a program can hold: one per subset of
+/// [`creative_slot_effects`].
+pub(super) fn creative_variant_count() -> usize {
+    1 << creative_slot_effects().count()
+}
+
+/// The override constants that compile in only the creative effects whose
+/// bits `effects` sets. Effects compiled into the creative pass cost every
+/// pixel whether or not a slot uses them, which on Adreno outlasts the driver's
+/// GPU timeout on a zoomed view.
+pub(super) fn creative_variant_constants(effects: u32) -> Vec<(String, f64)> {
+    creative_slot_effects()
+        .enumerate()
+        .map(|(bit, effect)| {
+            (
+                creative_override_name(effect),
+                f64::from(u8::from(effects & (1 << bit) != 0)),
+            )
+        })
+        .collect()
+}
+
+fn creative_override_name(effect: MaskEffect) -> String {
+    format!("CREATIVE_{}", effect.shader_name().to_uppercase())
+}
 
 /// The registry's WGSL.
 pub(super) fn registry_wgsl() -> String {
@@ -38,9 +73,13 @@ pub(super) fn registry_wgsl() -> String {
         wgsl.push_str(&format!("const {name}_OPTION: u32 = {index}u;\n"));
     }
 
-    let creative: Vec<MaskEffect> = effects()
-        .filter(|effect| effect.runs_in(EffectPass::Creative))
-        .collect();
+    let creative: Vec<MaskEffect> = creative_slot_effects().collect();
+    for effect in &creative {
+        wgsl.push_str(&format!(
+            "override {}: bool = true;\n",
+            creative_override_name(*effect)
+        ));
+    }
     let ids = creative
         .iter()
         .map(|effect| format!("{}u", effect.shader_id()))
@@ -57,8 +96,9 @@ pub(super) fn registry_wgsl() -> String {
     );
     for effect in &creative {
         wgsl.push_str(&format!(
-            "        case {}u: {{ return apply_{}(pos, rgb, params); }}\n",
+            "        case {}u: {{ if {} {{ return apply_{}(pos, rgb, params); }} return rgb; }}\n",
             effect.shader_id(),
+            creative_override_name(*effect),
             effect.shader_name()
         ));
     }
