@@ -644,6 +644,14 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::internet_available(&self.app)
     }
 
+    fn ai_editor_shown(&self, shown: bool) -> Result<(), String> {
+        calibraw_ffi::ai_editor_shown(&self.app, shown)
+    }
+
+    fn end_stray_claude_processes(&self) -> Result<(), String> {
+        calibraw_ffi::end_stray_claude_processes(&self.app)
+    }
+
     fn ai_triage(
         &self,
         image_path: &Path,

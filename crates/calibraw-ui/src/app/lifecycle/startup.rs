@@ -239,6 +239,7 @@ impl CalibRawApp {
                 claude_setup: ClaudeSetupState::default(),
                 triage: TriageState::default(),
                 editor: EditorState::default(),
+                tab_seen: None,
                 denoise_resume_pending: false,
             },
             inpaint: InpaintState {

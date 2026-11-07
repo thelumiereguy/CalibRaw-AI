@@ -44,8 +44,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * connects back to a loopback port of this app and speaks stream-json over that connection.
  *
  * <p>A conversation's process starts in a few seconds, so the next triage's and the editor's are
- * started ahead of time. The editor's conversation lasts while one photo is open, so Claude keeps
- * the whole chat about it. Triage and the editor use separate processes and may run at once.
+ * started ahead of time, but only while Develop shows: leaving it ends every process. The
+ * editor's conversation lasts while one photo is open in Develop, so Claude keeps the whole chat
+ * about it. Triage and the editor use separate processes and may run at once.
  */
 final class ClaudeBridge implements AiModel {
     private static final String LOG_TAG = "CalibRaw";
@@ -85,6 +86,13 @@ final class ClaudeBridge implements AiModel {
     static final String READY = "ready";
     static final String FAILED = "failed";
 
+    // Before GENERATION, which is drawn from it as the class loads.
+    private static final SecureRandom RANDOM = new SecureRandom();
+    // This process's mark on every claude process it starts (connect.sh), so a later process can
+    // end the ones this process leaves behind when Android kills it (cleanup.sh).
+    private static final String GENERATION = randomHex();
+    private static final String NOT_SHOWN = "Develop no longer shows";
+
     private final Context context;
     // Claude Code's --model value for every conversation: an alias such as "sonnet" or a full
     // model name, chosen in Settings (ClaudeModel in platform/service.rs).
@@ -93,6 +101,10 @@ final class ClaudeBridge implements AiModel {
     // to Claude only while it is the selected model. Written under this, and checked under this
     // wherever a conversation is taken or installed, so release ends every conversation it misses.
     private volatile boolean released;
+    // Whether Develop shows: conversations are started only then, and leaving it ends every one,
+    // so no claude process waits in Termux while the photographer is elsewhere. Guarded by this,
+    // and checked wherever a conversation is taken, started or installed, as released is.
+    private boolean editorShown;
     // The next triage's conversation, started ahead of time; each triage takes it and starts the
     // next. Guarded by this.
     private Session nextTriage;
@@ -117,16 +129,9 @@ final class ClaudeBridge implements AiModel {
         this.model = model;
     }
 
-    /**
-     * Starts the first triage's conversation on a background thread, so the first photo's triage
-     * does not wait for it. Returns at once: starting it reads assets and has Termux start a
-     * process.
-     */
+    /** Starts nothing: conversations start once Develop shows ({@link #editorShown}). */
     @Override
     public void activate() {
-        Thread preparer = new Thread(this::prepareTriage, "Claude preload");
-        preparer.setDaemon(true);
-        preparer.start();
     }
 
     /**
@@ -137,24 +142,76 @@ final class ClaudeBridge implements AiModel {
     public void release() {
         synchronized (this) {
             released = true;
-            if (runningTriage != null) {
-                runningTriage.end();
-            }
-            if (nextTriage != null) {
-                nextTriage.end();
-                nextTriage = null;
-            }
-            if (nextEditor != null) {
-                nextEditor.end();
-                nextEditor = null;
-                nextEditorPrompt = null;
-            }
-            Session closing = editor;
-            if (closing != null) {
-                closing.end();
-            }
+            endConversations();
         }
         Log.i(LOG_TAG, "Claude released");
+    }
+
+    /**
+     * When Develop shows, ends the claude processes that earlier runs of the app left behind and
+     * starts the next triage's conversation, so the first triage does not wait for it; when it no
+     * longer shows, ends every conversation and its process as {@link #release} does. Returns at
+     * once: starting reads assets and has Termux start processes, on a background thread.
+     */
+    @Override
+    public void editorShown(boolean shown) {
+        synchronized (this) {
+            if (released || editorShown == shown) {
+                return;
+            }
+            editorShown = shown;
+            if (!shown) {
+                endConversations();
+                Log.i(LOG_TAG, "Claude conversations ended: Develop no longer shows");
+                return;
+            }
+        }
+        Thread preparer = new Thread(() -> {
+            endEarlierSessions(context);
+            prepareTriage();
+        }, "Claude preload");
+        preparer.setDaemon(true);
+        preparer.start();
+    }
+
+    /** Ends every conversation and its process. Called under this. */
+    private void endConversations() {
+        if (runningTriage != null) {
+            runningTriage.end();
+        }
+        if (nextTriage != null) {
+            nextTriage.end();
+            nextTriage = null;
+        }
+        if (nextEditor != null) {
+            nextEditor.end();
+            nextEditor = null;
+            nextEditorPrompt = null;
+        }
+        // Also ends a request that is still connecting (startEditorRequest).
+        closeEditor();
+    }
+
+    /**
+     * Has Termux end the claude processes that earlier runs of this app started, when CalibRaw may
+     * run commands in Termux. When Android kills the app, their connection is not closed, so they
+     * would wait on it without end. This process's own are spared, so it does not matter whether
+     * this runs before or after the conversations it starts. Returns at once.
+     */
+    static void endEarlierSessions(Context context) {
+        if (context.checkSelfPermission(RUN_COMMAND_PERMISSION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        try {
+            runCommand(context, new String[] {
+                    "-c", AiModels.asset(context, "claude/cleanup.sh"), "calibraw-cleanup",
+                    GENERATION},
+                    true);
+            Log.i(LOG_TAG, "Asked Termux to end Claude Code processes of earlier runs");
+        } catch (IOException error) {
+            Log.w(LOG_TAG, "Could not end Claude Code processes of earlier runs", error);
+        }
     }
 
     /**
@@ -168,9 +225,10 @@ final class ClaudeBridge implements AiModel {
         synchronized (triageLock) {
             Session session;
             synchronized (this) {
-                // A triage that waited for triageLock while another model was selected.
-                if (released) {
-                    throw new IOException(RELEASED);
+                // A triage that waited for triageLock while another model was selected or the
+                // photographer left Develop.
+                if (released || !editorShown) {
+                    throw new IOException(released ? RELEASED : NOT_SHOWN);
                 }
                 session = nextTriage;
                 nextTriage = null;
@@ -225,7 +283,7 @@ final class ClaudeBridge implements AiModel {
 
     private void prepareTriage() {
         synchronized (this) {
-            if (released || (nextTriage != null && !nextTriage.hasEnded())) {
+            if (released || !editorShown || (nextTriage != null && !nextTriage.hasEnded())) {
                 return;
             }
             try {
@@ -244,7 +302,7 @@ final class ClaudeBridge implements AiModel {
     @Override
     public void prepareEditor(String systemPrompt) {
         synchronized (this) {
-            if (released) {
+            if (released || !editorShown) {
                 return;
             }
             if (nextEditor != null) {
@@ -283,8 +341,8 @@ final class ClaudeBridge implements AiModel {
                 }
                 // A close from here on is for this request.
                 closes = editorCloses.get();
-                if (released) {
-                    throw new IOException(RELEASED);
+                if (released || !editorShown) {
+                    throw new IOException(released ? RELEASED : NOT_SHOWN);
                 }
                 if (nextEditor != null && systemPrompt.equals(nextEditorPrompt)
                         && !nextEditor.hasEnded()) {
@@ -305,7 +363,7 @@ final class ClaudeBridge implements AiModel {
                 throw error;
             }
             // Neither release nor closeEditor can see the session while it connects, so it is
-            // installed only if neither came meanwhile.
+            // installed only if neither came meanwhile; leaving Develop closes the editor.
             synchronized (this) {
                 if (released || editorCloses.get() != closes) {
                     session.end();
@@ -568,6 +626,17 @@ final class ClaudeBridge implements AiModel {
         return bytes;
     }
 
+    /** 16 random bytes as 32 hex digits: a session's token, or the process's generation. */
+    private static String randomHex() {
+        byte[] secret = new byte[16];
+        RANDOM.nextBytes(secret);
+        StringBuilder hex = new StringBuilder();
+        for (byte value : secret) {
+            hex.append(String.format("%02x", value & 0xff));
+        }
+        return hex.toString();
+    }
+
     private static String costOf(JSONObject result) {
         return "$" + result.optDouble("total_cost_usd", 0.0);
     }
@@ -591,7 +660,6 @@ final class ClaudeBridge implements AiModel {
     private static final class Session {
         // Queued after the last result, when the process has ended or the connection closed.
         private static final JSONObject END = new JSONObject();
-        private static final SecureRandom RANDOM = new SecureRandom();
         private static final InetAddress IPV4_LOOPBACK = ipv4Loopback();
 
         private final ServerSocket server;
@@ -617,19 +685,14 @@ final class ClaudeBridge implements AiModel {
                 throws IOException {
             // IPv4 loopback, where connect.sh connects: Android's getLoopbackAddress() is ::1.
             ServerSocket server = new ServerSocket(0, 1, IPV4_LOOPBACK);
-            byte[] secret = new byte[16];
-            RANDOM.nextBytes(secret);
-            StringBuilder token = new StringBuilder();
-            for (byte value : secret) {
-                token.append(String.format("%02x", value & 0xff));
-            }
-            Session session = new Session(server, token.toString(), name);
+            Session session = new Session(server, randomHex(), name);
             List<String> arguments = new ArrayList<>(Arrays.asList(
                     "-c",
                     AiModels.asset(context, "claude/connect.sh"),
                     "calibraw-claude",
                     Integer.toString(server.getLocalPort()),
-                    session.token));
+                    session.token,
+                    GENERATION));
             arguments.addAll(claudeArguments);
             Thread reader = new Thread(session::run, name);
             reader.setDaemon(true);

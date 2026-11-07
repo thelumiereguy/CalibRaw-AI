@@ -122,6 +122,39 @@ impl CalibRawApp {
         self.ai.triage.waiting = self.develop.loaded_raw.is_some();
     }
 
+    /// Follows the tab shown, once a frame, however it was switched: Claude
+    /// Code keeps processes in Termux only while Develop shows. Entering
+    /// Develop has the model start them; leaving it forgets the chat, with
+    /// either model, and has the model end them, interrupting Claude Code's
+    /// triage, which runs again when Develop next shows. Leaving Settings,
+    /// where Claude Code is checked and set up, ends what earlier runs of the
+    /// app left in Termux.
+    pub(in crate::app) fn sync_ai_editor_tab(&mut self) {
+        let tab = self.ui.active_tab;
+        let previous = self.ai.tab_seen.replace(tab);
+        if previous == Some(tab) {
+            return;
+        }
+        let was_develop = previous == Some(AppTab::Develop);
+        let is_develop = tab == AppTab::Develop;
+        if was_develop {
+            self.forget_ai_editor();
+            if self.ai.editor_model == AiEditorModel::ClaudeCode {
+                self.ai.triage.interrupt();
+            }
+        }
+        if was_develop != is_develop {
+            if let Err(error) = self.platform.ai_editor_shown(is_develop) {
+                log::warn!("{error}");
+            }
+        }
+        if previous == Some(AppTab::Settings) {
+            if let Err(error) = self.platform.end_stray_claude_processes() {
+                log::warn!("{error}");
+            }
+        }
+    }
+
     /// Checks again how far Claude Code is set up, on a worker.
     pub(crate) fn check_claude_code(&mut self) {
         if self.ai.claude_setup.checking() {

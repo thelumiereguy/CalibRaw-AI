@@ -44,6 +44,8 @@ final class AiModels {
     private static String selectedClaudeModel;
     // Written under AiModels.class; volatile so a call reads it without waiting for a selection.
     private static volatile AiModel selected;
+    // Whether Develop shows, so a model selected meanwhile is told. Guarded by AiModels.class.
+    private static boolean editorShown;
 
     private final Activity activity;
 
@@ -82,7 +84,50 @@ final class AiModels {
                 previous.release();
             }
             model.activate();
+            if (editorShown) {
+                model.editorShown(true);
+            }
             Log.i(LOG_TAG, "AI model selected: " + name + (claude ? " " + claudeModel : ""));
+        }
+    }
+
+    /**
+     * Tells the selected model, and any selected later, whether Develop shows: Claude Code starts
+     * its conversations when it does and ends every one when it no longer does. Returns at once.
+     */
+    public void editorShown(boolean shown) {
+        synchronized (AiModels.class) {
+            editorShown = shown;
+            AiModel model = selected;
+            if (model != null) {
+                model.editorShown(shown);
+            }
+        }
+    }
+
+    /**
+     * Has Termux end the Claude Code processes that earlier runs of the app left behind
+     * (ClaudeBridge.endEarlierSessions). Returns at once.
+     */
+    public void endStrayClaudeProcesses() {
+        ClaudeBridge.endEarlierSessions(activity);
+    }
+
+    /**
+     * Releases the selected model and forgets the selection, ending Claude Code's conversations
+     * and their processes, once the activity has finished: winit cannot start again in this
+     * process (CalibRawActivity.handleBack), so nothing would use them. Returns at once.
+     */
+    void releaseOnFinish() {
+        synchronized (AiModels.class) {
+            AiModel previous = selected;
+            selected = null;
+            selectedName = null;
+            selectedClaudeModel = null;
+            editorShown = false;
+            if (previous != null) {
+                previous.release();
+            }
         }
     }
 

@@ -138,8 +138,17 @@ change that establishes a boundary, not in advance.
   conversation is one `claude -p` process that Termux starts through its
   `RUN_COMMAND` intent (`assets/claude/connect.sh`); it connects back to a
   loopback port of the app, proves itself with a one-time token and speaks
-  stream-json over that connection. The triage uses Gemma's prompt and
-  schema (`--json-schema`), and waits until the AI editor's chat opens
+  stream-json over that connection. Claude Code keeps processes only while
+  Develop shows (`sync_ai_editor_tab`, `ClaudeBridge.editorShown`): they
+  start, ahead of time, when it shows, and leaving it ends every one and
+  clears the chat, with either model. When Android kills the app, the
+  connection is not closed and the process would wait on it without end, so
+  each app process marks its processes with a generation, and entering
+  Develop or leaving Settings has Termux end those of other generations
+  (`assets/claude/cleanup.sh`); a finishing activity releases the model
+  (`AiModels.releaseOnFinish`). The triage uses its own prompt
+  (`assets/claude/triage_system.md`) with Gemma's schema (`--json-schema`),
+  and waits until the AI editor's chat opens
   (`TriageState::waiting`), so a photo goes to Anthropic only when the
   photographer asks Claude about it. The editor writes no brief: one
   conversation per photo holds the whole chat, plans and writes its tool

@@ -19,6 +19,13 @@ interface AiModel {
     void release();
 
     /**
+     * Tells the model whether Develop shows, where the triage and the AI editor run: Claude Code
+     * keeps processes only while it does. Returns at once.
+     */
+    default void editorShown(boolean shown) {
+    }
+
+    /**
      * Returns the triage card for the JPEG at {@code imagePath} as JSON, shaped by
      * assets/gemma/triage_schema.json. {@code hint} is the photographer's own genre, or empty. The
      * card's genre and emoji are reported earlier through {@link AiModels#reportTriageHeadline}.

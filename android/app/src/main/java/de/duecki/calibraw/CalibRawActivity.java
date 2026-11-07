@@ -559,6 +559,11 @@ public final class CalibRawActivity extends NativeActivity {
         if (taskNotificationController != null) {
             taskNotificationController.clear();
         }
+        // Finishing, as when the task is swiped away, not recreated: end the AI model's work.
+        // A process Android kills runs no callback; ClaudeBridge's next process ends what it left.
+        if (isFinishing() && aiModels != null) {
+            aiModels.releaseOnFinish();
+        }
         super.onDestroy();
     }
 }

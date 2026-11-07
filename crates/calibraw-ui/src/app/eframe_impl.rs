@@ -230,6 +230,7 @@ impl CalibRawApp {
         self.poll_foreground_operation(frame);
         self.poll_people_composes();
         if caps.ai_editor {
+            self.sync_ai_editor_tab();
             self.poll_claude_code_check();
             self.start_waiting_photo_triage(frame);
             self.poll_photo_triage();

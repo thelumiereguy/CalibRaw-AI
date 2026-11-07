@@ -176,6 +176,9 @@ pub(crate) struct AiState {
     pub(crate) triage: TriageState,
     /// The AI editor's chat about the open photo.
     pub(crate) editor: EditorState,
+    /// The tab the model was last told about (`sync_ai_editor_tab`), `None`
+    /// before the first frame.
+    pub(crate) tab_seen: Option<AppTab>,
     pub(crate) denoise_resume_pending: bool,
 }
 

@@ -101,6 +101,16 @@ impl TriageState {
         self.pending.is_some()
     }
 
+    /// Drops the running triage, whose model call is ended, so the photo is
+    /// triaged again when Develop next shows it. A finished card stays.
+    pub(in crate::app) fn interrupt(&mut self) {
+        if self.pending.take().is_some() {
+            self.headline = None;
+            self.badge = None;
+            self.waiting = true;
+        }
+    }
+
     /// Whether the triage runs or waits to start. In the AI editor's chat,
     /// which shows with Develop and lets Claude Code see the photo, a
     /// waiting triage starts once the preview shows every edit.

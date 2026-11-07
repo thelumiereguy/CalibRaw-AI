@@ -839,6 +839,17 @@ pub(crate) trait Platform: Send + Sync {
     fn internet_available(&self) -> Result<bool, String> {
         Err(unavailable("the network state"))
     }
+    /// Tells the selected model whether Develop shows: Claude Code keeps
+    /// processes only while it does, starting them when it shows and ending
+    /// every one when it goes. Returns at once.
+    fn ai_editor_shown(&self, _shown: bool) -> Result<(), String> {
+        Ok(())
+    }
+    /// Ends the Claude Code processes that earlier runs of the app left
+    /// behind when the system killed it. Returns at once.
+    fn end_stray_claude_processes(&self) -> Result<(), String> {
+        Ok(())
+    }
     /// The selected model's triage card for the JPEG at `image_path`, as JSON. `hint` is
     /// the photographer's own genre, or empty. Blocks for the whole model
     /// call, so only workers call it. The card's genre and emoji arrive

@@ -248,6 +248,37 @@ pub fn ai_editor_close(app: &AndroidApp) -> Result<(), String> {
     .map_err(|error| format!("The AI model could not close the editor chat: {error:#}"))
 }
 
+/// Tells the selected model, and any selected later, whether Develop shows:
+/// Claude Code keeps processes in Termux only while it does. Returns at once.
+pub fn ai_editor_shown(app: &AndroidApp, shown: bool) -> Result<(), String> {
+    with_ai_models(app, |env, ai_models| {
+        env.call_method(
+            ai_models,
+            jni::jni_str!("editorShown"),
+            jni::jni_sig!((bool) -> void),
+            &[JValue::Bool(shown)],
+        )?;
+        Ok(())
+    })
+    .map_err(|error| format!("Could not tell the AI model whether Develop shows: {error:#}"))
+}
+
+/// Has Termux end the Claude Code processes that earlier runs of the app left
+/// behind when Android killed it, where the app may run commands in Termux.
+/// Returns at once.
+pub fn end_stray_claude_processes(app: &AndroidApp) -> Result<(), String> {
+    with_ai_models(app, |env, ai_models| {
+        env.call_method(
+            ai_models,
+            jni::jni_str!("endStrayClaudeProcesses"),
+            jni::jni_sig!(() -> void),
+            &[],
+        )?;
+        Ok(())
+    })
+    .map_err(|error| format!("Could not end stray Claude Code processes: {error:#}"))
+}
+
 /// The newest editor reply's text written since the last call.
 pub fn take_editor_text() -> Option<EditorText> {
     EDITOR_TEXT.lock().ok()?.take()
