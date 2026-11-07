@@ -1,0 +1,74 @@
+crates/calibraw-ui/locales/es.json
+  s_8f74af7efeeba8::t_cbfe5489115861 301
+crates/calibraw-ui/src/app/lifecycle/settings.rs
+  s_8f74af7efeeba8::t_39a8caffd6f09e 382
+crates/calibraw-ui/locales/ru.json
+  s_8f74af7efeeba8::t_2af1fd692dd584 269
+crates/calibraw-ui/locales/tr.json
+  s_8f74af7efeeba8::t_1388283b3303f9 269
+crates/calibraw-ui/locales/fr.json
+  s_8f74af7efeeba8::t_a9588763abff16 301
+crates/calibraw-ui/src/platform/service.rs
+  s_8f74af7efeeba8::t_f0ede8e0de0692 581-585
+crates/calibraw-ui/locales/en-posh.json
+  s_8f74af7efeeba8::t_7dba02d2cc7803 267
+android/app/src/main/java/de/duecki/calibraw/AiModels.java
+  s_8f74af7efeeba8::t_8ae94cb3c6035b 8-9
+  s_8f74af7efeeba8::t_04b45bb65d5e64 118-132
+  s_8f74af7efeeba8::t_9e67bcf88f5668 117
+crates/calibraw-ui/locales/hi.json
+  s_8f74af7efeeba8::t_5c4425ad82e9db 267
+crates/calibraw-ui/locales/ro.json
+  s_8f74af7efeeba8::t_1a3ebb1a91c626 301
+crates/calibraw-ffi/src/android/ai_models.rs
+  s_8f74af7efeeba8::t_11d6cf2f8d3f42 55-69
+crates/calibraw-ui/locales/uk.json
+  s_8f74af7efeeba8::t_70e319078bc146 269
+crates/calibraw-ui/locales/zh.json
+  s_8f74af7efeeba8::t_eef006b68af5a9 267
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_8f74af7efeeba8::t_d038a085ed8a69 235-236
+crates/calibraw-ui/locales/it.json
+  s_8f74af7efeeba8::t_b88b6f977346b2 301
+crates/calibraw-ui/locales/zh-TW.json
+  s_8f74af7efeeba8::t_a405a624c1888c 267
+crates/calibraw-ui/src/app/ai/editor/model.rs
+  s_8f74af7efeeba8::t_3a9d023fcf983d 24-35,37-40,45-57
+  s_8f74af7efeeba8::t_566cf545b3a97e 69-70,75
+crates/calibraw-ui/locales/ja.json
+  s_8f74af7efeeba8::t_fdcf70b964155a 267
+crates/calibraw-ui/locales/da.json
+  s_8f74af7efeeba8::t_75471dd61779a5 301
+crates/calibraw-ui/locales/de.json
+  s_8f74af7efeeba8::t_6fc8f630b6abf9 267
+crates/calibraw-ui/src/ui/settings.rs
+  s_8f74af7efeeba8::t_1d0c2e6187f2eb 1262-1264
+crates/calibraw-ui/locales/ko.json
+  s_8f74af7efeeba8::t_76edbbc95b260d 301
+crates/calibraw-ui/locales/pl.json
+  s_8f74af7efeeba8::t_a4b75406880216 267
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_62c906c6751575 515-518
+crates/calibraw-ui/src/app/job_state.rs
+  s_8f74af7efeeba8::t_b884aad1878460 165,167-170
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_90fc45b426527a 167-171
+android/app/src/main/AndroidManifest.xml
+  s_8f74af7efeeba8::t_964aa66b0185ed 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec4c43d4d30999370cd0da421ba077f6b1c92d31",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
