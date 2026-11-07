@@ -1,6 +1,7 @@
 package de.duecki.calibraw;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -99,21 +100,26 @@ final class GemmaBridge {
     // closeEditor can cancel its running turn without waiting for that lock.
     private static volatile Conversation editor;
 
-    // Experiment (edit-quality runs): the phone's log quota drops most of the app's lines while
-    // LiteRT logs, so the editor's messages, replies and request ends, and each triage card, are
-    // also appended to files/gemma-trace.txt.
+    // For the evals (research/gemma-evals) only: the phone's log quota drops most of the app's
+    // lines while LiteRT logs, so each triage card and the editor's messages, replies and request
+    // ends are appended to files/gemma-trace.txt, in a debuggable build and only while
+    // files/gemma-trace.on exists, which the evals create for their run. A release build never
+    // traces. Null when the build is not debuggable.
     private static volatile File traceFile;
+    private static final String TRACE_SWITCH = "gemma-trace.on";
 
     private final Context context;
 
     GemmaBridge(Context context) {
         this.context = context.getApplicationContext();
-        traceFile = new File(this.context.getFilesDir(), "gemma-trace.txt");
+        boolean debuggable =
+                (this.context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        traceFile = debuggable ? new File(this.context.getFilesDir(), "gemma-trace.txt") : null;
     }
 
     private static void trace(String line) {
         File file = traceFile;
-        if (file == null) {
+        if (file == null || !new File(file.getParentFile(), TRACE_SWITCH).isFile()) {
             return;
         }
         synchronized (TRACE_LOCK) {
