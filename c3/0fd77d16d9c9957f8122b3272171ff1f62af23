@@ -1,0 +1,19 @@
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_ea4d5275a71a31 481-482,485,488,493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c30fd77d16d9c9957f8122b3272171ff1f62af23",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "unknown"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
