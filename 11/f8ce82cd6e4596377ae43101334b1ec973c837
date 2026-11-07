@@ -1,0 +1,25 @@
+android/app/src/main/assets/gemma/editor_system.md
+  s_9f93adb5805561::t_37138a2ee04d23 15
+android/app/src/main/assets/gemma/interpret_system.md
+  s_9f93adb5805561::t_7223ef16f177af 12,14,16
+android/app/src/main/assets/gemma/triage_system.md
+  s_9f93adb5805561::t_f5c42596088ad9 3,5
+research/gemma-evals/cases.json
+  s_9f93adb5805561::t_4e0ace4811919a 3-4,7-9,11,15-22,25-35,37-43,45-59,62,64,66-67,69-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "11f8ce82cd6e4596377ae43101334b1ec973c837",
+  "prompts": {},
+  "sessions": {
+    "s_9f93adb5805561": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "614f166a-8132-4f53-a8cb-90a43b442602",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
