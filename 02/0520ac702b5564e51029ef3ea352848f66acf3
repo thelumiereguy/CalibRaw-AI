@@ -1,0 +1,49 @@
+android/app/src/main/assets/gemma/interpret_system.md
+  s_9f93adb5805561::t_bfe11b5a438cec 15
+  s_9f93adb5805561::t_0eb4d0f20d1f1a 19
+  s_9f93adb5805561::t_2ccbd4efbfdae1 16-18
+  s_9f93adb5805561::t_4a01352cd17523 20-22
+  s_9f93adb5805561::t_a273b2c2170cf5 5,7,9,13,34
+crates/calibraw-ui/src/app/ai/gemma/brief.rs
+  s_9f93adb5805561::t_963dc0653233aa 1-497
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_9f93adb5805561::t_4ccf8fafc9b941 90,92,96-98,106-108,319-320
+crates/calibraw-ui/src/app/ai/gemma/calls.rs
+  s_9f93adb5805561::t_fc6c25411a82d3 1-7
+crates/calibraw-ui/src/app/ai/gemma/color.rs
+  s_9f93adb5805561::t_d3d7fb1c54a6ea 2-3,11,60-75
+crates/calibraw-ui/src/app/ai/gemma/editor.rs
+  s_9f93adb5805561::t_2662595d46a33f 5-7,9,12-22,24-25,27,31,33-34,42-45,51-54,56-61,63-65,67,75,97,99-100,110,115-116,125,127-128,135-139,142,144,146-147,150-151,198,233-234,267-268,282-294,298-307,311,315,318,321-346,350-353,364-367,372,374-375,399-423,454-465,468,474-476,479-481,487-491,493,497-502,506-518,526-532,534-535,635,658,722-723,784-794,820-821,824,829-846
+crates/calibraw-ui/src/app/ai/gemma/effects.rs
+  s_9f93adb5805561::t_5c74b2dfb0085b 4-6,97-113
+crates/calibraw-ui/src/app/ai/gemma/mod.rs
+  s_9f93adb5805561::t_ce0dbd93836464 8-12,18
+crates/calibraw-ui/src/app/ai/gemma/sliders.rs
+  s_9f93adb5805561::t_a321ec005b443b 2-3,249-262
+crates/calibraw-ui/src/app/ai/gemma/tone_curve.rs
+  s_9f93adb5805561::t_4c532bfa8a1124 2-4
+crates/calibraw-ui/src/app/ai/gemma/tools.rs
+  s_9f93adb5805561::t_30b280258cacb9 3-4
+crates/calibraw-ui/src/app/ai/gemma/triage.rs
+  s_9f93adb5805561::t_3637f631d18211 4-5
+docs/ARCHITECTURE.md
+  s_9f93adb5805561::t_50b347db3d60fa 89-102,108-122,125-128,188
+research/gemma-evals/check.py
+  s_9f93adb5805561::t_9b4e03594c1860 14-16,54-56,58,73-81,96-97,100-102,260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "020520ac702b5564e51029ef3ea352848f66acf3",
+  "prompts": {},
+  "sessions": {
+    "s_9f93adb5805561": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "614f166a-8132-4f53-a8cb-90a43b442602",
+        "model": "unknown"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
