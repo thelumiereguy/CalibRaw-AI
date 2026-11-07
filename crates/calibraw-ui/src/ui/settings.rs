@@ -1259,6 +1259,9 @@ impl Settings {
         if model != app.ai.editor_model {
             app.set_ai_editor_model(model);
         }
+        if app.ai.offline_fallback {
+            ui.small(tr("There was no internet when CalibRaw opened, so it uses Gemma until it restarts or you choose Claude Code."));
+        }
         if app.ai.editor_model != AiEditorModel::ClaudeCode {
             return;
         }

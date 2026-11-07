@@ -21,11 +21,39 @@ impl ClaudeSetupState {
     }
 }
 
+impl AiState {
+    /// The model chosen in Settings, which the performance settings keep:
+    /// Claude Code while it is set aside for want of internet.
+    pub(crate) fn chosen_editor_model(&self) -> AiEditorModel {
+        if self.offline_fallback {
+            AiEditorModel::ClaudeCode
+        } else {
+            self.editor_model
+        }
+    }
+}
+
 impl CalibRawApp {
-    /// Hands the triage and the AI editor to the model the app starts with.
+    /// Hands the triage and the AI editor to the model the app starts with:
+    /// Gemma when Claude Code is chosen but the device has no internet, which
+    /// Claude Code needs. Only the start decides; the internet coming back
+    /// later does not switch, as switching ends the open photo's chat.
     pub(in crate::app) fn select_initial_ai_model(&mut self) {
         if !self.caps().ai_editor {
             return;
+        }
+        if self.ai.editor_model == AiEditorModel::ClaudeCode {
+            // A failed check keeps the chosen model; Claude's own failure
+            // then says why.
+            let online = self.platform.internet_available().unwrap_or_else(|error| {
+                log::warn!("{error}");
+                true
+            });
+            if !online {
+                log::info!("No internet at start: the AI editor uses Gemma instead of Claude Code");
+                self.ai.editor_model = AiEditorModel::Gemma;
+                self.ai.offline_fallback = true;
+            }
         }
         if let Err(error) = self.platform.select_ai_model(self.ai.editor_model) {
             log::warn!("{error}");
@@ -38,11 +66,13 @@ impl CalibRawApp {
     /// Makes `model` the one behind the triage and the AI editor. The open
     /// photo's chat and card are forgotten, and the photo is triaged again by
     /// the new model when Develop next shows it (Claude Code: when the chat
-    /// next opens).
+    /// next opens). Choosing a model ends a start without internet's use of
+    /// Gemma.
     pub(crate) fn set_ai_editor_model(&mut self, model: AiEditorModel) {
         if self.ai.editor_model == model {
             return;
         }
+        self.ai.offline_fallback = false;
         self.forget_ai_editor();
         self.ai.triage.forget();
         self.ai.editor_model = model;

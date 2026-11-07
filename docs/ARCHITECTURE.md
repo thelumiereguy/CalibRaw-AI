@@ -164,7 +164,11 @@ change that establishes a boundary, not in advance.
   message also lists the masks and the crop. Switching models forgets the open
   photo's chat and card, and the photo is triaged again by the new model when
   Develop next shows it (with Claude, when the chat next opens).
-  Settings checks how far Claude Code is set up (`claude auth status`) and
+  When the app starts with Claude chosen but Android reports no validated
+  internet (`AiModels.online`), Gemma runs instead until the app restarts or
+  a model is chosen in Settings (`AiState::offline_fallback`); the settings
+  keep Claude. Only the start decides, since a switch ends the open photo's
+  chat. Settings checks how far Claude Code is set up (`claude auth status`) and
   runs each missing step.
 
 ## Inside `calibraw-ui`

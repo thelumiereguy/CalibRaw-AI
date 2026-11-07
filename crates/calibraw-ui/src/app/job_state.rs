@@ -162,8 +162,12 @@ pub(crate) struct AiState {
     pub(crate) object_cache: Option<((usize, usize), ObjectInferenceCache)>,
     pub(crate) people: PeopleState,
     /// The model behind the triage and the AI editor. Persisted as
-    /// `ai_editor_model`.
+    /// `ai_editor_model`, except while `offline_fallback` holds.
     pub(crate) editor_model: crate::platform::AiEditorModel,
+    /// Claude Code is the chosen model, but the app opened without internet,
+    /// so `editor_model` is Gemma until the app restarts or a model is
+    /// chosen in Settings. The performance settings keep Claude Code.
+    pub(crate) offline_fallback: bool,
     /// How far Claude Code is set up, as Settings last checked.
     pub(crate) claude_setup: ClaudeSetupState,
     /// The selected model's triage card for the open photo.

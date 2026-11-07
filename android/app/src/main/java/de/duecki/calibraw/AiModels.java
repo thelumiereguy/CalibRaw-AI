@@ -5,6 +5,8 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -110,6 +112,22 @@ final class AiModels {
     /** Runs the setup {@code step} Settings offers for Claude Code (ClaudeBridge.setup). */
     public void claudeSetup(String step) throws Exception {
         ClaudeBridge.setup(activity, step);
+    }
+
+    /**
+     * Whether the default network reaches the internet, as Android validated it. Claude Code needs
+     * it; Gemma does not. Returns at once.
+     */
+    public boolean online() {
+        ConnectivityManager connectivity = activity.getSystemService(ConnectivityManager.class);
+        if (connectivity == null) {
+            return false;
+        }
+        NetworkCapabilities capabilities =
+                connectivity.getNetworkCapabilities(connectivity.getActiveNetwork());
+        return capabilities != null
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
     /**

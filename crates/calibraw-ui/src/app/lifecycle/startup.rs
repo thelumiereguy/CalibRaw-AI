@@ -232,6 +232,8 @@ impl CalibRawApp {
                 object_cache: None,
                 people: PeopleState::default(),
                 editor_model: performance.ai_editor_model,
+                // Decided in `select_initial_ai_model`.
+                offline_fallback: false,
                 claude_setup: ClaudeSetupState::default(),
                 triage: TriageState::default(),
                 editor: EditorState::default(),

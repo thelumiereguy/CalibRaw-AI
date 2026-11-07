@@ -264,6 +264,7 @@
   "Change the filename, rating or flag filters to show more photos.": "更改文件名、评分或标记筛选条件以显示更多照片。",
   "Changes only the canvas around the photo. Toolbars, sidebars, and panels keep the selected design.": "只更改照片周围的画布。工具栏、侧边栏和面板会保留所选设计。",
   "Changing the model ends the open photo's chat and triages the photo again.": "更改模型会结束当前打开照片的聊天，并重新分析该照片。",
+  "There was no internet when CalibRaw opened, so it uses Gemma until it restarts or you choose Claude Code.": "打开 CalibRaw 时没有互联网连接，因此会使用 Gemma，直到应用重新启动或你选择 Claude Code。",
   "Check GitHub for the latest stable CalibRaw release. If permission has not been decided yet, CalibRaw asks first.": "通过 GitHub 检查最新的 CalibRaw 稳定版。如果你尚未选择是否允许，CalibRaw 会先询问。",
   "Check again": "重新检查",
   "Check common CameraProfiles locations.": "检查常见的 CameraProfiles 位置。",

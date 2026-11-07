@@ -52,6 +52,21 @@ pub fn claude_code_setup(app: &AndroidApp, step: &str) -> Result<(), String> {
     .map_err(|error| format!("Could not set up Claude Code: {error:#}"))
 }
 
+/// Whether the default network reaches the internet, as Android validated
+/// it. Returns at once.
+pub fn internet_available(app: &AndroidApp) -> Result<bool, String> {
+    with_ai_models(app, |env, ai_models| {
+        env.call_method(
+            ai_models,
+            jni::jni_str!("online"),
+            jni::jni_sig!(() -> bool),
+            &[],
+        )?
+        .z()
+    })
+    .map_err(|error| format!("Could not check the network: {error:#}"))
+}
+
 /// A triage's genre and emoji, reported while the model still writes the
 /// rest of its card.
 #[derive(Debug)]

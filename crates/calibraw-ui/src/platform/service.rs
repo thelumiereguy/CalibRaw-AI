@@ -578,6 +578,11 @@ pub(crate) trait Platform: Send + Sync {
     fn claude_code_setup(&self, _step: ClaudeCodeSetup) -> Result<(), String> {
         Err(unavailable("Claude Code"))
     }
+    /// Whether the device reaches the internet now, which Claude Code needs.
+    /// Returns at once.
+    fn internet_available(&self) -> Result<bool, String> {
+        Err(unavailable("the network state"))
+    }
     /// The selected model's triage card for the JPEG at `image_path`, as JSON. `hint` is
     /// the photographer's own genre, or empty. Blocks for the whole model
     /// call, so only workers call it. The card's genre and emoji arrive

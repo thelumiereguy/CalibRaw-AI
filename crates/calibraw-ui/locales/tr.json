@@ -266,6 +266,7 @@
   "Change the filename, rating or flag filters to show more photos.": "Daha fazla fotoğraf göstermek için dosya adı, derecelendirme veya işaret filtrelerini değiştirin.",
   "Changes only the canvas around the photo. Toolbars, sidebars, and panels keep the selected design.": "Yalnızca fotoğrafın çevresindeki tuvali değiştirir. Araç çubukları, kenar çubukları ve paneller seçili tasarımı kullanmaya devam eder.",
   "Changing the model ends the open photo's chat and triages the photo again.": "Modeli değiştirmek açık fotoğrafın sohbetini sonlandırır ve fotoğrafı yeniden değerlendirir.",
+  "There was no internet when CalibRaw opened, so it uses Gemma until it restarts or you choose Claude Code.": "CalibRaw açıldığında internet yoktu, bu yüzden uygulama yeniden başlatılana veya siz Claude Code'u seçene kadar Gemma kullanılır.",
   "Check GitHub for the latest stable CalibRaw release. If permission has not been decided yet, CalibRaw asks first.": "CalibRaw'ın en son kararlı sürümü için GitHub'ı denetleyin. Henüz izin tercihi belirlenmediyse CalibRaw önce sorar.",
   "Check again": "Yeniden denetle",
   "Check common CameraProfiles locations.": "Yaygın CameraProfiles konumlarını denetle.",

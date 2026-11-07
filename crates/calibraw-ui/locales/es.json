@@ -298,6 +298,7 @@
   "Change the filename, rating or flag filters to show more photos.": "Cambia los filtros de nombre de archivo, valoración o marca para mostrar más fotos.",
   "Changes only the canvas around the photo. Toolbars, sidebars, and panels keep the selected design.": "Solo cambia el lienzo que rodea la foto. Las barras de herramientas, las barras laterales y los paneles conservan el diseño seleccionado.",
   "Changing the model ends the open photo's chat and triages the photo again.": "Al cambiar el modelo, se termina el chat de la foto abierta y se vuelve a analizar la foto.",
+  "There was no internet when CalibRaw opened, so it uses Gemma until it restarts or you choose Claude Code.": "No había conexión a internet al abrir CalibRaw, así que se usa Gemma hasta que la app se reinicie o elijas Claude Code.",
   "Check again": "Volver a comprobar",
   "Check common CameraProfiles locations.": "Comprobar ubicaciones habituales de CameraProfiles.",
   "Check GitHub for the latest stable CalibRaw release. If permission has not been decided yet, CalibRaw asks first.": "Buscar la versión estable más reciente de CalibRaw en GitHub. Si aún no has decidido si lo permites, CalibRaw te preguntará primero.",

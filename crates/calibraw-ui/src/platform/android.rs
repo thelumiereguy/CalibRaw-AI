@@ -512,6 +512,10 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::claude_code_setup(&self.app, step)
     }
 
+    fn internet_available(&self) -> Result<bool, String> {
+        calibraw_ffi::internet_available(&self.app)
+    }
+
     fn ai_triage(
         &self,
         image_path: &Path,
