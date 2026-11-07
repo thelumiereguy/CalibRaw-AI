@@ -1,0 +1,21 @@
+research/gemma-evals/cases.json
+  s_9f93adb5805561::t_35b25f9fb397ab 22
+  s_9f93adb5805561::t_ea692971255e50 12-13
+  s_9f93adb5805561::t_ae1a98f1fbdeba 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9dae09d175d920014bb1292bf9b88eb354eec216",
+  "prompts": {},
+  "sessions": {
+    "s_9f93adb5805561": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "614f166a-8132-4f53-a8cb-90a43b442602",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
