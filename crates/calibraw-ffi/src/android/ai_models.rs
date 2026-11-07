@@ -5,16 +5,18 @@
 use super::*;
 use jni::objects::JByteArray;
 
-/// Makes `name` ("gemma" or "claude") the model the later calls go to,
-/// releasing the one selected before. Returns at once.
-pub fn select_ai_model(app: &AndroidApp, name: &str) -> Result<(), String> {
+/// Makes `name` ("gemma" or "claude") the model the later calls go to, with
+/// Claude Code running `claude_model` (a `--model` value), releasing the one
+/// selected before. Returns at once.
+pub fn select_ai_model(app: &AndroidApp, name: &str, claude_model: &str) -> Result<(), String> {
     with_ai_models(app, |env, ai_models| {
         let name = env.new_string(name)?;
+        let claude_model = env.new_string(claude_model)?;
         env.call_method(
             ai_models,
             jni::jni_str!("select"),
-            jni::jni_sig!((JString) -> void),
-            &[JValue::Object(&name)],
+            jni::jni_sig!((JString, JString) -> void),
+            &[JValue::Object(&name), JValue::Object(&claude_model)],
         )?;
         Ok(())
     })

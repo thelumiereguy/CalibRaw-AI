@@ -3,7 +3,7 @@ use crate::app::OnnxRuntimeMode;
 use crate::app::{CalibRawApp, PreviewQuality, GITHUB_UPDATE_CHECKS_AVAILABLE, UPDATE_STORE_NAME};
 use crate::i18n::{tr, tr_fmt};
 use crate::pipeline::CameraProfileMode;
-use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus};
+use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel};
 use crate::ui::components::adjustment_slider::AdjustmentSlider;
 use crate::ui::library::maximum_thumbnail_worker_count;
 use eframe::egui::{self, Ui};
@@ -27,6 +27,104 @@ fn ai_editor_model_label(model: AiEditorModel) -> &'static str {
         AiEditorModel::Gemma => tr("Gemma (on this phone)"),
         AiEditorModel::ClaudeCode => tr("Claude Code (in Termux)"),
     }
+}
+
+/// The name in Settings of one of [`ClaudeModel::ALIASES`].
+fn claude_alias_label(alias: &str) -> &str {
+    match alias {
+        "sonnet" => tr("Sonnet (default)"),
+        "opus" => "Opus",
+        "haiku" => "Haiku",
+        "best" => tr("Best available"),
+        other => other,
+    }
+}
+
+/// The model Claude Code runs: one of Claude Code's aliases, which follow
+/// the newest model of their kind, or another model's full name. The name
+/// is a draft until its field loses focus, since applying it ends the
+/// photo's chat and triages the photo again.
+fn claude_model_control(ui: &mut Ui, app: &mut CalibRawApp) {
+    let current = app.ai.claude_model.clone();
+    // Other stays picked while its name is still being typed and the
+    // model is still an alias.
+    let other_id = ui.make_persistent_id("settings-claude-model-other");
+    let draft_id = ui.make_persistent_id("settings-claude-model-draft");
+    let mut other =
+        !current.is_alias() || ui.data(|data| data.get_temp::<bool>(other_id)) == Some(true);
+    let selected = if !other {
+        claude_alias_label(current.as_str()).to_owned()
+    } else if current.is_alias() {
+        tr("Other").to_owned()
+    } else {
+        current.as_str().to_owned()
+    };
+    let mut picked = None;
+    moduwu_design::form_combo_with_help(
+        ui,
+        tr("Claude model"),
+        "settings-claude-model",
+        selected,
+        220.0,
+        tr("Sonnet is the model the AI editor was tried with. Opus, Haiku and Best available always run the newest model of their kind. Other runs the model you name, such as claude-opus-5-5, and stays on that version. Changing the model ends the open photo's chat and triages the photo again."),
+        |ui| {
+            for alias in ClaudeModel::ALIASES {
+                if ui
+                    .selectable_label(!other && current.as_str() == alias, claude_alias_label(alias))
+                    .clicked()
+                {
+                    picked = ClaudeModel::new(alias);
+                }
+            }
+            if ui.selectable_label(other, tr("Other")).clicked() {
+                other = true;
+            }
+        },
+    );
+    if let Some(model) = picked {
+        ui.data_mut(|data| {
+            data.remove::<bool>(other_id);
+            data.remove::<String>(draft_id);
+        });
+        app.set_claude_model(model);
+        return;
+    }
+    if !other {
+        return;
+    }
+    ui.data_mut(|data| data.insert_temp(other_id, true));
+
+    let mut draft = ui
+        .data(|data| data.get_temp::<String>(draft_id))
+        .unwrap_or_else(|| {
+            if current.is_alias() {
+                String::new()
+            } else {
+                current.as_str().to_owned()
+            }
+        });
+    let response = ui.add(
+        moduwu_design::singleline_text_edit(&mut draft)
+            .id_salt("settings-claude-model-name")
+            .char_limit(ClaudeModel::MAX_CHARS)
+            .desired_width(f32::INFINITY)
+            .hint_text("claude-opus-5-5"),
+    );
+    let model = ClaudeModel::new(&draft);
+    if !draft.trim().is_empty() && model.is_none() {
+        ui.colored_label(
+            ui.visuals().error_fg_color,
+            tr("A model name has no spaces."),
+        );
+    }
+    if response.lost_focus() {
+        if let Some(model) = model {
+            ui.data_mut(|data| data.remove::<String>(draft_id));
+            app.set_claude_model(model);
+            return;
+        }
+    }
+    ui.data_mut(|data| data.insert_temp(draft_id, draft));
 }
 
 mod card_order;
@@ -1274,6 +1372,7 @@ impl Settings {
         if app.ai.editor_model != AiEditorModel::ClaudeCode {
             return;
         }
+        claude_model_control(ui, app);
 
         moduwu_design::section_separator(ui);
         moduwu_design::strong_with_help(

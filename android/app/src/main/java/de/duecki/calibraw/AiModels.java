@@ -39,6 +39,9 @@ final class AiModels {
 
     // Guarded by AiModels.class.
     private static String selectedName;
+    // The Claude model the selected ClaudeBridge runs, or null with Gemma. Guarded by
+    // AiModels.class.
+    private static String selectedClaudeModel;
     // Written under AiModels.class; volatile so a call reads it without waiting for a selection.
     private static volatile AiModel selected;
 
@@ -49,19 +52,24 @@ final class AiModels {
     }
 
     /**
-     * Makes {@code name}, "gemma" or "claude", the model every later call goes to, releasing the
-     * one selected before and activating the new one in the background. Returns at once.
+     * Makes {@code name}, "gemma" or "claude", the model every later call goes to, Claude Code
+     * running {@code claudeModel} (its --model value), releasing the one selected before and
+     * activating the new one in the background. Gemma ignores {@code claudeModel}; another Claude
+     * model replaces Claude Code's bridge, so no conversation started ahead of time keeps the
+     * model before. Returns at once.
      */
-    public void select(String name) {
+    public void select(String name, String claudeModel) {
         synchronized (AiModels.class) {
-            if (name.equals(selectedName)) {
+            boolean claude = CLAUDE.equals(name);
+            if (name.equals(selectedName)
+                    && (!claude || claudeModel.equals(selectedClaudeModel))) {
                 return;
             }
             AiModel model;
             if (GEMMA.equals(name)) {
                 model = new GemmaBridge(activity);
-            } else if (CLAUDE.equals(name)) {
-                model = new ClaudeBridge(activity);
+            } else if (claude) {
+                model = new ClaudeBridge(activity, claudeModel);
             } else {
                 Log.w(LOG_TAG, "Unknown AI model " + name);
                 return;
@@ -69,11 +77,12 @@ final class AiModels {
             AiModel previous = selected;
             selected = model;
             selectedName = name;
+            selectedClaudeModel = claude ? claudeModel : null;
             if (previous != null) {
                 previous.release();
             }
             model.activate();
-            Log.i(LOG_TAG, "AI model selected: " + name);
+            Log.i(LOG_TAG, "AI model selected: " + name + (claude ? " " + claudeModel : ""));
         }
     }
 

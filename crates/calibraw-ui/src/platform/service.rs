@@ -195,6 +195,64 @@ pub(crate) enum AiEditorModel {
     ClaudeCode,
 }
 
+/// The model Claude Code runs, chosen in Settings and passed to `claude
+/// --model` as it is: an alias of Claude Code's, which follows the newest
+/// model of its kind, or a full model name, which stays on that version.
+/// Holds a name of at most [`Self::MAX_CHARS`] characters without spaces or
+/// control characters. Serialized in the performance settings as the name; a
+/// stored name it cannot hold reads as the default.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "String", into = "String")]
+pub(crate) struct ClaudeModel(String);
+
+impl ClaudeModel {
+    /// The aliases Settings offers, the default first. Claude Code's
+    /// `default` alias is not one: it picks the account's own default, not
+    /// the model the editor's prompts were tried with.
+    pub(crate) const ALIASES: [&'static str; 4] = ["sonnet", "opus", "haiku", "best"];
+    /// Longer than any model name or Bedrock inference profile ARN.
+    pub(crate) const MAX_CHARS: usize = 200;
+
+    /// `name` without its surrounding spaces, or `None` when that is empty,
+    /// too long, or holds a space or control character.
+    pub(crate) fn new(name: &str) -> Option<Self> {
+        let name = name.trim();
+        let valid = !name.is_empty()
+            && name.chars().count() <= Self::MAX_CHARS
+            && !name
+                .chars()
+                .any(|character| character.is_whitespace() || character.is_control());
+        valid.then(|| Self(name.to_owned()))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Whether this is one of [`Self::ALIASES`] rather than a model name.
+    pub(crate) fn is_alias(&self) -> bool {
+        Self::ALIASES.contains(&self.0.as_str())
+    }
+}
+
+impl Default for ClaudeModel {
+    fn default() -> Self {
+        Self(Self::ALIASES[0].to_owned())
+    }
+}
+
+impl From<String> for ClaudeModel {
+    fn from(name: String) -> Self {
+        Self::new(&name).unwrap_or_default()
+    }
+}
+
+impl From<ClaudeModel> for String {
+    fn from(model: ClaudeModel) -> Self {
+        model.0
+    }
+}
+
 /// How far Claude Code in Termux is set up: the first step still missing,
 /// or [`Self::Ready`].
 #[cfg_attr(
@@ -757,9 +815,14 @@ pub(crate) trait Platform: Send + Sync {
 
     // --- The AI editor's model: Gemma on the device or Claude Code ---
 
-    /// Makes `model` the one the triage and editor calls below go to,
-    /// releasing the one selected before. Returns at once.
-    fn select_ai_model(&self, _model: AiEditorModel) -> Result<(), String> {
+    /// Makes `model` the one the triage and editor calls below go to, with
+    /// Claude Code running `claude_model`, releasing the one selected before.
+    /// Returns at once.
+    fn select_ai_model(
+        &self,
+        _model: AiEditorModel,
+        _claude_model: &ClaudeModel,
+    ) -> Result<(), String> {
         Err(unavailable("the AI editor"))
     }
     /// How far Claude Code is set up. Blocks while Termux starts, up to

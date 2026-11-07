@@ -64,7 +64,6 @@ final class ClaudeBridge implements AiModel {
     private static final String TERMUX_HOME = "/data/data/com.termux/files/home";
     // Each request is set by the CalibRawActivity or one of its helpers; see their constants.
     private static final int RUN_COMMAND_PERMISSION_REQUEST = 1006;
-    private static final String MODEL = "sonnet";
     private static final String TRIAGE_REQUEST = "Triage this photo.";
     private static final String RELEASED = "Claude Code is no longer the selected AI model";
     // Termux starting a process took about 3.4 s on the spike phone; a cold Termux takes longer.
@@ -87,6 +86,9 @@ final class ClaudeBridge implements AiModel {
     static final String FAILED = "failed";
 
     private final Context context;
+    // Claude Code's --model value for every conversation: an alias such as "sonnet" or a full
+    // model name, chosen in Settings (ClaudeModel in platform/service.rs).
+    private final String model;
     // Whether another model was selected; then nothing is started or sent any more, so photos go
     // to Claude only while it is the selected model. Written under this, and checked under this
     // wherever a conversation is taken or installed, so release ends every conversation it misses.
@@ -110,8 +112,9 @@ final class ClaudeBridge implements AiModel {
     private final Object editorLock = new Object();
     private final Object triageLock = new Object();
 
-    ClaudeBridge(Context context) {
+    ClaudeBridge(Context context, String model) {
         this.context = context.getApplicationContext();
+        this.model = model;
     }
 
     /**
@@ -175,7 +178,7 @@ final class ClaudeBridge implements AiModel {
                     if (session != null) {
                         session.end();
                     }
-                    session = Session.start(context, "Claude triage", triageArguments(context));
+                    session = Session.start(context, "Claude triage", triageArguments());
                 }
                 runningTriage = session;
             }
@@ -226,7 +229,7 @@ final class ClaudeBridge implements AiModel {
                 return;
             }
             try {
-                nextTriage = Session.start(context, "Claude triage", triageArguments(context));
+                nextTriage = Session.start(context, "Claude triage", triageArguments());
             } catch (IOException error) {
                 nextTriage = null;
                 Log.w(LOG_TAG, "Could not prepare Claude triage", error);
@@ -254,7 +257,7 @@ final class ClaudeBridge implements AiModel {
             }
             try {
                 nextEditor = Session.start(
-                        context, "Claude editor", conversationArguments(systemPrompt, null));
+                        context, "Claude editor", conversationArguments(model, systemPrompt, null));
                 nextEditorPrompt = systemPrompt;
             } catch (IOException error) {
                 Log.w(LOG_TAG, "Could not prepare the Claude editor", error);
@@ -290,8 +293,8 @@ final class ClaudeBridge implements AiModel {
                     nextEditorPrompt = null;
                 }
                 if (session == null) {
-                    session = Session.start(
-                            context, "Claude editor", conversationArguments(systemPrompt, null));
+                    session = Session.start(context, "Claude editor",
+                            conversationArguments(model, systemPrompt, null));
                 }
             }
             long started = SystemClock.elapsedRealtime();
@@ -479,26 +482,28 @@ final class ClaudeBridge implements AiModel {
      * steered the edits towards them rather than the photographer's words. The card's shape is
      * Gemma's.
      */
-    private static List<String> triageArguments(Context context) throws IOException {
+    private List<String> triageArguments() throws IOException {
         return conversationArguments(
+                model,
                 AiModels.asset(context, "claude/triage_system.md"),
                 AiModels.asset(context, "gemma/triage_schema.json"));
     }
 
     /**
-     * The arguments of a {@code claude -p} conversation over stream-json with
+     * The arguments of a {@code claude -p} conversation over stream-json on {@code model} with
      * {@code systemPrompt} and nothing else: no tools, settings, MCP servers or saved session,
      * shaped by {@code jsonSchema} when that is not null. Flags without a value are written as
      * {@code --flag=}, so no argument is empty.
      */
-    private static List<String> conversationArguments(String systemPrompt, String jsonSchema) {
+    private static List<String> conversationArguments(
+            String model, String systemPrompt, String jsonSchema) {
         List<String> arguments = new ArrayList<>(Arrays.asList(
                 "-p",
                 "--input-format", "stream-json",
                 "--output-format", "stream-json",
                 "--verbose",
                 "--include-partial-messages",
-                "--model", MODEL,
+                "--model", model,
                 "--system-prompt", systemPrompt,
                 "--tools=",
                 "--strict-mcp-config",

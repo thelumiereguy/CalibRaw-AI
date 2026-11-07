@@ -1,7 +1,7 @@
 //! The Android backend: the JNI bridge in `calibraw-ffi`.
 
 use super::service::{
-    AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus,
+    AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel,
     ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
     LinkFolderResult, LinkedFolder, ListedSidecar, PickedDocument, PickerResult, Platform,
     PublishedExport, ReplayVideoEncoder, SoftKeyboard, StagedFilesResult, TaskNotification,
@@ -602,13 +602,17 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::thumbnail_cache_size_bytes(&self.app)
     }
 
-    fn select_ai_model(&self, model: AiEditorModel) -> Result<(), String> {
+    fn select_ai_model(
+        &self,
+        model: AiEditorModel,
+        claude_model: &ClaudeModel,
+    ) -> Result<(), String> {
         // The names AiModels.select knows.
         let name = match model {
             AiEditorModel::Gemma => "gemma",
             AiEditorModel::ClaudeCode => "claude",
         };
-        calibraw_ffi::select_ai_model(&self.app, name)
+        calibraw_ffi::select_ai_model(&self.app, name, claude_model.as_str())
     }
 
     fn claude_code_status(&self) -> Result<ClaudeCodeStatus, String> {

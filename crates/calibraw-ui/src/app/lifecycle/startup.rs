@@ -235,6 +235,7 @@ impl CalibRawApp {
                 editor_model: performance.ai_editor_model,
                 // Decided in `select_initial_ai_model`.
                 offline_fallback: false,
+                claude_model: performance.claude_model.clone(),
                 claude_setup: ClaudeSetupState::default(),
                 triage: TriageState::default(),
                 editor: EditorState::default(),

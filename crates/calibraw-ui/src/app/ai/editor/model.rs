@@ -1,9 +1,10 @@
 //! The model behind the triage and the AI editor, which the photographer
-//! chooses in Settings: Gemma on the device or Claude Code in Termux. Also
-//! Claude Code's setup, which Settings checks and runs step by step.
+//! chooses in Settings: Gemma on the device or Claude Code in Termux, with
+//! the Claude model it runs. Also Claude Code's setup, which Settings checks
+//! and runs step by step.
 
 use super::*;
-use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus};
+use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel};
 
 /// How far Claude Code is set up, as last checked.
 #[derive(Default)]
@@ -55,7 +56,10 @@ impl CalibRawApp {
                 self.ai.offline_fallback = true;
             }
         }
-        if let Err(error) = self.platform.select_ai_model(self.ai.editor_model) {
+        if let Err(error) = self
+            .platform
+            .select_ai_model(self.ai.editor_model, &self.ai.claude_model)
+        {
             log::warn!("{error}");
         }
         if self.ai.editor_model == AiEditorModel::ClaudeCode {
@@ -78,17 +82,44 @@ impl CalibRawApp {
             return;
         }
         self.ai.offline_fallback = false;
-        self.forget_ai_editor();
-        self.ai.triage.forget();
         self.ai.editor_model = model;
-        if let Err(error) = self.platform.select_ai_model(model) {
-            log::warn!("{error}");
-        }
-        self.ai.triage.waiting = self.develop.loaded_raw.is_some();
+        self.reselect_ai_model();
         self.persist_performance_settings();
         if model == AiEditorModel::ClaudeCode {
             self.check_claude_code();
         }
+    }
+
+    /// Makes `model` the one Claude Code runs. While Claude Code is in use,
+    /// the open photo's chat and card are forgotten, as for a change of
+    /// model, since both were made by the model before; while Gemma stands in
+    /// for it after a start without internet, the choice is only saved.
+    pub(crate) fn set_claude_model(&mut self, model: ClaudeModel) {
+        if self.ai.claude_model == model {
+            return;
+        }
+        self.ai.claude_model = model;
+        if self.ai.editor_model == AiEditorModel::ClaudeCode {
+            self.reselect_ai_model();
+        }
+        self.persist_performance_settings();
+    }
+
+    /// Hands the triage and the AI editor to the model and Claude model now
+    /// chosen: forgets the open photo's chat and card, and triages the photo
+    /// again when Develop next shows it (Claude Code: when the chat next
+    /// opens). Selecting again ends every conversation the model before
+    /// started ahead of time.
+    fn reselect_ai_model(&mut self) {
+        self.forget_ai_editor();
+        self.ai.triage.forget();
+        if let Err(error) = self
+            .platform
+            .select_ai_model(self.ai.editor_model, &self.ai.claude_model)
+        {
+            log::warn!("{error}");
+        }
+        self.ai.triage.waiting = self.develop.loaded_raw.is_some();
     }
 
     /// Checks again how far Claude Code is set up, on a worker.

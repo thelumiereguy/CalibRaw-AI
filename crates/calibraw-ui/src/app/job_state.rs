@@ -168,6 +168,8 @@ pub(crate) struct AiState {
     /// so `editor_model` is Gemma until the app restarts or a model is
     /// chosen in Settings. The performance settings keep Claude Code.
     pub(crate) offline_fallback: bool,
+    /// The model Claude Code runs. Persisted as `claude_model`.
+    pub(crate) claude_model: crate::platform::ClaudeModel,
     /// How far Claude Code is set up, as Settings last checked.
     pub(crate) claude_setup: ClaudeSetupState,
     /// The selected model's triage card for the open photo.

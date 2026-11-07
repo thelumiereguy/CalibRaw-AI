@@ -86,7 +86,8 @@ On Android, the AI editor uses Gemma on the phone unless you choose Claude Code,
 
 - A photo's preview is sent to Anthropic only once you open the AI editor's chat on it. Gemma keeps everything on the phone.
 - If CalibRaw starts without internet while Claude Code is chosen, it uses Gemma until it restarts or you choose Claude Code again in Settings. Your choice stays saved.
-- Changing the model ends the open photo's chat and looks at the photo again with the new model.
+- **Claude model** picks the model Claude Code runs. **Sonnet (default)** is the one the editor was tried with. **Opus**, **Haiku** and **Best available** use Claude Code's aliases, so they move to the newest model of their kind when Anthropic releases one, without an update to CalibRaw. **Other** takes a full model name, such as `claude-opus-5-5`, which stays on that version.
+- Changing the model or the Claude model ends the open photo's chat and looks at the photo again with the new model.
 
 ---
 

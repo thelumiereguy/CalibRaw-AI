@@ -91,6 +91,9 @@ pub(crate) struct PerformanceSettings {
     pub onnx_runtime_mode: crate::app::OnnxRuntimeMode,
     /// The model behind the triage and the AI editor, where it runs (Android).
     pub ai_editor_model: crate::platform::AiEditorModel,
+    /// The model Claude Code runs. Missing in files written before it
+    /// existed, which therefore keep the Sonnet they ran.
+    pub claude_model: crate::platform::ClaudeModel,
     /// Where Discord can be reached.
     pub discord_rich_presence: bool,
     /// Serialize photo file reads for libraries on rotational disks; folder
@@ -321,6 +324,7 @@ impl Default for PerformanceSettings {
             ai_gpu_acceleration: true,
             onnx_runtime_mode: crate::app::OnnxRuntimeMode::default(),
             ai_editor_model: crate::platform::AiEditorModel::default(),
+            claude_model: crate::platform::ClaudeModel::default(),
             discord_rich_presence: false,
             hdd_mode: false,
             camera_profile_mode: CameraProfileMode::default(),
@@ -487,4 +491,58 @@ pub(crate) fn save(path: Option<&Path>, settings: PerformanceSettings) -> Result
             path.display()
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{load, save, PerformanceSettings};
+    use crate::platform::{AiEditorModel, ClaudeModel};
+
+    /// Claude's model through the settings file: a file from before the
+    /// setting keeps Sonnet; a chosen alias or full model name comes back as
+    /// it was saved, without the spaces typed around it; and a stored name
+    /// Claude Code cannot take reads as Sonnet without losing the rest of
+    /// the file.
+    #[test]
+    fn claude_model_survives_the_settings_file() {
+        let path =
+            std::env::temp_dir().join(format!("calibraw-claude-model-{}.json", std::process::id()));
+
+        std::fs::write(&path, r#"{"version": 6, "ai_editor_model": "claude_code"}"#)
+            .expect("write a settings file from before the setting");
+        let loaded = load(Some(&path));
+        assert_eq!(loaded.claude_model, ClaudeModel::default());
+        assert_eq!(loaded.claude_model.as_str(), "sonnet");
+        assert_eq!(loaded.ai_editor_model, AiEditorModel::ClaudeCode);
+
+        for typed in ["opus", "best", " claude-opus-5-5 ", "sonnet[1m]"] {
+            let claude_model = ClaudeModel::new(typed).expect("a valid model name");
+            save(
+                Some(&path),
+                PerformanceSettings {
+                    claude_model,
+                    ..PerformanceSettings::default()
+                },
+            )
+            .expect("save the settings");
+            assert_eq!(load(Some(&path)).claude_model.as_str(), typed.trim());
+        }
+
+        for stored in [r#""claude opus""#, r#""""#, r#""   ""#] {
+            std::fs::write(
+                &path,
+                format!(r#"{{"version": 6, "ai_editor_model": "claude_code", "claude_model": {stored}}}"#),
+            )
+            .expect("write a settings file with an unusable model");
+            let loaded = load(Some(&path));
+            assert_eq!(loaded.claude_model, ClaudeModel::default(), "{stored}");
+            assert_eq!(
+                loaded.ai_editor_model,
+                AiEditorModel::ClaudeCode,
+                "{stored}"
+            );
+        }
+
+        std::fs::remove_file(&path).expect("remove the settings file");
+    }
 }
