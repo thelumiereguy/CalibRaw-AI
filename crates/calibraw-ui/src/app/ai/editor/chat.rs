@@ -478,19 +478,19 @@ impl CalibRawApp {
                         names.join(", ")
                     )
                 };
+                // `Applied` is the Gemma trace's, which `poll_ai_editor`
+                // hands to `trace_ai_editor_result` instead.
                 let message = match outgoing {
                     Outgoing::Request if starts => first_message,
-                    Outgoing::Request => {
+                    Outgoing::Request | Outgoing::Applied { .. } => {
                         format!("Request: {}\n\nCurrent values: {edit}", request.text)
                     }
-                    Outgoing::Nudged { results } | Outgoing::Applied { results }
-                        if request.nudges < CLAUDE_MAX_NUDGES =>
-                    {
+                    Outgoing::Nudged { results } if request.nudges < CLAUDE_MAX_NUDGES => {
                         format!(
                             "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nIf it shows what was asked, say what you changed in one or two sentences, without a tool line; otherwise write the tool lines that correct it."
                         )
                     }
-                    Outgoing::Nudged { results } | Outgoing::Applied { results } => format!(
+                    Outgoing::Nudged { results } => format!(
                         "The app set:\n{results}\n\nThe new preview.{shown} Current values: {edit}\nYou have no corrections left: say what you changed in one or two sentences, without a tool line."
                     ),
                 };
