@@ -1242,7 +1242,11 @@ impl Settings {
             tr("AI editor"),
             tr("Choose the model behind the AI editor. Gemma runs on this phone and triages each photo you open. Claude Code runs in the Termux app and needs a Claude account; a photo's preview is sent to Anthropic only once you open the AI editor's chat on it."),
         );
-        let mut model = app.ai.editor_model;
+        let model = app.ai.editor_model;
+        // Any pick counts, the model in use too: Gemma, picked while it
+        // stands in for Claude Code after a start without internet, becomes
+        // the saved choice.
+        let mut picked = None;
         moduwu_design::form_combo_with_help(
             ui,
             tr("Model"),
@@ -1252,11 +1256,16 @@ impl Settings {
             tr("Changing the model ends the open photo's chat and triages the photo again."),
             |ui| {
                 for option in [AiEditorModel::Gemma, AiEditorModel::ClaudeCode] {
-                    ui.selectable_value(&mut model, option, ai_editor_model_label(option));
+                    if ui
+                        .selectable_label(model == option, ai_editor_model_label(option))
+                        .clicked()
+                    {
+                        picked = Some(option);
+                    }
                 }
             },
         );
-        if model != app.ai.editor_model {
+        if let Some(model) = picked {
             app.set_ai_editor_model(model);
         }
         if app.ai.offline_fallback {

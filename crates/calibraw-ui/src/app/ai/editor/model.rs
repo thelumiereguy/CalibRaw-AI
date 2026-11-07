@@ -67,9 +67,14 @@ impl CalibRawApp {
     /// photo's chat and card are forgotten, and the photo is triaged again by
     /// the new model when Develop next shows it (Claude Code: when the chat
     /// next opens). Choosing a model ends a start without internet's use of
-    /// Gemma.
+    /// Gemma; choosing Gemma then keeps the chat and saves Gemma as the
+    /// choice.
     pub(crate) fn set_ai_editor_model(&mut self, model: AiEditorModel) {
         if self.ai.editor_model == model {
+            if self.ai.offline_fallback {
+                self.ai.offline_fallback = false;
+                self.persist_performance_settings();
+            }
             return;
         }
         self.ai.offline_fallback = false;

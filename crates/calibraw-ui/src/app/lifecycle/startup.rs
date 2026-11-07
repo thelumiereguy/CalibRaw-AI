@@ -368,7 +368,7 @@ impl CalibRawApp {
                 version_check: Default::default(),
                 shortcuts_dialog_open: false,
                 settings_dialog: None,
-                soft_keyboard: crate::platform::SoftKeyboard::None,
+                soft_keyboard: (crate::platform::SoftKeyboard::None, None),
                 review_feedback: None,
             },
             library: if caps.has_media_library() {

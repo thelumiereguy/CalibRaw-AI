@@ -164,8 +164,14 @@ impl CalibRawApp {
         } else {
             SoftKeyboard::None
         };
-        if soft_keyboard != self.ui.soft_keyboard {
-            self.ui.soft_keyboard = soft_keyboard;
+        // The platform is told again when another field of the same kind
+        // takes the keyboard, so the keyboard starts afresh instead of
+        // editing what was typed into the last one.
+        let field = (soft_keyboard != SoftKeyboard::None)
+            .then(|| ui.ctx().memory(|memory| memory.focused()))
+            .flatten();
+        if (soft_keyboard, field) != self.ui.soft_keyboard {
+            self.ui.soft_keyboard = (soft_keyboard, field);
             if let Err(error) = self.platform.set_soft_keyboard(soft_keyboard) {
                 log::warn!("{error}");
             }

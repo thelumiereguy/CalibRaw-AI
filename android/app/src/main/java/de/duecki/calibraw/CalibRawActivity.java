@@ -283,7 +283,8 @@ public final class CalibRawActivity extends NativeActivity {
     // Points the soft keyboard at the field the UI edits: TextInputView for text, so the keyboard
     // offers swipe and voice typing, or NumericInputView for its number layout. Showing and hiding
     // the keyboard stays with winit; this only moves input focus between NativeActivity's view,
-    // which has no input connection, and those two.
+    // which has no input connection, and those two. A call for the view that already has focus
+    // means another field took it, so its input starts again without the last field's text.
     public void setSoftKeyboard(int field) {
         runOnUiThread(() -> {
             InputMethodManager inputMethods = getSystemService(InputMethodManager.class);
@@ -304,6 +305,7 @@ public final class CalibRawActivity extends NativeActivity {
                 return;
             }
             if (target.hasFocus()) {
+                inputMethods.restartInput(target);
                 return;
             }
             if (!keyboardInputFocused) {
