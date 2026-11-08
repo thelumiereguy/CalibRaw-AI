@@ -1,16 +1,38 @@
 package de.duecki.calibraw;
 
+import java.util.List;
+
 /**
  * A model that triages each opened photo and runs the AI editor's chat about it: Gemma on the
- * device ({@link GemmaBridge}) or Claude Code in Termux ({@link ClaudeBridge}). Rust reaches the
- * selected one through {@link AiModels}, which forwards these calls to it.
+ * device ({@link GemmaBridge}) or Claude Code in Termux ({@link ClaudeBridge}). The selected one
+ * is reached through {@link AiModelRouter}. A model reports what it writes while it writes it
+ * through the listeners each call is given, so it knows nothing of who listens.
  */
 interface AiModel {
+    /** Told a triage card's genre and emoji once the model has written both. */
+    interface HeadlineListener {
+        void onHeadline(String genre, String emoji);
+    }
+
+    /** Told each next piece of an editor reply's text while the model writes it. */
+    interface TextListener {
+        void onText(String piece);
+    }
+
+    /** The message that asks for a triage, with the photographer's own genre when there is one. */
+    static String triageRequest(String hint) {
+        String request = "Triage this photo.";
+        return hint == null || hint.isEmpty()
+                ? request
+                : request + " The photographer says the genre is: " + hint + ".";
+    }
+
     /**
-     * Starts what the model needs before its first call, in the background, when the photographer
-     * selects it or the app starts with it selected. Returns at once.
+     * Starts what the model needs before its first call, in the background, when it is selected.
+     * Returns at once. Nothing by default.
      */
-    void activate();
+    default void activate() {
+    }
 
     /**
      * Frees what the model holds when another model is selected, cancelling the editor's running
@@ -19,8 +41,8 @@ interface AiModel {
     void release();
 
     /**
-     * Tells the model whether Develop shows, where the triage and the AI editor run: Claude Code
-     * keeps processes only while it does. Returns at once.
+     * Tells the model whether Develop shows, where the triage and the AI editor run. Returns at
+     * once. Nothing by default.
      */
     default void editorShown(boolean shown) {
     }
@@ -28,9 +50,9 @@ interface AiModel {
     /**
      * Returns the triage card for the JPEG at {@code imagePath} as JSON, shaped by
      * assets/gemma/triage_schema.json. {@code hint} is the photographer's own genre, or empty. The
-     * card's genre and emoji are reported earlier through {@link AiModels#reportTriageHeadline}.
+     * card's genre and emoji go to {@code headline} as soon as they are written.
      */
-    String triage(String imagePath, String hint, long requestId, int badgePx) throws Exception;
+    String triage(String imagePath, String hint, HeadlineListener headline) throws Exception;
 
     /**
      * Has the model ready a conversation with the editor's {@code systemPrompt} in the background,
@@ -45,13 +67,13 @@ interface AiModel {
     void startEditorRequest(String systemPrompt) throws Exception;
 
     /**
-     * Sends {@code text}, after the JPEGs at {@code imagePaths}, one path per line or empty for
-     * none, to the editor conversation and returns the reply as
-     * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}. Gemma is sent one
-     * JPEG at most. The reply's text also streams through {@link AiModels#reportEditorText},
-     * tagged with {@code requestId}.
+     * Sends {@code text}, after the JPEGs at {@code imagePaths}, to the editor conversation and
+     * returns the reply as {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}},
+     * the JSON Rust reads. Gemma is sent one JPEG at most. The reply's text also goes to
+     * {@code replyText} while the model writes it.
      */
-    String editorSend(long requestId, String text, String imagePaths) throws Exception;
+    String editorSend(String text, List<String> imagePaths, TextListener replyText)
+            throws Exception;
 
     /**
      * Ends the editor conversation, cancelling a running turn, which then fails. Returns at once.

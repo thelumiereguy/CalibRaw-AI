@@ -12,7 +12,7 @@ Runs in the eval app (./gradlew assembleEval), which installs beside the photogr
 its own library, so the evals never touch their photos or edits. Its library holds only the
 photos in photos/, which the run copies to the phone when they are missing. Once per phone, copy
 the Gemma model to the eval app's models/ folder and finish its setup screens. Then leave the
-phone unlocked and alone. GemmaBridge writes the trace only in a debuggable build and only while
+phone unlocked and alone. GemmaTrace writes the trace only in a debuggable build and only while
 files/gemma-trace.on exists, which the run creates at its start and removes at its end.
 """
 

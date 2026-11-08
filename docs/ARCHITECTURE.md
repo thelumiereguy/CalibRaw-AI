@@ -86,7 +86,9 @@ change that establishes a boundary, not in advance.
   (`triage.rs`): Gemma names its genre, an emoji and a role (the triage
   card); it asks for no editing priorities or observations, since
   Gemma edited towards them instead of the photographer's request. The AI
-  editor (`chat.rs`) is a chat in which each request is one Gemma reply,
+  editor (`chat.rs`, which runs a request for either model and asks
+  `chat/protocol.rs` where they differ; Gemma's side is
+  `chat/gemma_brief.rs`) is a chat in which each request is one Gemma reply,
   whose message names that card's genre and role; the system prompt names no
   photo, so Gemma reads it once per process and keeps it across photos, so
   opening a photo costs only its triage. Gemma interprets the photographer's
@@ -125,16 +127,22 @@ change that establishes a boundary, not in advance.
   conversation's first prefill took 16–23 s after the process's first. A
   request's conversation is closed when it ends, since an open one keeps its
   memory. The engine holds 4,096 tokens per conversation
-  (`GemmaBridge.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
+  (`GemmaEngine.MAX_NUM_TOKENS`): LiteRT-LM's GPU backend reserves the whole
   context for every layer up front (LiteRT-LM issue 4096), the largest
   conversation used about 2,700, and 8,192 left the phone swapping. For the
   evals (`research/gemma-evals/`), while `files/gemma-trace.on` exists the app
   writes the preview that shows a request's edit and what it set to the
-  trace GemmaBridge keeps.
+  trace `GemmaTrace` keeps.
 - Claude Code in Termux (Android) is the other model behind the same triage
   and AI editor, chosen in Settings (`AiEditorModel`, `app/ai/editor/model.rs`).
-  Java holds one `AiModel` at a time, `GemmaBridge` or `ClaudeBridge`, which
-  Rust reaches through `AiModels` (`AiModels.select`). Each Claude
+  `AiModelRouter` holds one `AiModel` at a time, `GemmaBridge` or
+  `ClaudeBridge`. Rust reaches it only through the JNI facade `AiModels`
+  (`AiModels.select`), which hands each model listeners for its streamed text
+  (`AiModel.HeadlineListener`, `AiModel.TextListener`), so no model calls
+  back into the facade; both stream the triage card through
+  `TriageCardStream`. Claude's processes are `ClaudeSession`, its stream-json
+  messages `ClaudeProtocol`, its setup `ClaudeSetup` and Termux's intents
+  `Termux`; Gemma's engine is loaded by `GemmaEngine`. Each Claude
   conversation is one `claude -p` process that Termux starts through its
   `RUN_COMMAND` intent (`assets/claude/connect.sh`); it connects back to a
   loopback port of the app, proves itself with a one-time token and speaks
@@ -150,7 +158,8 @@ change that establishes a boundary, not in advance.
   (`assets/claude/triage_system.md`) with Gemma's schema (`--json-schema`),
   and waits until the AI editor's chat opens
   (`TriageState::waiting`), so a photo goes to Anthropic only when the
-  photographer asks Claude about it. The editor writes no brief: one
+  photographer asks Claude about it. The editor
+  (`chat/claude_conversation.rs`) writes no brief: one
   conversation per photo holds the whole chat, plans and writes its tool
   lines in the same reply (`assets/claude/editor_system.md`), which the app
   reads itself (`calls.rs`), and looks at the preview after each nudge, with
@@ -226,8 +235,8 @@ job records the value it started with.
 | egui-wgpu renderer (texture registration and release) | UI thread, through `frame.wgpu_render_state()`. `PreviewPipeline` owns a registration; dropping it queues the texture in `TextureRetirement`, which the UI thread releases at the start of the next frame, after the current frame can no longer paint it |
 | JNI environment | the calling thread; `with_activity` attaches it for the call's duration. Java→Rust callbacks run on Java threads and only enqueue results and request a repaint |
 | ONNX Runtime sessions | one process-wide slot in `calibraw-ai::slot`, locked by the running job; every AI job runs on its own `jobs::spawn_job` thread |
-| LiteRT-LM engine and Gemma conversations (Android) | one process-wide engine in `GemmaBridge`; triage and AI editor turns run on UI worker threads (`spawn_ui_worker`) and hold `GemmaBridge`'s class lock, so one turn runs at a time. Streamed text arrives on LiteRT's callback thread (`AiModels.nativeOnTriageHeadline`, `nativeOnEditorText`), which only fills an FFI slot and requests a repaint |
-| Claude Code conversations (Android) | `ClaudeBridge`; each conversation's connection is read on a daemon thread of its own, which streams text through the same `AiModels` callbacks. Triage and AI editor turns run on UI worker threads, one triage at a time (`triageLock`) and one editor turn at a time (`editorLock`); a triage may run beside an editor turn |
+| LiteRT-LM engine and Gemma conversations (Android) | one process-wide engine in the one `GemmaBridge` (`GemmaBridge.shared`); triage and AI editor turns run on UI worker threads (`spawn_ui_worker`) and hold that instance's lock, so one turn runs at a time. Streamed text arrives on LiteRT's callback thread (`AiModels.nativeOnTriageHeadline`, `nativeOnEditorText`), which only fills an FFI slot and requests a repaint |
+| Claude Code conversations (Android) | `ClaudeBridge`; each conversation's connection (`ClaudeSession`) is read on a daemon thread of its own, which streams text through the same `AiModels` callbacks. Triage and AI editor turns run on UI worker threads, one triage at a time (`triageLock`) and one editor turn at a time (`editorLock`); a triage may run beside an editor turn |
 
 ### Background jobs
 
@@ -241,7 +250,7 @@ job records the value it started with.
 | Foreground AI / lens correction / auto straighten and perspective | one `ForegroundOperation` slot; a second request is refused | shared `AtomicBool`; the worker stops at its next safe point | results are applied only if `document_id` equals the current `document_generation`; an automatic geometry estimate also needs the flips and skews it was made for (and, for straightening, the perspective correction) | error dialog or notice; slot cleared |
 | People mask from the analysis | `AiState::people_composes`, one per people component; a newer change of the component replaces its entry. Runs no model, so it never takes the foreground slot | none; the replaced receiver is dropped and its result discarded | `forget_people` and history restores clear the entries; a result is applied only while its component still has the person and parts it had when it started | error dialog |
 | Photo triage (Android) | one receiver in `TriageState`, started when an opened photo's load is installed; it waits (`waiting`) until Develop shows the photo and its render is current (`current_preview_snapshot`), and with Claude Code until the AI editor's chat is open too. A worker reads the preview back and applies the geometry | none; it ends with the model's reply or after 120 s with Gemma, and with Claude Code after up to 35 s for its process to connect plus 120 s for the reply | the receiver is dropped when another photo opens or the model is switched (`forget`); a headline or card is taken only for the generation it was started with | logged and kept as `TriageState::failure`, which the chat shows with a retry (`retry_photo_triage`); the photo stays editable and the editor cannot send |
-| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn, and, for the evals, to writing Gemma's edited preview to the trace | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or `Session.end`, which closes Claude Code's connection: its process exits once the running turn's API call, already billed, has finished) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id, which keeps counting across photos | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s, and with Claude Code a request first waits up to 35 s for its process to connect |
+| AI editor request (Android) | one `Request` in `EditorState`; the chat sends nothing while one runs. It steps between capturing the preview and the model replying, one receiver per turn, and, for the evals, to writing Gemma's edited preview to the trace | another photo opening or a model switch closes the conversation (`forget_ai_editor`; LiteRT's `cancelProcess`, or `ClaudeSession.end`, which closes Claude Code's connection: its process exits once the running turn's API call, already billed, has finished) | the request carries `document_generation` and is dropped when it no longer matches; streamed text is taken only for the turn's request id, which keeps counting across photos | the request ends with a failure message in the chat, and Claude's conversation is closed; a turn times out after 120 s, and with Claude Code a request first waits up to 35 s for its process to connect |
 | Claude Code setup check (Android) | one receiver in `ClaudeSetupState`; no second check starts while one runs | none; it ends when `claude auth status` exits or after 60 s | none; the setup is an app setting | the failure is shown in Settings; Termux not running the check reads as blocked |
 | Remove / retouch | one receiver in `InpaintState` | `AtomicBool` | `reset_for_document` sets the flag and drops the receiver, so late results are discarded | notice; the pending stroke is kept only when the user must re-consent to a download |
 | Export / batch export / replay | one `ExportTask`; batch items run sequentially | `AtomicBool`; partial files are removed and never reported as success | export works on an immutable snapshot of the edit | notice; temporary output removed |
@@ -421,9 +430,10 @@ production `ShaderManager` composes.
 
 - Android: `calibraw-ffi` exposes content-URI storage, document pickers,
   MediaStore publishing, background-task notifications, the MediaCodec replay
-  encoder and the AI editor's models behind `AiModels` (`android/ai_models.rs`):
-  on-device Gemma through LiteRT-LM (`GemmaBridge`) and Claude Code in Termux
-  (`ClaudeBridge`).
+  encoder and the AI editor's models behind the JNI facade `AiModels`
+  (`android/ai_models.rs`), which hands each call to the model `AiModelRouter`
+  holds: on-device Gemma through LiteRT-LM (`GemmaBridge`) and Claude Code in
+  Termux (`ClaudeBridge`).
   Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
 - `calibraw-ui/src/platform/` decides platform differences once. Everything
   else compiles on every target and branches at run time:

@@ -1,18 +1,14 @@
 package de.duecki.calibraw;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.google.ai.edge.litertlm.Backend;
 import com.google.ai.edge.litertlm.Content;
 import com.google.ai.edge.litertlm.Contents;
 import com.google.ai.edge.litertlm.Conversation;
 import com.google.ai.edge.litertlm.ConversationConfig;
 import com.google.ai.edge.litertlm.Engine;
-import com.google.ai.edge.litertlm.EngineConfig;
-import com.google.ai.edge.litertlm.ExperimentalFlags;
 import com.google.ai.edge.litertlm.JsonConvertersKt;
 import com.google.ai.edge.litertlm.LiteRtLmJniException;
 import com.google.ai.edge.litertlm.Message;
@@ -24,10 +20,7 @@ import com.google.ai.edge.litertlm.ToolCall;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -35,21 +28,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Runs Gemma 4 E4B on the device through LiteRT-LM: the triage of each opened photo and the AI
- * editor's chat about it, while it is the selected {@link AiModel}. Its calls block, except
- * {@link #closeEditor}, which returns at once. The engine is kept for the process until another
- * model is selected, is shared by every activity, and one call uses it at a time.
+ * Gemma 4 E4B on the device, through LiteRT-LM, as the AI editor's model: the triage of each
+ * opened photo and the AI editor's chat about it. There is one for the process
+ * ({@link #shared}): its engine holds gigabytes of GPU memory, so a second could not load, and
+ * selecting Gemma again while it is still being released keeps the engine it has. Its calls
+ * block, except {@link #closeEditor}, which returns at once, and one call uses the engine at a
+ * time.
  */
 final class GemmaBridge implements AiModel {
     private static final String LOG_TAG = "CalibRaw";
-    private static final String MODEL_FILE = "models/gemma-4-E4B-it.litertlm";
-    private static final String TRIAGE_REQUEST = "Triage this photo.";
     // Triage wants a stable card, so sampling stays close to greedy.
     private static final SamplerConfig TRIAGE_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
     // A triage normally takes about ten seconds.
@@ -60,67 +53,45 @@ final class GemmaBridge implements AiModel {
     private static final SamplerConfig EDITOR_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
     // An editor turn normally takes a few seconds.
     private static final long EDITOR_TURN_TIMEOUT_SECONDS = 120;
-    // Tokens a conversation holds. A phase of an editor request took up to 2,447 (its system
-    // prompt, a preview per message). LiteRT-LM's GPU backend reserves the whole context in every
-    // layer, sliding-window ones included (LiteRT-LM #4096), so the reservation grows with this:
-    // 16384 ran the phone out of memory after a triage, and 8192 left it swapping.
-    private static final int MAX_NUM_TOKENS = 4096;
-
-    // Guarded by GemmaBridge.class.
-    private static Engine engine;
-    // The next triage's conversation, made ahead of time since making one takes seconds. A
-    // conversation keeps its history, so each triage takes this one and a new one is made after.
-    // Guarded by GemmaBridge.class.
-    private static Conversation nextTriage;
-    // The editor's system prompt, already read by Gemma, by prompt. It names no photo, so it is
-    // kept for the process, and opening a photo costs only its triage.
-    // Each request runs on a clone of its prompt's: a clone took milliseconds, while a new
-    // conversation's first prefill took 16-23 s after the process's first one. Guarded by
-    // GemmaBridge.class.
-    private static final Map<String, Conversation> editorBases = new LinkedHashMap<>();
-    // Base conversations kept; each reserves MAX_NUM_TOKENS. A request runs on one prompt.
+    // Base conversations kept; each reserves the engine's whole context. A request runs on one
+    // prompt.
     private static final int MAX_EDITOR_BASES = 1;
-    // The running request's conversation, or null. Written under GemmaBridge.class; volatile so
-    // closeEditor can cancel its running turn without waiting for that lock.
-    private static volatile Conversation editor;
-    // Whether Gemma is the selected model, so background preparations do not load the engine
-    // again after release.
-    private static volatile boolean active;
 
-    // For the evals (research/gemma-evals) only: the phone's log quota drops most of the app's
-    // lines while LiteRT logs, so each triage card and the editor's messages, replies and request
-    // ends are appended to files/gemma-trace.txt, in a debuggable build and only while
-    // files/gemma-trace.on exists, which the evals create for their run. A release build never
-    // traces. The app adds what each request set (app/ai/editor/chat.rs) while the same switch
-    // exists, which only run-as, and so only a debuggable build, can make. Null when the build is
-    // not debuggable.
-    private static volatile File traceFile;
-    private static final String TRACE_SWITCH = "gemma-trace.on";
+    // Guarded by GemmaBridge.class.
+    private static GemmaBridge shared;
 
     private final Context context;
+    private final GemmaTrace trace;
+    // Guarded by this.
+    private Engine engine;
+    // The next triage's conversation, made ahead of time since making one takes seconds. A
+    // conversation keeps its history, so each triage takes this one and a new one is made after.
+    // Guarded by this.
+    private Conversation nextTriage;
+    // The editor's system prompt, already read by Gemma, by prompt. It names no photo, so it is
+    // kept while Gemma is selected, and opening a photo costs only its triage.
+    // Each request runs on a clone of its prompt's: a clone took milliseconds, while a new
+    // conversation's first prefill took 16-23 s after the process's first one. Guarded by this.
+    private final Map<String, Conversation> editorBases = new LinkedHashMap<>();
+    // The running request's conversation, or null. Written under this; volatile so closeEditor
+    // can cancel its running turn without waiting for that lock.
+    private volatile Conversation editor;
+    // Whether Gemma is the selected model, so background preparations do not load the engine
+    // again after release.
+    private volatile boolean active;
 
-    GemmaBridge(Context context) {
-        this.context = context.getApplicationContext();
-        boolean debuggable =
-                (this.context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        traceFile = debuggable ? new File(this.context.getFilesDir(), "gemma-trace.txt") : null;
+    private GemmaBridge(Context context) {
+        this.context = context;
+        this.trace = new GemmaTrace(context);
     }
 
-    private static void trace(String line) {
-        File file = traceFile;
-        if (file == null || !new File(file.getParentFile(), TRACE_SWITCH).isFile()) {
-            return;
+    /** The process's Gemma. */
+    static synchronized GemmaBridge shared(Context context) {
+        if (shared == null) {
+            shared = new GemmaBridge(context.getApplicationContext());
         }
-        synchronized (TRACE_LOCK) {
-            try (PrintWriter out = new PrintWriter(new FileWriter(file, true))) {
-                out.println(SystemClock.elapsedRealtime() + " " + line.replace('\n', '|'));
-            } catch (IOException error) {
-                Log.w(LOG_TAG, "Could not write the Gemma trace", error);
-            }
-        }
+        return shared;
     }
-
-    private static final Object TRACE_LOCK = new Object();
 
     /**
      * Loads the engine and the first triage's conversation on a background thread, so the first
@@ -142,7 +113,7 @@ final class GemmaBridge implements AiModel {
         active = false;
         closeEditor();
         Thread releaser = new Thread(() -> {
-            synchronized (GemmaBridge.class) {
+            synchronized (this) {
                 // Selected again meanwhile.
                 if (active) {
                     return;
@@ -177,108 +148,69 @@ final class GemmaBridge implements AiModel {
 
     /**
      * Returns the triage card for the JPEG at {@code imagePath} as JSON, shaped by
-     * assets/gemma/triage_schema.json. {@code hint} is the photographer's own genre, or empty.
-     *
-     * <p>The card's genre and emoji come first and are reported through
-     * {@link AiModels#reportTriageHeadline} as soon as Gemma has written them, tagged with
-     * {@code requestId} and with the emoji drawn in a {@code badgePx} square; the rest of the
-     * card takes several seconds more.
+     * assets/gemma/triage_schema.json. The card's genre and emoji come first and go to
+     * {@code headline} as soon as Gemma has written them; the rest of the card takes several
+     * seconds more.
      */
     @Override
-    public String triage(String imagePath, String hint, long requestId, int badgePx)
+    public String triage(String imagePath, String hint, HeadlineListener headline)
             throws Exception {
         try {
-            synchronized (GemmaBridge.class) {
-                return triageLocked(imagePath, hint, requestId, badgePx);
+            synchronized (this) {
+                return triageLocked(imagePath, hint, headline);
             }
         } finally {
             prepareTriageInBackground("Gemma triage preparation");
         }
     }
 
-    private String triageLocked(String imagePath, String hint, long requestId, int badgePx)
+    // Caller holds this.
+    private String triageLocked(String imagePath, String hint, HeadlineListener headline)
             throws Exception {
         checkActive();
-        String request = hint == null || hint.isEmpty()
-                ? TRIAGE_REQUEST
-                : TRIAGE_REQUEST + " The photographer says the genre is: " + hint + ".";
+        String request = AiModel.triageRequest(hint);
+        String schema = Assets.text(context, "gemma/triage_schema.json");
         long started = SystemClock.elapsedRealtime();
-        Conversation conversation = nextTriage != null ? nextTriage : createTriage(context);
+        Conversation conversation = nextTriage != null ? nextTriage : createTriage();
         nextTriage = null;
         try (conversation) {
             Log.i(LOG_TAG, "Gemma triage conversation ready in "
                     + (SystemClock.elapsedRealtime() - started) + " ms");
-            StringBuilder card = new StringBuilder();
-            AtomicBoolean headlineReported = new AtomicBoolean();
-            AtomicReference<Throwable> failure = new AtomicReference<>();
-            CountDownLatch finished = new CountDownLatch(1);
-            conversation.sendMessageAsync(
-                    Contents.Companion.of(
-                            new Content.ImageFile(imagePath), new Content.Text(request)),
-                    new MessageCallback() {
-                        @Override
-                        public void onMessage(Message message) {
-                            String text;
-                            // Each message is the next piece of the card.
-                            synchronized (card) {
-                                text = card.append(message.toString()).toString();
-                            }
-                            if (headlineReported.get()) {
-                                return;
-                            }
-                            String genre = AiModels.completeField(text, AiModels.GENRE_FIELD);
-                            String emoji = AiModels.completeField(text, AiModels.EMOJI_FIELD);
-                            if (genre != null && emoji != null
-                                    && headlineReported.compareAndSet(false, true)) {
-                                Log.i(LOG_TAG, "Gemma triage headline after "
-                                        + (SystemClock.elapsedRealtime() - started) + " ms");
-                                AiModels.reportTriageHeadline(requestId, genre, emoji, badgePx);
-                            }
-                        }
-
-                        @Override
-                        public void onDone() {
-                            finished.countDown();
-                        }
-
-                        @Override
-                        public void onError(Throwable error) {
-                            failure.set(error);
-                            finished.countDown();
-                        }
-                    },
-                    Collections.emptyMap(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    ResponseFormat.json(AiModels.asset(context, "gemma/triage_schema.json")));
-            if (!finished.await(TRIAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                conversation.cancelProcess();
-                throw new IOException(
-                        "Gemma triage did not finish in " + TRIAGE_TIMEOUT_SECONDS + " s");
+            TriageCardStream card = new TriageCardStream("Gemma", started, headline);
+            Throwable failure = awaitReply(
+                    conversation,
+                    callback -> conversation.sendMessageAsync(
+                            Contents.Companion.of(
+                                    new Content.ImageFile(imagePath), new Content.Text(request)),
+                            callback,
+                            Collections.emptyMap(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            ResponseFormat.json(schema)),
+                    // Each message is the next piece of the card.
+                    message -> card.append(message.toString()),
+                    TRIAGE_TIMEOUT_SECONDS,
+                    "Gemma triage did not finish in " + TRIAGE_TIMEOUT_SECONDS + " s");
+            if (failure != null) {
+                throw new IOException("Gemma triage failed", failure);
             }
-            if (failure.get() != null) {
-                throw new IOException("Gemma triage failed", failure.get());
-            }
-            String text;
-            synchronized (card) {
-                text = card.toString();
-            }
+            String text = card.text();
             Log.i(LOG_TAG, "Gemma triage took " + (SystemClock.elapsedRealtime() - started)
                     + " ms: " + text);
-            trace("TRIAGE " + (SystemClock.elapsedRealtime() - started) + " ms " + text);
+            trace.write("TRIAGE " + (SystemClock.elapsedRealtime() - started) + " ms " + text);
             Log.i(LOG_TAG, "Gemma triage benchmark: " + conversation.getBenchmarkInfo());
             return text;
         }
     }
 
     /**
-     * Fails a call that waited for GemmaBridge.class while another model was selected, so it does
-     * not load the engine again after release. Caller holds GemmaBridge.class.
+     * Fails a call that waited for this while another model was selected, so it does not load
+     * the engine again after release. Caller holds this.
      */
-    private static void checkActive() throws IOException {
+    private void checkActive() throws IOException {
         if (!active) {
             throw new IOException("Gemma is no longer the selected AI model");
         }
@@ -287,9 +219,9 @@ final class GemmaBridge implements AiModel {
     private void prepareTriageInBackground(String threadName) {
         Thread preparer = new Thread(() -> {
             try {
-                synchronized (GemmaBridge.class) {
+                synchronized (this) {
                     if (active && nextTriage == null) {
-                        nextTriage = createTriage(context);
+                        nextTriage = createTriage();
                     }
                 }
             } catch (Exception error) {
@@ -300,12 +232,12 @@ final class GemmaBridge implements AiModel {
         preparer.start();
     }
 
-    // Caller holds GemmaBridge.class.
-    private static Conversation createTriage(Context context) throws IOException {
-        Engine loaded = engine(context);
+    // Caller holds this.
+    private Conversation createTriage() throws IOException {
+        Engine loaded = engine();
         long started = SystemClock.elapsedRealtime();
         Conversation conversation = loaded.createConversation(new ConversationConfig(
-                Contents.Companion.of(AiModels.asset(context, "gemma/triage_system.md")),
+                Contents.Companion.of(Assets.text(context, "gemma/triage_system.md")),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 TRIAGE_SAMPLER,
@@ -331,9 +263,9 @@ final class GemmaBridge implements AiModel {
     public void prepareEditor(String systemPrompt) {
         Thread preparer = new Thread(() -> {
             try {
-                synchronized (GemmaBridge.class) {
+                synchronized (this) {
                     if (active) {
-                        editorBase(context, systemPrompt);
+                        editorBase(systemPrompt);
                     }
                 }
             } catch (Exception error) {
@@ -349,26 +281,23 @@ final class GemmaBridge implements AiModel {
      * the earlier request's. Blocks while Gemma reads a prompt it has not read yet.
      */
     @Override
-    public void startEditorRequest(String systemPrompt) throws Exception {
-        synchronized (GemmaBridge.class) {
-            Conversation previous = editor;
-            editor = null;
-            if (previous != null) {
-                previous.close();
-            }
-            checkActive();
-            Conversation base = editorBase(context, systemPrompt);
-            long started = SystemClock.elapsedRealtime();
-            editor = base.clone();
-            Log.i(LOG_TAG, "Gemma editor request conversation cloned in "
-                    + (SystemClock.elapsedRealtime() - started) + " ms");
-            trace("PHASE " + systemPrompt.substring(0, Math.min(60, systemPrompt.length())));
+    public synchronized void startEditorRequest(String systemPrompt) throws Exception {
+        Conversation previous = editor;
+        editor = null;
+        if (previous != null) {
+            previous.close();
         }
+        checkActive();
+        Conversation base = editorBase(systemPrompt);
+        long started = SystemClock.elapsedRealtime();
+        editor = base.clone();
+        Log.i(LOG_TAG, "Gemma editor request conversation cloned in "
+                + (SystemClock.elapsedRealtime() - started) + " ms");
+        trace.write("PHASE " + systemPrompt.substring(0, Math.min(60, systemPrompt.length())));
     }
 
-    // Caller holds GemmaBridge.class.
-    private static Conversation editorBase(Context context, String systemPrompt)
-            throws IOException {
+    // Caller holds this.
+    private Conversation editorBase(String systemPrompt) throws IOException {
         Conversation known = editorBases.get(systemPrompt);
         if (known != null) {
             return known;
@@ -378,7 +307,7 @@ final class GemmaBridge implements AiModel {
             String oldest = editorBases.keySet().iterator().next();
             editorBases.remove(oldest).close();
         }
-        Engine loaded = engine(context);
+        Engine loaded = engine();
         long started = SystemClock.elapsedRealtime();
         // No tools are declared: Gemma writes a brief, which the app reads into tool calls
         // (app/ai/editor/brief.rs). The preface is read now, not at the first request.
@@ -402,30 +331,24 @@ final class GemmaBridge implements AiModel {
     }
 
     /**
-     * Sends the photographer's turn, {@code text} after the JPEG in {@code imagePaths}, one path
-     * per line or empty for none, and returns Gemma's reply as
+     * Sends the photographer's turn, {@code text} after the JPEG in {@code imagePaths}, and
+     * returns Gemma's reply as
      * {@code {"text": ..., "tool_calls": [{"name": ..., "arguments": {...}}]}}, the calls being
      * those Gemma wrote in its own call syntax that LiteRT-LM parsed. Gemma takes one JPEG at
-     * most. The reply's text also streams through {@link AiModels#reportEditorText}, tagged with
-     * {@code requestId}.
+     * most. The reply's text also goes to {@code replyText} while Gemma writes it.
      */
     @Override
-    public String editorSend(long requestId, String text, String imagePaths) throws Exception {
-        List<String> paths = new ArrayList<>();
-        for (String path : imagePaths == null ? new String[0] : imagePaths.split("\n")) {
-            if (!path.isEmpty()) {
-                paths.add(path);
-            }
+    public String editorSend(String text, List<String> imagePaths, TextListener replyText)
+            throws Exception {
+        if (imagePaths.size() > 1) {
+            throw new IOException("Gemma takes one image per message, not " + imagePaths.size());
         }
-        if (paths.size() > 1) {
-            throw new IOException("Gemma takes one image per message, not " + paths.size());
-        }
-        Contents contents = paths.isEmpty()
+        Contents contents = imagePaths.isEmpty()
                 ? Contents.Companion.of(text)
                 : Contents.Companion.of(
-                        new Content.ImageFile(paths.get(0)), new Content.Text(text));
-        trace("SEND " + text);
-        return editorTurn(requestId, Message.Companion.user(contents));
+                        new Content.ImageFile(imagePaths.get(0)), new Content.Text(text));
+        trace.write("SEND " + text);
+        return editorTurn(Message.Companion.user(contents), replyText);
     }
 
     /**
@@ -436,7 +359,7 @@ final class GemmaBridge implements AiModel {
      */
     @Override
     public void closeEditor() {
-        trace("CLOSE");
+        trace.write("CLOSE");
         Conversation closing = editor;
         if (closing != null) {
             try {
@@ -446,7 +369,7 @@ final class GemmaBridge implements AiModel {
             }
         }
         Thread closer = new Thread(() -> {
-            synchronized (GemmaBridge.class) {
+            synchronized (this) {
                 // A request started meanwhile is not this one and stays open.
                 if (closing != null && editor == closing) {
                     editor = null;
@@ -458,98 +381,122 @@ final class GemmaBridge implements AiModel {
         closer.start();
     }
 
-    private String editorTurn(long requestId, Message message) throws Exception {
-        synchronized (GemmaBridge.class) {
-            checkActive();
-            Conversation conversation = editor;
-            if (conversation == null) {
-                throw new IOException("The AI editor chat is closed");
-            }
-            long started = SystemClock.elapsedRealtime();
-            StringBuilder reply = new StringBuilder();
-            List<ToolCall> toolCalls = Collections.synchronizedList(new ArrayList<>());
-            AtomicReference<Throwable> failure = new AtomicReference<>();
-            CountDownLatch finished = new CountDownLatch(1);
-            conversation.sendMessageAsync(
-                    message,
-                    new MessageCallback() {
-                        @Override
-                        public void onMessage(Message message) {
-                            // Text arrives in pieces; tool calls arrive whole.
-                            toolCalls.addAll(message.getToolCalls());
-                            String text = message.toString();
-                            if (text.isEmpty()) {
-                                return;
-                            }
-                            synchronized (reply) {
-                                reply.append(text);
-                            }
-                            AiModels.reportEditorText(requestId, text);
-                        }
-
-                        @Override
-                        public void onDone() {
-                            finished.countDown();
-                        }
-
-                        @Override
-                        public void onError(Throwable error) {
-                            failure.set(error);
-                            finished.countDown();
-                        }
-                    },
-                    Collections.emptyMap(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null);
-            if (!finished.await(EDITOR_TURN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                conversation.cancelProcess();
-                throw new IOException(
-                        "Gemma did not reply in " + EDITOR_TURN_TIMEOUT_SECONDS + " s");
-            }
-            if (failure.get() != null) {
-                Log.w(LOG_TAG, "Gemma editor turn failed after "
-                        + conversation.getTokenCount() + " tokens", failure.get());
-                trace("FAILED " + failure.get());
-                String unreadable = unreadableToolCall(failure.get());
-                if (unreadable == null) {
-                    throw new IOException(
-                            "Gemma could not reply: " + failure.get(), failure.get());
-                }
-                // Gemma wrote its own call syntax and LiteRT-LM could not parse it, such as a
-                // call with a brace too many; the caller reads it from the text as it reads
-                // the calls it asked for (calls.rs).
-                synchronized (reply) {
-                    reply.append('\n').append(unreadable);
-                }
-            }
-            // Gson, not org.json: argument numbers arrive as Gson's LazilyParsedNumber, which
-            // Android's JSONObject writes as null.
-            JsonArray calls = new JsonArray();
-            synchronized (toolCalls) {
-                for (ToolCall call : toolCalls) {
-                    JsonObject json = new JsonObject();
-                    json.addProperty("name", call.getName());
-                    json.add("arguments", JsonConvertersKt.toJsonObject(call.getArguments()));
-                    calls.add(json);
-                }
-            }
-            JsonObject json = new JsonObject();
-            synchronized (reply) {
-                json.addProperty("text", reply.toString());
-            }
-            json.add("tool_calls", calls);
-            String result = json.toString();
-            Log.i(LOG_TAG, "Gemma editor turn took " + (SystemClock.elapsedRealtime() - started)
-                    + " ms, " + conversation.getTokenCount() + " tokens: " + result);
-            trace("REPLY " + (SystemClock.elapsedRealtime() - started) + " ms "
-                    + conversation.getTokenCount() + " tok " + result);
-            Log.i(LOG_TAG, "Gemma editor benchmark: " + conversation.getBenchmarkInfo());
-            return result;
+    private synchronized String editorTurn(Message message, TextListener replyText)
+            throws Exception {
+        checkActive();
+        Conversation conversation = editor;
+        if (conversation == null) {
+            throw new IOException("The AI editor chat is closed");
         }
+        long started = SystemClock.elapsedRealtime();
+        StringBuilder reply = new StringBuilder();
+        List<ToolCall> toolCalls = Collections.synchronizedList(new ArrayList<>());
+        Throwable failure = awaitReply(
+                conversation,
+                callback -> conversation.sendMessageAsync(
+                        message,
+                        callback,
+                        Collections.emptyMap(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null),
+                piece -> {
+                    // Text arrives in pieces; tool calls arrive whole.
+                    toolCalls.addAll(piece.getToolCalls());
+                    String text = piece.toString();
+                    if (text.isEmpty()) {
+                        return;
+                    }
+                    synchronized (reply) {
+                        reply.append(text);
+                    }
+                    replyText.onText(text);
+                },
+                EDITOR_TURN_TIMEOUT_SECONDS,
+                "Gemma did not reply in " + EDITOR_TURN_TIMEOUT_SECONDS + " s");
+        if (failure != null) {
+            Log.w(LOG_TAG, "Gemma editor turn failed after "
+                    + conversation.getTokenCount() + " tokens", failure);
+            trace.write("FAILED " + failure);
+            String unreadable = unreadableToolCall(failure);
+            if (unreadable == null) {
+                throw new IOException("Gemma could not reply: " + failure, failure);
+            }
+            // Gemma wrote its own call syntax and LiteRT-LM could not parse it, such as a call
+            // with a brace too many; the caller reads it from the text as it reads the calls it
+            // asked for (calls.rs).
+            synchronized (reply) {
+                reply.append('\n').append(unreadable);
+            }
+        }
+        // Gson, not org.json: argument numbers arrive as Gson's LazilyParsedNumber, which
+        // Android's JSONObject writes as null.
+        JsonArray calls = new JsonArray();
+        synchronized (toolCalls) {
+            for (ToolCall call : toolCalls) {
+                JsonObject json = new JsonObject();
+                json.addProperty("name", call.getName());
+                json.add("arguments", JsonConvertersKt.toJsonObject(call.getArguments()));
+                calls.add(json);
+            }
+        }
+        JsonObject json = new JsonObject();
+        synchronized (reply) {
+            json.addProperty("text", reply.toString());
+        }
+        json.add("tool_calls", calls);
+        String result = json.toString();
+        Log.i(LOG_TAG, "Gemma editor turn took " + (SystemClock.elapsedRealtime() - started)
+                + " ms, " + conversation.getTokenCount() + " tokens: " + result);
+        trace.write("REPLY " + (SystemClock.elapsedRealtime() - started) + " ms "
+                + conversation.getTokenCount() + " tok " + result);
+        Log.i(LOG_TAG, "Gemma editor benchmark: " + conversation.getBenchmarkInfo());
+        return result;
+    }
+
+    /** Sends a message to a conversation, given the callback that hears its reply. */
+    private interface Sender {
+        void send(MessageCallback callback);
+    }
+
+    /**
+     * Sends a message with {@code send} and waits for the reply, passing each message it writes
+     * to {@code onMessage}. Returns the reply's failure, or null; when the reply does not finish
+     * in {@code timeoutSeconds}, cancels it and throws {@code timeoutMessage}.
+     */
+    private static Throwable awaitReply(
+            Conversation conversation,
+            Sender send,
+            Consumer<Message> onMessage,
+            long timeoutSeconds,
+            String timeoutMessage) throws IOException, InterruptedException {
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        send.send(new MessageCallback() {
+            @Override
+            public void onMessage(Message message) {
+                onMessage.accept(message);
+            }
+
+            @Override
+            public void onDone() {
+                finished.countDown();
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                failure.set(error);
+                finished.countDown();
+            }
+        });
+        if (!finished.await(timeoutSeconds, TimeUnit.SECONDS)) {
+            conversation.cancelProcess();
+            throw new IOException(timeoutMessage);
+        }
+        return failure.get();
     }
 
     /**
@@ -567,46 +514,11 @@ final class GemmaBridge implements AiModel {
         return response.find() ? response.group(1).trim() : "";
     }
 
-    private static synchronized Engine engine(Context context) throws IOException {
-        if (engine != null) {
-            return engine;
+    // Caller holds this.
+    private Engine engine() throws IOException {
+        if (engine == null) {
+            engine = GemmaEngine.load(context);
         }
-        File model = new File(mediaRoot(context), MODEL_FILE);
-        if (!model.isFile()) {
-            throw new IOException("Gemma model not found at " + model);
-        }
-        // The GPU program cache is slow to rebuild, so it lives in files, not cache.
-        File cacheDir = new File(context.getFilesDir(), "litertlm-cache");
-        if (!cacheDir.isDirectory() && !cacheDir.mkdirs()) {
-            throw new IOException("Could not create " + cacheDir);
-        }
-        long started = SystemClock.elapsedRealtime();
-        // Reports prefill and decode speed for the triage log.
-        ExperimentalFlags.INSTANCE.setEnableBenchmark(true);
-        Engine created = new Engine(new EngineConfig(
-                model.getAbsolutePath(),
-                new Backend.GPU(),
-                new Backend.GPU(),
-                null,
-                MAX_NUM_TOKENS,
-                null,
-                cacheDir.getAbsolutePath()));
-        created.initialize();
-        Log.i(LOG_TAG, "Gemma engine loaded in " + (SystemClock.elapsedRealtime() - started)
-                + " ms");
-        engine = created;
-        return created;
-    }
-
-    private static File mediaRoot(Context context) throws IOException {
-        File[] mediaDirectories = context.getExternalMediaDirs();
-        if (mediaDirectories != null) {
-            for (File directory : mediaDirectories) {
-                if (directory != null) {
-                    return directory;
-                }
-            }
-        }
-        throw new IOException("Android shared media storage is unavailable");
+        return engine;
     }
 }

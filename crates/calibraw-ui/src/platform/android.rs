@@ -607,7 +607,7 @@ impl Platform for AndroidPlatform {
         model: AiEditorModel,
         claude_model: &ClaudeModel,
     ) -> Result<(), String> {
-        // The names AiModels.select knows.
+        // The names AiModelRouter.Kind knows.
         let name = match model {
             AiEditorModel::Gemma => "gemma",
             AiEditorModel::ClaudeCode => "claude",
@@ -616,7 +616,7 @@ impl Platform for AndroidPlatform {
     }
 
     fn claude_code_status(&self) -> Result<ClaudeCodeStatus, String> {
-        // ClaudeBridge's status codes.
+        // ClaudeSetup.Status's codes.
         let code = calibraw_ffi::claude_code_status(&self.app)?;
         Ok(match code.as_str() {
             "no_termux" => ClaudeCodeStatus::NoTermux,
@@ -631,7 +631,7 @@ impl Platform for AndroidPlatform {
     }
 
     fn claude_code_setup(&self, step: ClaudeCodeSetup) -> Result<(), String> {
-        // The steps ClaudeBridge.setup knows.
+        // The steps ClaudeSetup.Step knows.
         let step = match step {
             ClaudeCodeSetup::Permission => "permission",
             ClaudeCodeSetup::Install => "install",

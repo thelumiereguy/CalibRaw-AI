@@ -1,263 +1,126 @@
 package de.duecki.calibraw;
 
 import android.app.Activity;
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
 import android.util.Log;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * The AI editor's model, as Rust reaches it: forwards each call to the model the photographer
- * selected in Settings ({@link #select}), and reports what a model writes while it writes it.
- * Rust calls the public methods synchronously from its worker threads. The selection is kept for
- * the process, as the models keep what they load.
+ * The AI editor's Java side as Rust calls it, through CalibRawActivity's aiModels field
+ * (crates/calibraw-ffi/src/android/ai_models.rs): each method hands the call to the class that
+ * owns it, and the native callbacks report what a model writes while it writes it. Rust calls
+ * these synchronously from its worker threads, so they keep its JNI names and signatures.
  */
 final class AiModels {
     private static final String LOG_TAG = "CalibRaw";
-    // The names Rust selects a model by (AiEditorModel in platform/service.rs).
-    private static final String GEMMA = "gemma";
-    private static final String CLAUDE = "claude";
-    // A string field of the triage card once its closing quote is written.
-    static final Pattern GENRE_FIELD =
-            Pattern.compile("\"genre\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-    static final Pattern EMOJI_FIELD =
-            Pattern.compile("\"emoji\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-
-    // Guarded by AiModels.class.
-    private static String selectedName;
-    // The Claude model the selected ClaudeBridge runs, or null with Gemma. Guarded by
-    // AiModels.class.
-    private static String selectedClaudeModel;
-    // Written under AiModels.class; volatile so a call reads it without waiting for a selection.
-    private static volatile AiModel selected;
-    // Whether Develop shows, so a model selected meanwhile is told. Guarded by AiModels.class.
-    private static boolean editorShown;
 
     private final Activity activity;
+    private final AiModelRouter router;
 
     AiModels(Activity activity) {
         this.activity = activity;
+        this.router = AiModelRouter.shared(activity);
     }
 
-    /**
-     * Makes {@code name}, "gemma" or "claude", the model every later call goes to, Claude Code
-     * running {@code claudeModel} (its --model value), releasing the one selected before and
-     * activating the new one in the background. Gemma ignores {@code claudeModel}; another Claude
-     * model replaces Claude Code's bridge, so no conversation started ahead of time keeps the
-     * model before. Returns at once.
-     */
+    /** Selects the model Rust names "gemma" or "claude" ({@link AiModelRouter#select}). */
     public void select(String name, String claudeModel) {
-        synchronized (AiModels.class) {
-            boolean claude = CLAUDE.equals(name);
-            if (name.equals(selectedName)
-                    && (!claude || claudeModel.equals(selectedClaudeModel))) {
-                return;
-            }
-            AiModel model;
-            if (GEMMA.equals(name)) {
-                model = new GemmaBridge(activity);
-            } else if (claude) {
-                model = new ClaudeBridge(activity, claudeModel);
-            } else {
-                Log.w(LOG_TAG, "Unknown AI model " + name);
-                return;
-            }
-            AiModel previous = selected;
-            selected = model;
-            selectedName = name;
-            selectedClaudeModel = claude ? claudeModel : null;
-            if (previous != null) {
-                previous.release();
-            }
-            model.activate();
-            if (editorShown) {
-                model.editorShown(true);
-            }
-            Log.i(LOG_TAG, "AI model selected: " + name + (claude ? " " + claudeModel : ""));
+        AiModelRouter.Kind kind = AiModelRouter.Kind.named(name);
+        if (kind == null) {
+            Log.w(LOG_TAG, "Unknown AI model " + name);
+            return;
         }
+        router.select(kind, claudeModel);
     }
 
-    /**
-     * Tells the selected model, and any selected later, whether Develop shows: Claude Code starts
-     * its conversations when it does and ends every one when it no longer does. Returns at once.
-     */
     public void editorShown(boolean shown) {
-        synchronized (AiModels.class) {
-            editorShown = shown;
-            AiModel model = selected;
-            if (model != null) {
-                model.editorShown(shown);
-            }
-        }
+        router.editorShown(shown);
     }
 
-    /**
-     * Has Termux end the Claude Code processes that earlier runs of the app left behind
-     * (ClaudeBridge.endEarlierSessions). Returns at once.
-     */
+    /** Has Termux end the Claude Code processes earlier runs of the app left behind. */
     public void endStrayClaudeProcesses() {
-        ClaudeBridge.endEarlierSessions(activity);
+        ClaudeSession.endEarlierRuns(activity);
     }
 
     /**
-     * Releases the selected model and forgets the selection, ending Claude Code's conversations
-     * and their processes, once the activity has finished: winit cannot start again in this
-     * process (CalibRawActivity.handleBack), so nothing would use them. Returns at once.
+     * Releases the selected model once the activity has finished: winit cannot start again in
+     * this process (CalibRawActivity.handleBack), so nothing would use it. Returns at once.
      */
     void releaseOnFinish() {
-        synchronized (AiModels.class) {
-            AiModel previous = selected;
-            selected = null;
-            selectedName = null;
-            selectedClaudeModel = null;
-            editorShown = false;
-            if (previous != null) {
-                previous.release();
-            }
-        }
+        router.releaseAll();
     }
 
+    /**
+     * The triage card for the JPEG at {@code imagePath}; its genre and emoji reach Rust earlier,
+     * tagged with {@code requestId} and with the emoji drawn in a {@code badgePx} square.
+     */
     public String triage(String imagePath, String hint, long requestId, int badgePx)
             throws Exception {
-        return model().triage(imagePath, hint, requestId, badgePx);
+        return router.model().triage(imagePath, hint, (genre, emoji) -> nativeOnTriageHeadline(
+                requestId, genre, emoji, EmojiRenderer.draw(emoji, badgePx)));
     }
 
     public void prepareEditor(String systemPrompt) throws IOException {
-        model().prepareEditor(systemPrompt);
+        router.model().prepareEditor(systemPrompt);
     }
 
     public void startEditorRequest(String systemPrompt) throws Exception {
-        model().startEditorRequest(systemPrompt);
+        router.model().startEditorRequest(systemPrompt);
     }
 
+    /**
+     * Sends {@code text} after the JPEGs at {@code imagePaths}, one path per line or empty for
+     * none; the reply's text reaches Rust while it is written, tagged with {@code requestId}.
+     */
     public String editorSend(long requestId, String text, String imagePaths) throws Exception {
-        return model().editorSend(requestId, text, imagePaths);
+        return router.model().editorSend(
+                text, lines(imagePaths), piece -> nativeOnEditorText(requestId, piece));
     }
 
     public void closeEditor() {
-        AiModel model = selected;
-        if (model != null) {
-            model.closeEditor();
-        }
+        router.closeEditor();
     }
 
     /**
-     * How far Claude Code in Termux is set up, as one of {@link ClaudeBridge}'s status codes.
-     * Blocks for up to a minute while Termux starts, so Rust runs it on a worker.
+     * How far Claude Code in Termux is set up, as a {@link ClaudeSetup.Status} code. Blocks for up
+     * to a minute while Termux starts, so Rust runs it on a worker.
      */
     public String claudeStatus() {
-        return ClaudeBridge.status(activity);
+        return ClaudeSetup.status(activity).code();
     }
 
-    /** Runs the setup {@code step} Settings offers for Claude Code (ClaudeBridge.setup). */
+    /** Runs the setup step Rust names "permission", "install" or "sign_in". */
     public void claudeSetup(String step) throws Exception {
-        ClaudeBridge.setup(activity, step);
+        ClaudeSetup.Step named = ClaudeSetup.Step.named(step);
+        if (named == null) {
+            throw new IOException("Unknown Claude Code setup step " + step);
+        }
+        ClaudeSetup.run(activity, named);
     }
 
-    /**
-     * Whether the default network reaches the internet, as Android validated it. Claude Code needs
-     * it; Gemma does not. Returns at once.
-     */
+    /** Whether the default network reaches the internet. Claude Code needs it; Gemma does not. */
     public boolean online() {
-        ConnectivityManager connectivity = activity.getSystemService(ConnectivityManager.class);
-        if (connectivity == null) {
-            return false;
-        }
-        NetworkCapabilities capabilities =
-                connectivity.getNetworkCapabilities(connectivity.getActiveNetwork());
-        return capabilities != null
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        return Connectivity.online(activity);
     }
 
-    /**
-     * Draws {@code emoji} centred in a {@code sizePx} square with the system's colour emoji font,
-     * as premultiplied RGBA rows. Returns an empty array when the font has no glyph for it.
-     */
     public byte[] renderEmoji(String emoji, int sizePx) {
-        return drawEmoji(emoji, sizePx);
+        return EmojiRenderer.draw(emoji, sizePx);
     }
 
-    private static AiModel model() throws IOException {
-        AiModel model = selected;
-        if (model == null) {
-            throw new IOException("No AI model is selected");
+    /** The non-empty lines of {@code text}, or none when it is null. */
+    private static List<String> lines(String text) {
+        List<String> lines = new ArrayList<>();
+        for (String line : text == null ? new String[0] : text.split("\n")) {
+            if (!line.isEmpty()) {
+                lines.add(line);
+            }
         }
-        return model;
-    }
-
-    /**
-     * Reports a triage's genre and emoji, with the emoji drawn in a {@code badgePx} square, before
-     * its card is done.
-     */
-    static void reportTriageHeadline(long requestId, String genre, String emoji, int badgePx) {
-        nativeOnTriageHeadline(requestId, genre, emoji, drawEmoji(emoji, badgePx));
-    }
-
-    /** Reports the next piece of an editor reply's text while the model writes it. */
-    static void reportEditorText(long requestId, String text) {
-        nativeOnEditorText(requestId, text);
+        return lines;
     }
 
     private static native void nativeOnTriageHeadline(
             long requestId, String genre, String emoji, byte[] badge);
 
     private static native void nativeOnEditorText(long requestId, String text);
-
-    /** The value of a string field the partial triage card {@code text} has finished, or null. */
-    static String completeField(String text, Pattern field) {
-        Matcher match = field.matcher(text);
-        if (!match.find()) {
-            return null;
-        }
-        try {
-            // The match keeps its JSON escapes; decoding them as a JSON string undoes them.
-            return new JSONObject("{\"v\":\"" + match.group(1) + "\"}").getString("v");
-        } catch (JSONException error) {
-            return null;
-        }
-    }
-
-    private static byte[] drawEmoji(String emoji, int sizePx) {
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        if (emoji == null || emoji.isEmpty() || sizePx <= 0 || !paint.hasGlyph(emoji)) {
-            return new byte[0];
-        }
-        paint.setTextSize(sizePx * 0.8f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics metrics = paint.getFontMetrics();
-        Bitmap bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
-        new Canvas(bitmap).drawText(
-                emoji, sizePx / 2f, sizePx / 2f - (metrics.ascent + metrics.descent) / 2f, paint);
-        // ARGB_8888 stores premultiplied bytes in R, G, B, A order.
-        ByteBuffer pixels = ByteBuffer.allocate(sizePx * sizePx * 4);
-        bitmap.copyPixelsToBuffer(pixels);
-        bitmap.recycle();
-        return pixels.array();
-    }
-
-    static String asset(Context context, String path) throws IOException {
-        try (InputStream input = context.getAssets().open(path)) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            for (int read; (read = input.read(buffer)) != -1; ) {
-                output.write(buffer, 0, read);
-            }
-            return output.toString(StandardCharsets.UTF_8.name());
-        }
-    }
 }

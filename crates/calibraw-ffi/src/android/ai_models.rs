@@ -1,6 +1,7 @@
-//! The AI editor's model through `AiModels`, which forwards each call to the
-//! selected one: on-device Gemma (`GemmaBridge`, LiteRT-LM) or Claude Code in
-//! Termux (`ClaudeBridge`).
+//! The AI editor's Java side through `AiModels`, its JNI facade, which hands
+//! each call to the class that owns it: the selected model (`AiModelRouter`),
+//! on-device Gemma (`GemmaBridge`, LiteRT-LM) or Claude Code in Termux
+//! (`ClaudeBridge`), and Claude Code's setup (`ClaudeSetup`).
 
 use super::*;
 use jni::objects::JByteArray;
@@ -23,7 +24,7 @@ pub fn select_ai_model(app: &AndroidApp, name: &str, claude_model: &str) -> Resu
     .map_err(|error| format!("Could not select the AI model: {error:#}"))
 }
 
-/// How far Claude Code in Termux is set up, as `ClaudeBridge`'s status code.
+/// How far Claude Code in Termux is set up, as a `ClaudeSetup.Status` code.
 /// Blocks while Termux starts, up to about a minute, so run it on a worker.
 pub fn claude_code_status(app: &AndroidApp) -> Result<String, String> {
     with_ai_models(app, |env, ai_models| {

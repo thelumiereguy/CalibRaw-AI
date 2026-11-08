@@ -5,7 +5,9 @@
 //! - `model` — which model it is, chosen in Settings, and Claude Code's setup.
 //! - `triage` — when a photo opens, the model names its genre and fills the
 //!   triage card.
-//! - `chat` — the AI editor's chat, in which the model edits the photo.
+//! - `chat` — the AI editor's chat, in which the model edits the photo. Its
+//!   `protocol` decides where the two models' requests differ:
+//!   `gemma_brief` for Gemma, `claude_conversation` for Claude Code.
 //!
 //! Beneath them, with no app state: `brief` reads the brief Gemma writes for
 //! a request into tool calls, `calls` reads the tool lines Claude writes, and
