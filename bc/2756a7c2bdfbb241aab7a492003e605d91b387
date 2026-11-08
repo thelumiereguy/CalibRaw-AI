@@ -1,0 +1,83 @@
+android/app/src/main/java/de/duecki/calibraw/ClaudeProtocol.java
+  s_8f74af7efeeba8::t_5a980ac0931586 1-82
+crates/calibraw-ui/src/app/ai/editor/chat/gemma_brief.rs
+  s_8f74af7efeeba8::t_9406204a5cab61 159
+  s_8f74af7efeeba8::t_bc323a3689bb95 1-37,40-158,160-171
+  s_8f74af7efeeba8::t_71de8e08d6eff2 38-39
+research/gemma-evals/run.py
+  s_8f74af7efeeba8::t_fa2868c1926a71 15
+android/app/src/main/java/de/duecki/calibraw/Assets.java
+  s_8f74af7efeeba8::t_d333f3ca74c18f 1-22
+android/app/src/main/java/de/duecki/calibraw/AiModels.java
+  s_8f74af7efeeba8::t_f2f6736091bd23 7-8,11-14,20,24,27,29-32,34,38,41,43,47-48,51,54-57,60-61,65,69,72-75,77-78,82,86-87,90,93,95-99,102,104,108,111-117,119
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_28f56653c0e91f 135
+  s_8f74af7efeeba8::t_b85a42c8f36477 89-91
+  s_8f74af7efeeba8::t_5b178025517469 239
+  s_8f74af7efeeba8::t_e72cfca42229a2 253
+  s_8f74af7efeeba8::t_64f6cb2896f701 130
+  s_8f74af7efeeba8::t_6c3fb0f7c79145 138-145
+  s_8f74af7efeeba8::t_575e8074a74684 161-162
+  s_8f74af7efeeba8::t_66d815e84c470d 433-436
+  s_8f74af7efeeba8::t_fdc8be43b8acc6 238
+android/app/src/main/java/de/duecki/calibraw/TriageCardStream.java
+  s_8f74af7efeeba8::t_cb7231d1793238 1-80
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_861788e469e34a 610
+  s_8f74af7efeeba8::t_15a506ea4f7dbb 634
+  s_8f74af7efeeba8::t_9df8fa8446e3f7 619
+android/app/src/main/java/de/duecki/calibraw/Termux.java
+  s_8f74af7efeeba8::t_2baa21d44ccd99 85
+  s_8f74af7efeeba8::t_942313c894bbc7 1-84,86-90
+android/app/src/main/java/de/duecki/calibraw/ClaudeBridge.java
+  s_8f74af7efeeba8::t_2ea8d61d825f9d 11,16-17,20-22,43,45,48,52,98,125,128,131,144,150-160,164,182,209,225,228,245-246,271-273,276-277,279,284-291,297,309,316-317,320,322-323,326-327
+android/app/src/main/java/de/duecki/calibraw/Connectivity.java
+  s_8f74af7efeeba8::t_ea9d2fdfde163c 1-23
+android/app/src/main/java/de/duecki/calibraw/GemmaBridge.java
+  s_8f74af7efeeba8::t_a61e5f655807e7 32,37-42,56-58,61-66,69-70,72,74-78,81,83-85,88-91,93,116,151-153,156,159-160,167-168,171-172,174,179-198,200,203,210-211,213,222,224,235-237,240,266,268,284-288,290-296,299-300,310,334-335,338,341-344,346,349-351,362,372,384-432,434-458,460-463,465-481,483-486,488-492,494-497,499,517-520,522
+crates/calibraw-ffi/src/android/ai_models.rs
+  s_8f74af7efeeba8::t_71cb03baadd877 27
+  s_8f74af7efeeba8::t_4d6eb2dde38f88 1-4
+android/app/src/main/java/de/duecki/calibraw/AiModel.java
+  s_8f74af7efeeba8::t_748dcdfc8919f0 3-4,7-9,12-29,31-32,34-35,44-45,53,55,70-73,75-76
+crates/calibraw-ui/src/app/ai/editor/chat/protocol.rs
+  s_8f74af7efeeba8::t_9976a438f57690 1-101
+android/app/src/main/java/de/duecki/calibraw/GemmaEngine.java
+  s_8f74af7efeeba8::t_2a15a21ff44741 1-66
+crates/calibraw-ui/src/app/ai/editor/chat/claude_conversation.rs
+  s_8f74af7efeeba8::t_49f21b0c3f8336 1-133
+android/app/src/main/java/de/duecki/calibraw/EmojiRenderer.java
+  s_8f74af7efeeba8::t_54bef19a1e1480 1-34
+android/app/src/main/java/de/duecki/calibraw/ClaudeSession.java
+  s_8f74af7efeeba8::t_798ba12863bb3c 1-431
+crates/calibraw-ui/src/app/ai/editor/chat.rs
+  s_8f74af7efeeba8::t_551b2a31547fb8 2,5-6,8-14,18-21,26,28,31-32,39,41,78-81,94-95,153-154,213-217,225,361-362,365-367,380-381,392,423-429,431-432,503,531-532,535,554,571,574,577,593,600,607,631-633
+crates/calibraw-ui/src/app/ai/editor/mod.rs
+  s_8f74af7efeeba8::t_e9b898e1cf2124 8-10
+android/app/src/main/java/de/duecki/calibraw/GemmaTrace.java
+  s_8f74af7efeeba8::t_ecccd9785d2f9f 18
+  s_8f74af7efeeba8::t_141b975b8057f2 19
+  s_8f74af7efeeba8::t_c7471134cf1808 1-17,20-45
+android/app/src/main/java/de/duecki/calibraw/ClaudeSetup.java
+  s_8f74af7efeeba8::t_ac9d252d29bca4 1-139
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_8f74af7efeeba8::t_4435bf250823cf 563-564
+android/app/src/main/java/de/duecki/calibraw/AiModelRouter.java
+  s_8f74af7efeeba8::t_b66ee98c2b2d87 1-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc2756a7c2bdfbb241aab7a492003e605d91b387",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
