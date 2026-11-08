@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import android.content.Context;
 import android.net.ConnectivityManager;

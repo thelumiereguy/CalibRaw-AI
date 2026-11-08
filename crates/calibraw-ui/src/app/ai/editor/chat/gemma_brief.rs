@@ -15,11 +15,11 @@
 //! planned a look and then wrote values that crushed the photo black. The
 //! edit is one nudge, each value anywhere in its range.
 
-use super::super::brief::read_brief;
-use super::super::color::{grading_current, mixer_current};
-use super::super::effects::effect_current;
-use super::super::sliders::slider_value;
+use super::super::tools::color::{grading_current, mixer_current};
+use super::super::tools::effects::effect_current;
+use super::super::tools::sliders::slider_value;
 use super::super::tools::{change_tool, previous_value, record_changes, result_line, routed};
+use super::brief::read_brief;
 use super::*;
 use std::fs::OpenOptions;
 use std::io::Write;

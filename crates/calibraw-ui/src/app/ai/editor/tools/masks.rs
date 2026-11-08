@@ -9,12 +9,12 @@
 //! starts its job or the dialog that asks to allow it; the request waits for
 //! it before sending the next preview, so one such part is made per reply.
 
+use super::super::*;
 use super::color::{
     apply_grading, apply_mixer, changed_grading_values, changed_mixer_values, is_grading_value,
     is_mixer_value, Mixer,
 };
-use super::tools::{describe, number, pair, rounded, Limits, Outcome};
-use super::*;
+use super::{describe, number, pair, rounded, Limits, Outcome};
 use crate::app::mask_tool::sample_color_range;
 use crate::pipeline::effect_params::{adjustment, FloatParamSpec};
 use crate::pipeline::{
@@ -89,7 +89,7 @@ const SLIDERS: [&str; 13] = [
 ];
 
 /// The masks whose selections one nudge sends at most, an image each.
-pub(super) const MAX_SELECTION_IMAGES: usize = 4;
+pub(in crate::app::ai::editor) const MAX_SELECTION_IMAGES: usize = 4;
 
 fn slider<'a>(
     adjustments: &'a mut LocalAdjustments,
@@ -153,7 +153,7 @@ fn written_name(name: &str) -> String {
 }
 
 /// The index of the mask Claude calls `name`.
-pub(super) fn mask_named(stack: &MaskStack, name: &str) -> Option<usize> {
+pub(in crate::app::ai::editor) fn mask_named(stack: &MaskStack, name: &str) -> Option<usize> {
     stack
         .masks
         .iter()
@@ -184,7 +184,7 @@ fn error(message: impl Into<String>) -> Value {
 /// ([`GeometryMapping`]), so a position in it maps back through the geometry
 /// to lens-corrected source coordinates, where radial and linear masks live,
 /// and through the lens correction to the native ones the other masks use.
-pub(super) struct PreviewPlacement {
+pub(in crate::app::ai::editor) struct PreviewPlacement {
     output_from_source: Homography,
     source_from_output: Homography,
     /// The output's width and height in pixels.
@@ -195,7 +195,7 @@ pub(super) struct PreviewPlacement {
 }
 
 impl PreviewPlacement {
-    pub(super) fn new(
+    pub(in crate::app::ai::editor) fn new(
         geometry: GeometryTransform,
         lens: Option<Arc<LensGeometryMap>>,
         source_width: u32,
@@ -639,7 +639,7 @@ fn with_status(mut response: Value, status: Option<String>) -> Value {
 /// `preview` (before the geometry, as read back) with the coverage of mask
 /// `layer` tinted red and the rest darkened, so Claude can check what the
 /// mask selects.
-pub(super) fn selection_image(
+pub(in crate::app::ai::editor) fn selection_image(
     stack: &MaskStack,
     layer: usize,
     preview: &RawThumbnail,
@@ -864,7 +864,7 @@ impl CalibRawApp {
     /// with a part of `kind`, or replaces its first part when `kind` differs,
     /// sets its first part's shape, its opacity and inversion and its
     /// adjustments, or deletes it.
-    pub(super) fn apply_set_mask(
+    pub(in crate::app::ai::editor) fn apply_set_mask(
         &mut self,
         arguments: &Value,
         placement: &PreviewPlacement,
@@ -1006,7 +1006,7 @@ impl CalibRawApp {
     /// Applies a `set_mask_part` call: adds a part of `kind` to the mask
     /// `name`, combined by `combine`, or with `part` edits or deletes that
     /// part.
-    pub(super) fn apply_set_mask_part(
+    pub(in crate::app::ai::editor) fn apply_set_mask_part(
         &mut self,
         arguments: &Value,
         placement: &PreviewPlacement,
@@ -1164,7 +1164,10 @@ impl CalibRawApp {
 
     /// The masks, their parts and adjustments, for a message to Claude, or
     /// `None` without masks.
-    pub(super) fn mask_summary(&self, placement: &PreviewPlacement) -> Option<String> {
+    pub(in crate::app::ai::editor) fn mask_summary(
+        &self,
+        placement: &PreviewPlacement,
+    ) -> Option<String> {
         let masks = &self.masks.stack.masks;
         if masks.is_empty() {
             return None;

@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.gemma;
 
 import android.content.Context;
 import android.os.SystemClock;

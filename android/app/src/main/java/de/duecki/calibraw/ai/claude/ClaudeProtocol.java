@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.claude;
 
 import android.util.Base64;
 

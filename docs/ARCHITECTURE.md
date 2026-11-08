@@ -96,12 +96,12 @@ change that establishes a boundary, not in advance.
   which names no tools): lines of tone, colour, detail and effects items, each
   a setting, up or down and a size word (a touch to very strong, or stops for
   exposure), what to keep, and a sentence for the photographer. The app reads
-  the brief into tool calls itself (`brief.rs`), each size a step added to the
+  the brief into tool calls itself (`chat/brief.rs`), each size a step added to the
   setting's current value. A second conversation that wrote the values from
   the brief wrote some with the wrong sign or to the wrong tool, and asked to
   plan a look and write its values in one reply, Gemma crushed a photo to
   black. An item the reader cannot read unambiguously is reported in the chat,
-  not guessed. The tools are `set_sliders`
+  not guessed. The tools, in `tools/`, are `set_sliders`
   (`sliders.rs`; on a RAW, Warmth is the white balance in mired around the
   as-shot value and Tint the shown tint less the as-shot one),
   `set_color_mixer` and `set_color_grading` (`color.rs`), `set_tone_curve`
@@ -109,8 +109,8 @@ change that establishes a boundary, not in advance.
   the global Vignette, Grain, Glow and Halation, by slider label) and
   `set_ai_denoise` (`denoise.rs`); the brief reaches `set_sliders`, the colour
   tools and `set_effect`, and each value goes where the reader puts it within
-  its range (`tools.rs`). Tool lines Gemma writes on its own are kept out of
-  the chat's text (`calls.rs`). A request is one nudge, so the photographer
+  its range (`tools/mod.rs`). Tool lines Gemma writes on its own are kept out
+  of the chat's text (`chat/calls.rs`). A request is one nudge, so the photographer
   steers with follow-ups: with four nudges every one after the first undid or
   overdid it. Each message to Gemma carries the edit's values away from their
   defaults and what the previous request changed, as `name=before→after`, so
@@ -162,15 +162,15 @@ change that establishes a boundary, not in advance.
   (`chat/claude_conversation.rs`) writes no brief: one
   conversation per photo holds the whole chat, plans and writes its tool
   lines in the same reply (`assets/claude/editor_system.md`), which the app
-  reads itself (`calls.rs`), and looks at the preview after each nudge, with
+  reads itself (`chat/calls.rs`), and looks at the preview after each nudge, with
   what the app set as `name=before→after`, to correct it, up to ten nudges a
   request; it ends sooner with a reply without tool lines. Claude also sets
   the tone curves, which the brief does not reach, and has three tools Gemma
   is not given: `set_mask`
-  and `set_mask_part` (`masks.rs`) make and edit masks by a name Claude gives
+  and `set_mask_part` (`tools/masks.rs`) make and edit masks by a name Claude gives
   them, with their parts (radial, linear, luminance, colour and the model
   kinds; brushes and paths stay the photographer's) and adjustments, and
-  `set_crop` (`crop.rs`) sets the crop, straightening, turns, flips,
+  `set_crop` (`tools/crop.rs`) sets the crop, straightening, turns, flips,
   perspective and skew as the Crop panel does. Mask positions are fractions
   of the preview Claude sees, mapped back through the geometry and the lens
   correction (`PreviewPlacement`), so Claude's preview is transformed with
@@ -434,7 +434,9 @@ production `ShaderManager` composes.
   (`android/ai_models.rs`), which hands each call to the model `AiModelRouter`
   holds: on-device Gemma through LiteRT-LM (`GemmaBridge`) and Claude Code in
   Termux (`ClaudeBridge`).
-  Java classes live in `android/app/src/main/java/de/duecki/calibraw`.
+  Java classes live in `android/app/src/main/java/de/duecki/calibraw`; the AI
+  editor's are in its `ai` package, with Claude Code's in `ai.claude` and
+  Gemma's in `ai.gemma`.
 - `calibraw-ui/src/platform/` decides platform differences once. Everything
   else compiles on every target and branches at run time:
   - `PlatformCaps` (`form_factor`, `storage`, `memory`,

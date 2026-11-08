@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.claude;
 
 import android.app.Activity;
 import android.content.Context;

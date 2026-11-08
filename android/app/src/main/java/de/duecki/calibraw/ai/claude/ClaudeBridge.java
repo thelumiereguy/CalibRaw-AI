@@ -1,8 +1,12 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.claude;
 
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.AiModel;
+import de.duecki.calibraw.ai.Assets;
+import de.duecki.calibraw.ai.TriageCardStream;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * conversation lasts while one photo is open in Develop, so Claude keeps the whole chat about it.
  * Triage and the editor use separate processes and may run at once.
  */
-final class ClaudeBridge implements AiModel {
+public final class ClaudeBridge implements AiModel {
     private static final String LOG_TAG = "CalibRaw";
     private static final String RELEASED = "Claude Code is no longer the selected AI model";
     private static final String NOT_SHOWN = "Develop no longer shows";
@@ -57,7 +61,7 @@ final class ClaudeBridge implements AiModel {
     private final Object editorLock = new Object();
     private final Object triageLock = new Object();
 
-    ClaudeBridge(Context context, String model) {
+    public ClaudeBridge(Context context, String model) {
         this.context = context.getApplicationContext();
         this.model = model;
     }
@@ -270,7 +274,7 @@ final class ClaudeBridge implements AiModel {
     /**
      * Sends {@code text}, after the JPEGs at {@code imagePaths}, and returns Claude's reply as
      * {@code {"text": ..., "tool_calls": []}}: Claude writes its tool lines in the text, which the
-     * app parses (app/ai/editor/calls.rs).
+     * app parses (app/ai/editor/chat/calls.rs).
      */
     @Override
     public String editorSend(String text, List<String> imagePaths, TextListener replyText)

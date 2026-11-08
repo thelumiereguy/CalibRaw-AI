@@ -1,8 +1,10 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.claude;
 
 import android.app.Activity;
 import android.content.Context;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.Assets;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -11,7 +13,7 @@ import java.util.Arrays;
  * Claude Code's setup in Termux, which Settings checks and walks through one missing step at a
  * time: Termux's permission, allow-external-apps, the install and the sign-in.
  */
-final class ClaudeSetup {
+public final class ClaudeSetup {
     private static final String LOG_TAG = "CalibRaw";
     // Each request is set by the CalibRawActivity or one of its helpers; see their constants.
     private static final int RUN_COMMAND_PERMISSION_REQUEST = 1006;
@@ -19,7 +21,7 @@ final class ClaudeSetup {
     private static final long STATUS_TIMEOUT_SECONDS = 60;
 
     /** How far the setup is, by the codes Rust reads (ClaudeCodeStatus in platform/service.rs). */
-    enum Status {
+    public enum Status {
         NO_TERMUX("no_termux"),
         NO_RUN_COMMAND("no_run_command"),
         NO_PERMISSION("no_permission"),
@@ -35,13 +37,13 @@ final class ClaudeSetup {
             this.code = code;
         }
 
-        String code() {
+        public String code() {
             return code;
         }
     }
 
     /** A step Settings offers, by the names Rust uses (ClaudeCodeSetup in platform/service.rs). */
-    enum Step {
+    public enum Step {
         PERMISSION("permission"),
         INSTALL("install"),
         SIGN_IN("sign_in");
@@ -53,7 +55,7 @@ final class ClaudeSetup {
         }
 
         /** The step Rust names {@code name}, or null for a name it does not use. */
-        static Step named(String name) {
+        public static Step named(String name) {
             for (Step step : values()) {
                 if (step.name.equals(name)) {
                     return step;
@@ -69,7 +71,7 @@ final class ClaudeSetup {
      * The first step still missing, or {@link Status#READY}. Blocks while Termux runs
      * {@code claude auth status}.
      */
-    static Status status(Context context) {
+    public static Status status(Context context) {
         if (!Termux.installed(context)) {
             return Status.NO_TERMUX;
         }
@@ -116,7 +118,7 @@ final class ClaudeSetup {
      * (assets/claude/install.sh) or runs its sign-in, each in a Termux session brought to the
      * front.
      */
-    static void run(Activity activity, Step step) throws IOException {
+    public static void run(Activity activity, Step step) throws IOException {
         switch (step) {
             case PERMISSION:
                 activity.runOnUiThread(() -> activity.requestPermissions(

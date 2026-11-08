@@ -1,7 +1,10 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import android.app.Activity;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.claude.ClaudeSession;
+import de.duecki.calibraw.ai.claude.ClaudeSetup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -13,13 +16,13 @@ import java.util.List;
  * owns it, and the native callbacks report what a model writes while it writes it. Rust calls
  * these synchronously from its worker threads, so they keep its JNI names and signatures.
  */
-final class AiModels {
+public final class AiModels {
     private static final String LOG_TAG = "CalibRaw";
 
     private final Activity activity;
     private final AiModelRouter router;
 
-    AiModels(Activity activity) {
+    public AiModels(Activity activity) {
         this.activity = activity;
         this.router = AiModelRouter.shared(activity);
     }
@@ -47,7 +50,7 @@ final class AiModels {
      * Releases the selected model once the activity has finished: winit cannot start again in
      * this process (CalibRawActivity.handleBack), so nothing would use it. Returns at once.
      */
-    void releaseOnFinish() {
+    public void releaseOnFinish() {
         router.releaseAll();
     }
 

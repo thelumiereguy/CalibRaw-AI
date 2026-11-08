@@ -1,8 +1,12 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.gemma;
 
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.AiModel;
+import de.duecki.calibraw.ai.Assets;
+import de.duecki.calibraw.ai.TriageCardStream;
 
 import com.google.ai.edge.litertlm.Content;
 import com.google.ai.edge.litertlm.Contents;
@@ -41,7 +45,7 @@ import java.util.regex.Pattern;
  * block, except {@link #closeEditor}, which returns at once, and one call uses the engine at a
  * time.
  */
-final class GemmaBridge implements AiModel {
+public final class GemmaBridge implements AiModel {
     private static final String LOG_TAG = "CalibRaw";
     // Triage wants a stable card, so sampling stays close to greedy.
     private static final SamplerConfig TRIAGE_SAMPLER = new SamplerConfig(1, 1.0, 0.0, 0);
@@ -86,7 +90,7 @@ final class GemmaBridge implements AiModel {
     }
 
     /** The process's Gemma. */
-    static synchronized GemmaBridge shared(Context context) {
+    public static synchronized GemmaBridge shared(Context context) {
         if (shared == null) {
             shared = new GemmaBridge(context.getApplicationContext());
         }
@@ -310,7 +314,7 @@ final class GemmaBridge implements AiModel {
         Engine loaded = engine();
         long started = SystemClock.elapsedRealtime();
         // No tools are declared: Gemma writes a brief, which the app reads into tool calls
-        // (app/ai/editor/brief.rs). The preface is read now, not at the first request.
+        // (app/ai/editor/chat/brief.rs). The preface is read now, not at the first request.
         Conversation base = loaded.createConversation(new ConversationConfig(
                 Contents.Companion.of(systemPrompt),
                 Collections.emptyList(),

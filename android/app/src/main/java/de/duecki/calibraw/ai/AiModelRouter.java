@@ -1,7 +1,10 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import android.content.Context;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.claude.ClaudeBridge;
+import de.duecki.calibraw.ai.gemma.GemmaBridge;
 
 import java.io.IOException;
 

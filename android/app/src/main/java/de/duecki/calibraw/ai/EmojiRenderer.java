@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;

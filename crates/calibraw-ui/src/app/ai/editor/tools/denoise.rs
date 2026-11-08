@@ -2,8 +2,8 @@
 //! its strength. Unlike the other tools it starts app work, so it runs last
 //! in a nudge (`apply_ai_editor_calls`).
 
-use super::tools::number;
-use super::*;
+use super::super::*;
+use super::number;
 use calibraw_ai::AiFeature;
 use serde_json::{json, Value};
 
@@ -11,7 +11,7 @@ impl CalibRawApp {
     /// Applies a `set_ai_denoise` call. Turning it on starts the RawNIND job,
     /// which may first ask the photographer to allow it; the response says
     /// which, since the app's notices never reach the model.
-    pub(super) fn apply_set_ai_denoise(
+    pub(in crate::app::ai::editor) fn apply_set_ai_denoise(
         &mut self,
         arguments: &Value,
         frame: &eframe::Frame,

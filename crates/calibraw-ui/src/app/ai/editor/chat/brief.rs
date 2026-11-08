@@ -11,9 +11,10 @@
 //! things, such as `tint blue slight` (the tint slider or a tint's colour),
 //! is reported as unread, not guessed.
 
-use super::calls::Call;
-use super::color::MIXER_COLORS;
-use super::tools::{rounded, SET_COLOR_GRADING, SET_COLOR_MIXER, SET_EFFECT, SET_SLIDERS};
+use super::super::tools::color::MIXER_COLORS;
+use super::super::tools::{
+    rounded, Call, SET_COLOR_GRADING, SET_COLOR_MIXER, SET_EFFECT, SET_SLIDERS,
+};
 use serde_json::{json, Map, Value};
 
 /// A size word's step, smallest first: a touch, slight, moderate, strong and

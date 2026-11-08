@@ -1,15 +1,15 @@
 //! The Color Mixer and Color Grading values the `set_color_mixer` and
 //! `set_color_grading` tools move, and Claude's `set_mask` moves in a mask.
-//! For Gemma, the brief reader (brief.rs) moves the mixer's ranges and the
-//! grading's shadow and highlight tints. Claude's editor_system.md gives it
-//! every name and range.
+//! For Gemma, the brief reader (chat/brief.rs) moves the mixer's ranges and
+//! the grading's shadow and highlight tints. Claude's editor_system.md gives
+//! it every name and range.
 
-use super::tools::{number, rounded, Limits, Outcome};
+use super::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ColorGradeWheel, ColorGrading, ExposureParams};
 use serde_json::{json, Map, Value};
 
 /// The Color Mixer's ranges, in the order of `ExposureParams::hsl_*`.
-pub(super) const MIXER_COLORS: [&str; 8] = [
+pub(in crate::app::ai::editor) const MIXER_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta",
 ];
 const MIXER_LIMITS: Limits = Limits::new(-100.0, 100.0, 0);
@@ -19,7 +19,7 @@ const MIXER_HUE_SCALE: f32 = 2.0;
 
 /// A Color Mixer's stored hue, saturation and luminance per range, of the
 /// edit (`ExposureParams::hsl_*`) or of a mask (`LocalAdjustments::hsl_*`).
-pub(super) type Mixer = [[f32; 8]; 3];
+pub(in crate::app::ai::editor) type Mixer = [[f32; 8]; 3];
 
 #[derive(Clone, Copy)]
 enum Channel {
@@ -62,18 +62,21 @@ const fn edit_mixer(exposure: &ExposureParams) -> Mixer {
 }
 
 /// Whether `name` is a mixer value.
-pub(super) fn is_mixer_value(name: &str) -> bool {
+pub(in crate::app::ai::editor) fn is_mixer_value(name: &str) -> bool {
     mixer_value(&mut Mixer::default(), name).is_some()
 }
 
 /// Whether `name` is a grading value.
-pub(super) fn is_grading_value(name: &str) -> bool {
+pub(in crate::app::ai::editor) fn is_grading_value(name: &str) -> bool {
     grading_value(&mut ColorGrading::default(), name).is_some()
 }
 
 /// The edit's mixer value `name` as `set_color_mixer` reads it, or `None`
 /// for another name.
-pub(super) fn mixer_current(exposure: &ExposureParams, name: &str) -> Option<f32> {
+pub(in crate::app::ai::editor) fn mixer_current(
+    exposure: &ExposureParams,
+    name: &str,
+) -> Option<f32> {
     let mut mixer = edit_mixer(exposure);
     let (stored, scale) = mixer_value(&mut mixer, name)?;
     Some(rounded(*stored / scale, 0))
@@ -81,19 +84,22 @@ pub(super) fn mixer_current(exposure: &ExposureParams, name: &str) -> Option<f32
 
 /// The edit's grading value `name` as `set_color_grading` reads it, or
 /// `None` for another name.
-pub(super) fn grading_current(exposure: &ExposureParams, name: &str) -> Option<f32> {
+pub(in crate::app::ai::editor) fn grading_current(
+    exposure: &ExposureParams,
+    name: &str,
+) -> Option<f32> {
     let mut grading = exposure.color_grading;
     let (value, _) = grading_value(&mut grading, name)?;
     Some(rounded(*value, 0))
 }
 
 /// The edit's mixer values away from zero, as the model reads them.
-pub(super) fn changed_mixer(exposure: &ExposureParams) -> Map<String, Value> {
+pub(in crate::app::ai::editor) fn changed_mixer(exposure: &ExposureParams) -> Map<String, Value> {
     changed_mixer_values(edit_mixer(exposure))
 }
 
 /// The values of `mixer` away from zero, as the model reads them.
-pub(super) fn changed_mixer_values(mut mixer: Mixer) -> Map<String, Value> {
+pub(in crate::app::ai::editor) fn changed_mixer_values(mut mixer: Mixer) -> Map<String, Value> {
     let mut values = Map::new();
     for color in MIXER_COLORS {
         for (_, channel_name) in CHANNELS {
@@ -113,7 +119,7 @@ pub(super) fn changed_mixer_values(mut mixer: Mixer) -> Map<String, Value> {
 /// Applies one `set_color_mixer` call's `arguments` to `exposure`, each value
 /// within its range. `baseline`, the edit when the reply came, gives the
 /// values they were.
-pub(super) fn apply_set_color_mixer(
+pub(in crate::app::ai::editor) fn apply_set_color_mixer(
     exposure: &mut ExposureParams,
     baseline: &ExposureParams,
     arguments: &Value,
@@ -131,7 +137,7 @@ pub(super) fn apply_set_color_mixer(
 
 /// Sets the mixer values `arguments` names in `mixer`, each within its
 /// range, noting them in `outcome`; `baseline` gives the values they were.
-pub(super) fn apply_mixer(
+pub(in crate::app::ai::editor) fn apply_mixer(
     mixer: &mut Mixer,
     mut baseline: Mixer,
     arguments: &Value,
@@ -183,13 +189,15 @@ fn grading_value<'a>(grading: &'a mut ColorGrading, name: &str) -> Option<(&'a m
 }
 
 /// The edit's grading values away from their defaults, as the model reads them.
-pub(super) fn changed_grading(exposure: &ExposureParams) -> Map<String, Value> {
+pub(in crate::app::ai::editor) fn changed_grading(exposure: &ExposureParams) -> Map<String, Value> {
     changed_grading_values(exposure.color_grading)
 }
 
 /// The values of `grading` away from their defaults, as the model reads
 /// them; a wheel's hue only while it has saturation to show it.
-pub(super) fn changed_grading_values(grading: ColorGrading) -> Map<String, Value> {
+pub(in crate::app::ai::editor) fn changed_grading_values(
+    grading: ColorGrading,
+) -> Map<String, Value> {
     let defaults = ColorGrading::default();
     let mut values = Map::new();
     let wheels = [
@@ -221,7 +229,7 @@ pub(super) fn changed_grading_values(grading: ColorGrading) -> Map<String, Value
 /// Applies one `set_color_grading` call's `arguments` to `exposure`, each
 /// value within its range. `baseline`, the edit when the reply came, gives
 /// the values they were.
-pub(super) fn apply_set_color_grading(
+pub(in crate::app::ai::editor) fn apply_set_color_grading(
     exposure: &mut ExposureParams,
     baseline: &ExposureParams,
     arguments: &Value,
@@ -238,7 +246,7 @@ pub(super) fn apply_set_color_grading(
 
 /// Sets the grading values `arguments` names in `grading`, each within its
 /// range, noting them in `outcome`; `baseline` gives the values they were.
-pub(super) fn apply_grading(
+pub(in crate::app::ai::editor) fn apply_grading(
     grading: &mut ColorGrading,
     mut baseline: ColorGrading,
     arguments: &Value,

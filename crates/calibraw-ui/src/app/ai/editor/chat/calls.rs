@@ -10,13 +10,8 @@
 //! markers, and lines of pairs without the tool's name (`sharpen_amount=80`),
 //! whose values the editor routes to their tools.
 
+use super::super::tools::Call;
 use serde_json::{Map, Value};
-
-/// A call the model wrote.
-pub(super) struct Call {
-    pub(super) name: String,
-    pub(super) arguments: Value,
-}
 
 /// `text` split into what the model said, for the chat, and the calls it wrote.
 /// A call starts at a word beginning `set_`, anywhere in a line, and runs to

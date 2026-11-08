@@ -4,13 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-final class BoundedStreams {
+public final class BoundedStreams {
     private static final int BUFFER_BYTES = 256 * 1024;
 
     private BoundedStreams() {}
 
     // The one-byte fallback prevents an infinite loop on broken zero-read providers.
-    static long copy(
+    public static long copy(
             InputStream input,
             OutputStream output,
             long maximumBytes,

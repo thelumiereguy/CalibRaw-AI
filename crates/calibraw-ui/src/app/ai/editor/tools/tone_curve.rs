@@ -3,7 +3,7 @@
 //! items, since the curves Gemma wrote clipped or cast the photo. Gemma still
 //! reads the curves set by hand.
 
-use super::tools::{number, rounded, Limits, Outcome};
+use super::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, PointCurve, MAX_POINT_CURVE_POINTS};
 use serde_json::{json, Map, Value};
 
@@ -31,12 +31,12 @@ fn outputs(curve: &PointCurve) -> [f32; 5] {
 }
 
 /// Whether `name` is one of the curves.
-pub(super) fn is_curve(name: &str) -> bool {
+pub(in crate::app::ai::editor) fn is_curve(name: &str) -> bool {
     CURVES.contains(&name)
 }
 
 /// The curves that are not straight, as the model reads them.
-pub(super) fn changed_curves(exposure: &ExposureParams) -> Map<String, Value> {
+pub(in crate::app::ai::editor) fn changed_curves(exposure: &ExposureParams) -> Map<String, Value> {
     let mut exposure = *exposure;
     CURVES
         .iter()
@@ -50,7 +50,7 @@ pub(super) fn changed_curves(exposure: &ExposureParams) -> Map<String, Value> {
 /// Applies one `set_tone_curve` call's `arguments` to `exposure`. A curve
 /// given becomes the five points; `baseline`, the edit when the reply came,
 /// gives the outputs they were.
-pub(super) fn apply_set_tone_curve(
+pub(in crate::app::ai::editor) fn apply_set_tone_curve(
     exposure: &mut ExposureParams,
     baseline: &ExposureParams,
     arguments: &Value,

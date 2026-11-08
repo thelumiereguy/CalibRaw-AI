@@ -6,14 +6,14 @@
 //! preview and corrects it, up to [`MAX_NUDGES`] nudges a request. The
 //! conversation stays open between requests and ends when another photo
 //! opens or a request fails. Claude has three tools more than Gemma:
-//! `set_mask` and `set_mask_part` (masks.rs) and `set_crop` (crop.rs). After
-//! a nudge that set a mask, the preview comes with an image of each such
-//! mask's selection.
+//! `set_mask` and `set_mask_part` (tools/masks.rs) and `set_crop`
+//! (tools/crop.rs). After a nudge that set a mask, the preview comes with an
+//! image of each such mask's selection.
 
-use super::super::calls::{read_reply, Call};
 use super::super::tools::{
-    change_tool, is_value_name, record_changes, result_line, routed, SET_MASK, SET_MASK_PART,
+    change_tool, is_value_name, record_changes, result_line, routed, Call, SET_MASK, SET_MASK_PART,
 };
+use super::calls::read_reply;
 use super::protocol::MessageParts;
 use super::*;
 

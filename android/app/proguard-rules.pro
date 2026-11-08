@@ -15,7 +15,7 @@
 -keep class de.duecki.calibraw.ReplayVideoEncoder { *; }
 # The AI editor's models: Rust calls AiModels through the activity's aiModels
 # field, and its native callbacks are AiModels' own.
--keep class de.duecki.calibraw.AiModels { *; }
+-keep class de.duecki.calibraw.ai.AiModels { *; }
 
 # LiteRT-LM's native library calls back into its Kotlin classes, and its AAR
 # ships no consumer rules.

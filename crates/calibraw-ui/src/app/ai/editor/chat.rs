@@ -1,34 +1,37 @@
 //! The AI editor, the second phase after the triage: a chat about the open
-//! photo in which the model edits it through its tools: `set_sliders`
-//! (sliders.rs), `set_color_mixer` and `set_color_grading` (color.rs),
-//! `set_tone_curve` (tone_curve.rs), `set_effect` (effects.rs) and
-//! `set_ai_denoise` (denoise.rs), and for Claude Code `set_mask` and
+//! photo in which the model edits it through its tools (tools/):
+//! `set_sliders` (sliders.rs), `set_color_mixer` and `set_color_grading`
+//! (color.rs), `set_tone_curve` (tone_curve.rs), `set_effect` (effects.rs)
+//! and `set_ai_denoise` (denoise.rs), and for Claude Code `set_mask` and
 //! `set_mask_part` (masks.rs) and `set_crop` (crop.rs).
 //!
 //! This module runs a request whatever the model: it waits until the
 //! preview shows every edit, sends it with a message, streams the reply into
 //! the chat and applies the reply's calls as one nudge. Where the two models
-//! differ, it asks the request's [`Protocol`] (protocol.rs): Gemma writes a
-//! brief on a conversation of its own per request (gemma_brief.rs), and
-//! Claude Code keeps one conversation per photo, in which it corrects its
-//! edit after each nudge (claude_conversation.rs).
+//! differ, it asks the request's [`Protocol`] (chat/protocol.rs): Gemma
+//! writes a brief on a conversation of its own per request
+//! (chat/gemma_brief.rs, which reads it with chat/brief.rs), and Claude Code
+//! keeps one conversation per photo, in which it corrects its edit after
+//! each nudge (chat/claude_conversation.rs). chat/calls.rs reads the tool
+//! lines a reply writes.
 //!
 //! A request, whatever its nudges, is one undo step (`observe_edit_history`).
 
+mod brief;
+mod calls;
 mod claude_conversation;
 mod gemma_brief;
 mod protocol;
 
-use super::calls::{read_reply, Call};
-use super::color::{
+use super::tools::color::{
     apply_set_color_grading, apply_set_color_mixer, changed_grading, changed_mixer,
 };
-use super::effects::changed_effects;
-use super::masks::{mask_named, selection_image, PreviewPlacement, MAX_SELECTION_IMAGES};
-use super::sliders::{apply_set_sliders, changed_sliders};
-use super::tone_curve::{apply_set_tone_curve, changed_curves};
+use super::tools::effects::changed_effects;
+use super::tools::masks::{mask_named, selection_image, PreviewPlacement, MAX_SELECTION_IMAGES};
+use super::tools::sliders::{apply_set_sliders, changed_sliders};
+use super::tools::tone_curve::{apply_set_tone_curve, changed_curves};
 use super::tools::{
-    change_summary, describe, is_value_name, Change, SET_AI_DENOISE, SET_COLOR_GRADING,
+    change_summary, describe, is_value_name, Call, Change, SET_AI_DENOISE, SET_COLOR_GRADING,
     SET_COLOR_MIXER, SET_CROP, SET_EFFECT, SET_MASK, SET_MASK_PART, SET_SLIDERS, SET_TONE_CURVE,
 };
 use super::triage::{write_model_jpeg, TriageCard, MODEL_IMAGE_EDGE};
@@ -36,6 +39,7 @@ use super::*;
 use crate::app::preview_capture::PreviewSnapshot;
 use crate::i18n::tr_fmt;
 use crate::pipeline::{GpuOutputSnapshot, LensGeometryMap, RawThumbnail};
+use calls::read_reply;
 use protocol::{MessageParts, Protocol};
 use serde_json::{json, Value};
 

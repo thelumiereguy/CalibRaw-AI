@@ -1,7 +1,8 @@
-//! The AI editor's Java side through `AiModels`, its JNI facade, which hands
-//! each call to the class that owns it: the selected model (`AiModelRouter`),
-//! on-device Gemma (`GemmaBridge`, LiteRT-LM) or Claude Code in Termux
-//! (`ClaudeBridge`), and Claude Code's setup (`ClaudeSetup`).
+//! The AI editor's Java side (package `de.duecki.calibraw.ai`) through
+//! `AiModels`, its JNI facade, which hands each call to the class that owns
+//! it: the selected model (`AiModelRouter`), on-device Gemma (`ai.gemma`,
+//! LiteRT-LM) or Claude Code in Termux (`ai.claude`), and Claude Code's setup
+//! (`ClaudeSetup`).
 
 use super::*;
 use jni::objects::JByteArray;
@@ -131,7 +132,7 @@ pub fn take_triage_headline() -> Option<TriageHeadline> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_de_duecki_calibraw_AiModels_nativeOnTriageHeadline<'local>(
+pub extern "system" fn Java_de_duecki_calibraw_ai_AiModels_nativeOnTriageHeadline<'local>(
     mut unowned_env: EnvUnowned<'local>,
     _class: JClass<'local>,
     request_id: jni::sys::jlong,
@@ -296,7 +297,7 @@ pub fn take_editor_text() -> Option<EditorText> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_de_duecki_calibraw_AiModels_nativeOnEditorText<'local>(
+pub extern "system" fn Java_de_duecki_calibraw_ai_AiModels_nativeOnEditorText<'local>(
     mut unowned_env: EnvUnowned<'local>,
     _class: JClass<'local>,
     request_id: jni::sys::jlong,
@@ -371,7 +372,7 @@ fn with_ai_models<T>(
             .get_field(
                 activity,
                 jni::jni_str!("aiModels"),
-                jni::jni_sig!(de.duecki.calibraw.AiModels),
+                jni::jni_sig!(de.duecki.calibraw.ai.AiModels),
             )?
             .l()?;
         operation(env, &ai_models)

@@ -5,8 +5,8 @@
 //! fractions of the uncropped photo as it is displayed, after the rotation,
 //! flips and quarter turns, x to the right and y down.
 
-use super::tools::{number, rounded, Outcome};
-use super::*;
+use super::super::*;
+use super::{describe, number, rounded, Outcome};
 use crate::pipeline::{CropAspectRatio, GeometryMapping, PerspectiveCorrection};
 use serde_json::{json, Map, Value};
 
@@ -132,7 +132,7 @@ fn geometry_values(geometry: GeometryTransform, width: u32, height: u32) -> Map<
 impl CalibRawApp {
     /// Applies a `set_crop` call to the geometry and refits the crop inside
     /// the transformed photo, as the Crop panel does.
-    pub(super) fn apply_set_crop(&mut self, arguments: &Value) -> Value {
+    pub(in crate::app::ai::editor) fn apply_set_crop(&mut self, arguments: &Value) -> Value {
         let Some((width, height)) = self.source_dimensions() else {
             return json!({ "error": "no photo is open" });
         };
@@ -247,13 +247,13 @@ impl CalibRawApp {
 
     /// The geometry's values away from their defaults, and always the crop,
     /// for a message to Claude.
-    pub(super) fn geometry_summary(&self) -> Option<String> {
+    pub(in crate::app::ai::editor) fn geometry_summary(&self) -> Option<String> {
         let (width, height) = self.source_dimensions()?;
         let defaults = geometry_values(GeometryTransform::default(), width, height);
         let values: Map<String, Value> = geometry_values(self.develop.geometry, width, height)
             .into_iter()
             .filter(|(name, value)| name == "crop" || defaults.get(name) != Some(value))
             .collect();
-        Some(super::tools::describe(&values))
+        Some(describe(&values))
     }
 }

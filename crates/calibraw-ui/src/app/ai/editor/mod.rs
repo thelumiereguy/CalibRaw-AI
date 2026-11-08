@@ -7,33 +7,24 @@
 //!   triage card.
 //! - `chat` — the AI editor's chat, in which the model edits the photo. Its
 //!   `protocol` decides where the two models' requests differ:
-//!   `gemma_brief` for Gemma, `claude_conversation` for Claude Code.
-//!
-//! Beneath them, with no app state: `brief` reads the brief Gemma writes for
-//! a request into tool calls, `calls` reads the tool lines Claude writes, and
-//! the tools, `sliders`, `color` (mixer and grading),
-//! `tone_curve` and `effects`, read and write the edit, keeping each value in
-//! its control's range (`tools`, which also routes each value to its tool and
-//! records what a request changed). `denoise` turns AI denoise on or off.
-//! Claude Code has two more, which make masks and their selections (`masks`)
-//! and set the crop and geometry (`crop`).
+//!   `gemma_brief` for Gemma, `claude_conversation` for Claude Code. Its
+//!   readers turn a reply into tool calls: `brief` reads the brief Gemma
+//!   writes, `calls` the tool lines Claude writes.
+//! - `tools` — the tools, which read and write the edit, keeping each value
+//!   in its control's range: `sliders`, `color` (mixer and grading),
+//!   `tone_curve` and `effects`, with no app state, and `denoise`, which
+//!   turns AI denoise on or off. Claude Code has two more, which make masks
+//!   and their selections (`masks`) and set the crop and geometry (`crop`).
+//!   The module itself holds the call they are given, routes each value to
+//!   its tool and records what a request changed.
 //!
 //! Prompts live in android/app/src/main/assets/gemma/ and, for Claude's
 //! editor, assets/claude/.
 
 use super::*;
 
-mod brief;
-mod calls;
 mod chat;
-mod color;
-mod crop;
-mod denoise;
-mod effects;
-mod masks;
 mod model;
-mod sliders;
-mod tone_curve;
 mod tools;
 mod triage;
 

@@ -9,7 +9,8 @@ pub(super) struct RustExport {
     pub(super) descriptor: std::result::Result<String, String>,
 }
 
-/// `Java_<package>_<Class>_<method>` exports and their JNI descriptors.
+/// `Java_<package>_[<subpackage>_...]<Class>_<method>` exports and their JNI
+/// descriptors.
 pub(super) fn rust_exports(source: &RustSource) -> Vec<RustExport> {
     let structural = source.structural();
     let bytes = structural.as_bytes();
@@ -68,7 +69,9 @@ pub(super) fn rust_exports(source: &RustSource) -> Vec<RustExport> {
     exports
 }
 
-/// Decodes `Class_method` from a JNI short name (`_1` is an escaped `_`).
+/// Decodes `Class_method`, or `subpackage_Class_method` as
+/// `("subpackage.Class", method)`, from a JNI short name (`_1` is an escaped
+/// `_`).
 pub(super) fn decode_export_name(mangled: &str) -> Option<(String, String)> {
     let mut parts = Vec::new();
     let mut current = String::new();
@@ -88,10 +91,11 @@ pub(super) fn decode_export_name(mangled: &str) -> Option<(String, String)> {
         }
     }
     parts.push(current);
-    let [class, method] = parts.as_slice() else {
+    let (method, class) = parts.split_last()?;
+    if class.is_empty() {
         return None;
-    };
-    Some((class.clone(), method.clone()))
+    }
+    Some((class.join("."), method.clone()))
 }
 
 /// The last path segment of a Rust type without generic arguments.

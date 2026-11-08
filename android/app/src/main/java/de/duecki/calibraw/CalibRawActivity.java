@@ -21,6 +21,8 @@ import android.widget.Toast;
 import android.util.Log;
 import android.window.OnBackInvokedDispatcher;
 
+import de.duecki.calibraw.ai.AiModels;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;

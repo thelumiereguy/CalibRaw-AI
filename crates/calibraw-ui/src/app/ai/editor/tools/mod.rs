@@ -1,18 +1,34 @@
-//! What the editing tools share: their names, which tool sets each value,
-//! reading a requested value, keeping it within its control's range,
+//! The editing tools, one module each, which read and write the edit:
+//! `sliders`, `color` (mixer and grading), `tone_curve`, `effects`,
+//! `denoise`, and for Claude Code `masks` and `crop`. This module holds what
+//! they share: the call they are given, their names, which tool sets each
+//! value, reading a requested value, keeping it within its control's range,
 //! answering the call, how values are written to the model, and what a
 //! request's calls changed. Each tool is described to Claude by
 //! android/app/src/main/assets/claude/editor_system.md, whose value names and
 //! ranges its module follows; Gemma writes no calls, and the brief reader
-//! (brief.rs) writes them from the brief Gemma writes.
+//! (chat/brief.rs) writes them from the brief Gemma writes.
 
-use super::calls::Call;
-use super::color::{is_grading_value, is_mixer_value};
-use super::effects::is_effect_value;
-use super::sliders::is_slider;
-use super::tone_curve::is_curve;
+pub(super) mod color;
+pub(super) mod crop;
+pub(super) mod denoise;
+pub(super) mod effects;
+pub(super) mod masks;
+pub(super) mod sliders;
+pub(super) mod tone_curve;
+
+use color::{is_grading_value, is_mixer_value};
+use effects::is_effect_value;
 use serde_json::{json, Map, Value};
+use sliders::is_slider;
 use std::ops::RangeInclusive;
+use tone_curve::is_curve;
+
+/// A call the model wrote, or the brief reader wrote for Gemma.
+pub(super) struct Call {
+    pub(super) name: String,
+    pub(super) arguments: Value,
+}
 
 /// The tools the app applies.
 pub(super) const SET_SLIDERS: &str = "set_sliders";

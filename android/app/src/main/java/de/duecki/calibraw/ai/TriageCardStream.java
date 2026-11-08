@@ -1,4 +1,4 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import android.os.SystemClock;
 import android.util.Log;
@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * assets/gemma/triage_schema.json. The card's genre and emoji come first; they are reported once
  * both are written, while the rest of the card takes seconds more. Pieces may arrive on any thread.
  */
-final class TriageCardStream {
+public final class TriageCardStream {
     private static final String LOG_TAG = "CalibRaw";
     // A string field of the card once its closing quote is written.
     private static final Pattern GENRE_FIELD =
@@ -31,14 +31,14 @@ final class TriageCardStream {
     private boolean headlineReported;
 
     /** A card that {@code modelName} started writing at {@code started} (elapsedRealtime). */
-    TriageCardStream(String modelName, long started, AiModel.HeadlineListener headline) {
+    public TriageCardStream(String modelName, long started, AiModel.HeadlineListener headline) {
         this.modelName = modelName;
         this.started = started;
         this.headline = headline;
     }
 
     /** Adds the card's next piece, reporting the genre and emoji once both are written. */
-    void append(String piece) {
+    public void append(String piece) {
         String genre;
         String emoji;
         synchronized (this) {
@@ -60,7 +60,7 @@ final class TriageCardStream {
     }
 
     /** The card as written so far. */
-    synchronized String text() {
+    public synchronized String text() {
         return card.toString();
     }
 

@@ -1,9 +1,11 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai.claude;
 
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.Base64;
 import android.util.Log;
+
+import de.duecki.calibraw.ai.Assets;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -34,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * that connection. The connection is accepted and read on the session's own thread; {@link #send}
  * waits for the reply's result line.
  */
-final class ClaudeSession {
+public final class ClaudeSession {
     private static final String LOG_TAG = "CalibRaw";
     // Termux starting a process took about 3.4 s on the spike phone; a cold Termux takes longer.
     private static final int CONNECT_TIMEOUT_MS = 30_000;
@@ -116,7 +118,7 @@ final class ClaudeSession {
      * would wait on it without end. This process's own are spared, so it does not matter whether
      * this runs before or after the sessions it starts. Returns at once.
      */
-    static void endEarlierRuns(Context context) {
+    public static void endEarlierRuns(Context context) {
         if (!Termux.mayRunCommands(context)) {
             return;
         }

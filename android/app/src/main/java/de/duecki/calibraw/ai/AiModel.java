@@ -1,14 +1,15 @@
-package de.duecki.calibraw;
+package de.duecki.calibraw.ai;
 
 import java.util.List;
 
 /**
  * A model that triages each opened photo and runs the AI editor's chat about it: Gemma on the
- * device ({@link GemmaBridge}) or Claude Code in Termux ({@link ClaudeBridge}). The selected one
- * is reached through {@link AiModelRouter}. A model reports what it writes while it writes it
- * through the listeners each call is given, so it knows nothing of who listens.
+ * device ({@link de.duecki.calibraw.ai.gemma.GemmaBridge}) or Claude Code in Termux
+ * ({@link de.duecki.calibraw.ai.claude.ClaudeBridge}). The selected one is reached through
+ * {@link AiModelRouter}. A model reports what it writes while it writes it through the listeners
+ * each call is given, so it knows nothing of who listens.
  */
-interface AiModel {
+public interface AiModel {
     /** Told a triage card's genre and emoji once the model has written both. */
     interface HeadlineListener {
         void onHeadline(String genre, String emoji);
