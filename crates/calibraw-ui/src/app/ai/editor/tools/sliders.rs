@@ -1,8 +1,8 @@
-//! The sliders Gemma's `set_sliders` tool moves, read from and written to the
-//! edit. The brief reader (brief.rs) moves those a brief asks for; hue and
-//! the sharpening and noise details stay settable.
+//! The sliders the `set_sliders` tool moves, read from and written to the
+//! edit. For Gemma, the brief reader (chat/brief.rs) moves those a brief asks
+//! for; Claude's editor_system.md gives it every name and range.
 
-use super::tools::{number, rounded, Limits, Outcome};
+use super::{number, rounded, Limits, Outcome};
 use crate::pipeline::{ExposureParams, LoadedRaw, HUE_ROTATION_LIMIT_DEGREES};
 use serde_json::{json, Map, Value};
 
@@ -242,14 +242,14 @@ fn set_white_balance(
 }
 
 /// Whether `name` is one of the sliders.
-pub(super) fn is_slider(name: &str) -> bool {
+pub(in crate::app::ai::editor) fn is_slider(name: &str) -> bool {
     SLIDERS.iter().any(|slider| slider.name() == name)
 }
 
 /// The slider `name`'s value as `set_sliders` reads it, or `None` for another
 /// name and for warmth and tint where the photo has no white balance they
 /// can move.
-pub(super) fn slider_value(
+pub(in crate::app::ai::editor) fn slider_value(
     exposure: &ExposureParams,
     raw: Option<&LoadedRaw>,
     name: &str,
@@ -260,8 +260,8 @@ pub(super) fn slider_value(
         .value(exposure, raw)
 }
 
-/// The sliders away from their defaults, as Gemma reads them.
-pub(super) fn changed_sliders(
+/// The sliders away from their defaults, as the model reads them.
+pub(in crate::app::ai::editor) fn changed_sliders(
     exposure: &ExposureParams,
     raw: Option<&LoadedRaw>,
 ) -> Map<String, Value> {
@@ -279,7 +279,7 @@ pub(super) fn changed_sliders(
 /// Applies one `set_sliders` call's `arguments` to `exposure`, each value
 /// within its slider's range. `baseline`, the edit when the reply came, gives
 /// the values they were.
-pub(super) fn apply_set_sliders(
+pub(in crate::app::ai::editor) fn apply_set_sliders(
     exposure: &mut ExposureParams,
     baseline: &ExposureParams,
     raw: Option<&LoadedRaw>,

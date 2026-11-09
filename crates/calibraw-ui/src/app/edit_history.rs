@@ -517,12 +517,18 @@ impl CalibRawApp {
         );
     }
 
+    /// Not while an AI editor request runs: its nudges become one undo step
+    /// once it ends, and its next nudge builds on the edit as it left it.
     pub(crate) fn can_undo_edit(&self) -> bool {
-        self.develop.loaded_raw.is_some() && self.persistence.history.can_undo()
+        self.develop.loaded_raw.is_some()
+            && !self.ai.editor.request_running()
+            && self.persistence.history.can_undo()
     }
 
     pub(crate) fn can_redo_edit(&self) -> bool {
-        self.develop.loaded_raw.is_some() && self.persistence.history.can_redo()
+        self.develop.loaded_raw.is_some()
+            && !self.ai.editor.request_running()
+            && self.persistence.history.can_redo()
     }
 
     pub(crate) fn undo_edit(&mut self) {

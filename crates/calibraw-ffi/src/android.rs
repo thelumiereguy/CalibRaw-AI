@@ -20,16 +20,18 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod ai_models;
 mod callbacks;
 mod export;
-mod gemma;
+mod keyboard;
 mod library;
 mod notifications;
 mod sidecars;
 mod thumbnail_cache;
+pub use ai_models::*;
 pub use callbacks::*;
 pub use export::*;
-pub use gemma::*;
+pub use keyboard::*;
 pub use library::*;
 pub use notifications::*;
 pub use sidecars::*;
@@ -301,21 +303,6 @@ pub fn take_library_changed() -> bool {
     LIBRARY_CHANGED.swap(false, Ordering::AcqRel)
 }
 
-/// Switches the soft keyboard between its number and text layouts. winit
-/// still decides whether the keyboard is shown.
-pub fn set_numeric_keyboard(app: &AndroidApp, numeric: bool) -> Result<(), String> {
-    with_activity(app, |env, activity| {
-        env.call_method(
-            activity,
-            jni::jni_str!("setNumericKeyboard"),
-            jni::jni_sig!((i32) -> void),
-            &[JValue::Int(i32::from(numeric))],
-        )?;
-        Ok(())
-    })
-    .map_err(|error| format!("could not switch the Android keyboard layout: {error:#}"))
-}
-
 pub fn set_light_system_bars(app: &AndroidApp, light: bool) -> Result<(), String> {
     with_activity(app, |env, activity| {
         env.call_method(
@@ -483,6 +470,30 @@ pub fn copy_text_to_clipboard(app: &AndroidApp, label: &str, text: &str) -> Resu
         Ok(())
     })
     .map_err(|error| format!("could not copy diagnostics to Android clipboard: {error:#}"))
+}
+
+/// Shows `message` and ends the process once it was on screen for a few
+/// seconds (`CalibRawActivity.endAfterGpuLoss`). Never returns: the calling
+/// thread waits without drawing meanwhile, as every frame would use the lost
+/// device.
+pub fn end_after_gpu_loss(app: &AndroidApp, message: &str) -> ! {
+    let ended = with_activity(app, |env, activity| {
+        let message = env.new_string(message)?;
+        env.call_method(
+            activity,
+            jni::jni_str!("endAfterGpuLoss"),
+            jni::jni_sig!((JString) -> void),
+            &[JValue::Object(&message)],
+        )?;
+        Ok(())
+    });
+    if let Err(error) = ended {
+        log::error!("could not show the lost-GPU notice: {error:#}");
+        std::process::exit(1);
+    }
+    loop {
+        std::thread::park();
+    }
 }
 
 pub fn performance_settings_path(app: &AndroidApp) -> Result<PathBuf, String> {

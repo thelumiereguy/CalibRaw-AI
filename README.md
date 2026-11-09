@@ -10,7 +10,7 @@
 [![Graphics: wgpu](https://img.shields.io/badge/Graphics-wgpu_%2F_WGSL-red.svg)](https://wgpu.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Linux_%7C_Android_%7C_Windows_%7C_macOS-green.svg)](https://github.com/Duecki1/CalibRaw/releases/latest)
 
-[**Download**](#download) • [**Why CalibRaw**](#why-calibraw) • [**Features**](#key-features) • [**FAQ**](#faq) • [**Supported Formats**](#supported-formats) • [**Building**](#building-from-source)
+[**References**](#references) • [**Claude Code on Android**](#claude-code-on-android) • [**Download**](#download) • [**Why CalibRaw**](#why-calibraw) • [**Features**](#key-features) • [**FAQ**](#faq) • [**Supported Formats**](#supported-formats) • [**Building**](#building-from-source)
 
 [**Website**](https://calibraw.dueckis.de) • [**Discord**](https://discord.gg/yrY3JDJKsr) • [**Instagram**](https://www.instagram.com/calib.raw/)
 
@@ -42,6 +42,52 @@
 </table>
 
 Edit RAW files with sliders, curves, color grading and masks. AI tools can select a subject or the sky, remove objects and denoise high-ISO photos. Everything runs **on your device**, without an account or subscription.
+
+---
+
+## References
+
+The AI editor on Android takes its approaches from these projects:
+
+- **[LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)**: Runs Gemma on the phone for the photo triage and the editor chat.
+- **[Termux](https://github.com/termux/termux-app)**: Its `RUN_COMMAND` intent, which CalibRaw uses to start Claude Code in Termux.
+- **[code-for-termux](https://github.com/amangujar21/code-for-termux)**: Reference for launching Claude Code through `RUN_COMMAND` and for installing the official linux-arm64 binary, patched with `patchelf` to run on Termux's glibc. No code was copied; it has no license.
+- **[claude-droid](https://github.com/minedmap/claude-droid)**: Reference for driving Claude Code from an app over `stream-json`, with `--include-partial-messages` to stream replies.
+- **[Claude Code](https://github.com/anthropics/claude-code)**: The second AI editor model, run in Termux.
+
+---
+
+## Claude Code on Android
+
+On Android, the AI editor uses Gemma on the phone unless you choose Claude Code, which CalibRaw runs in the Termux app on the same phone. With Claude Code, the editor can also make masks and set the crop, and it looks at the preview after each change and corrects it.
+
+### What you need
+
+- An ARM64 Android phone with an internet connection.
+- **Termux** from [GitHub](https://github.com/termux/termux-app/releases) or [F-Droid](https://f-droid.org/packages/com.termux/). The Google Play build of Termux cannot run commands for other apps.
+- A Claude account that can use Claude Code.
+
+### Setting it up
+
+1. Install Termux and open it once.
+2. In CalibRaw, open **Settings → AI editor** and set **Model** to **Claude Code (in Termux)**. A **Claude Code setup** section appears. It shows the first step still missing; tap **Check again** after finishing a step.
+3. **Allow CalibRaw to run commands in Termux:** tap **Allow** and accept Android's permission prompt.
+4. **Let Termux accept commands from other apps:** if the setup says Termux does not accept commands from CalibRaw yet, tap **Copy command**, paste it into Termux and run it:
+
+   ```sh
+   mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties && termux-reload-settings
+   ```
+
+5. **Install Claude Code:** tap **Install Claude Code**. Termux comes to the front, updates its packages, installs its glibc runner and downloads Claude Code's official linux-arm64 release, pinned to one version and checked against its SHA-512. This takes a few minutes. Go back to CalibRaw when Termux says it is done.
+6. **Sign in:** tap **Sign in**. Termux runs `claude auth login`; sign in with your Claude account, then go back to CalibRaw.
+7. When the setup says **Claude Code is ready.**, open a photo and tap the sparkle button at the top to open the AI editor's chat.
+
+### Good to know
+
+- A photo's preview is sent to Anthropic only once you open the AI editor's chat on it. Gemma keeps everything on the phone.
+- If CalibRaw starts without internet while Claude Code is chosen, it uses Gemma until it restarts or you choose Claude Code again in Settings. Your choice stays saved.
+- **Claude model** picks the model Claude Code runs. **Sonnet (default)** is the one the editor was tried with. **Opus**, **Haiku** and **Best available** use Claude Code's aliases, so they move to the newest model of their kind when Anthropic releases one, without an update to CalibRaw. **Other** takes a full model name, such as `claude-opus-5-5`, which stays on that version.
+- Changing the model or the Claude model ends the open photo's chat and looks at the photo again with the new model.
 
 ---
 
@@ -157,7 +203,9 @@ light rays, and Edit Replay videos.
 
 **Does any of my data leave my device?**
 No. Editing, AI masks, AI Remove and AI Denoise all run locally. CalibRaw only goes online to
-download AI models or the ONNX Runtime, and only after you agree.
+download AI models or the ONNX Runtime, and only after you agree. The one exception is the Android
+AI editor with [Claude Code](#claude-code-on-android) chosen: it sends the open photo's preview to
+Anthropic once you open the editor's chat.
 
 **Where does CalibRaw get the DCP profiles?**
 On start, CalibRaw tries to automatically detect DCP files on your machine (windows, macOS only).

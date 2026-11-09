@@ -387,6 +387,8 @@ impl CalibRawApp {
             scene_depth_quality: self.ai.scene_depth_quality,
             ai_gpu_acceleration: self.ai.gpu_acceleration,
             onnx_runtime_mode: self.ai.runtime_mode,
+            ai_editor_model: self.ai.chosen_editor_model(),
+            claude_model: self.ai.claude_model.clone(),
             discord_rich_presence: self.preferences.discord_rich_presence,
             hdd_mode: self.preferences.hdd_mode,
             camera_profile_mode: self.preferences.camera_profile_mode,

@@ -47,16 +47,18 @@ impl JavaModel {
         let mut sources = Vec::new();
         for (file, text) in files {
             let source = RustSource::new(text.clone());
-            for (name, _) in java_type_declarations(&source) {
+            let package = java_package(&source);
+            for (name, _) in java_type_declarations(&source, &package) {
                 declared.insert(name);
             }
-            sources.push((file.clone(), source));
+            sources.push((file.clone(), source, package));
         }
         let mut classes = BTreeMap::new();
-        for (file, source) in &sources {
+        for (file, source, package) in &sources {
             let imports = java_imports(source);
-            let declarations = java_type_declarations(source);
+            let declarations = java_type_declarations(source, package);
             let resolver = TypeResolver {
+                package,
                 imports: &imports,
                 declared: &declared,
             };
@@ -125,6 +127,8 @@ impl JavaModel {
 }
 
 struct TypeResolver<'a> {
+    /// The package of the file whose types are resolved.
+    package: &'a str,
     imports: &'a BTreeMap<String, String>,
     pub(super) declared: &'a BTreeSet<String>,
 }
@@ -173,12 +177,12 @@ impl TypeResolver<'_> {
             enclosing = current
                 .rsplit_once('.')
                 .map(|(outer, _)| outer)
-                .filter(|outer| outer.len() > PACKAGE.len());
+                .filter(|outer| outer.len() > self.package.len());
         }
         if let Some(qualified) = self.imports.get(head) {
             return Ok(self.with_rest(qualified, rest));
         }
-        let same_package = format!("{PACKAGE}.{head}");
+        let same_package = format!("{}.{head}", self.package);
         if self.declared.contains(&same_package) {
             return Ok(self.with_rest(&same_package, rest));
         }
@@ -268,8 +272,23 @@ fn java_imports(source: &RustSource) -> BTreeMap<String, String> {
     imports
 }
 
-/// `(qualified name, body range)` of every class, interface and enum.
-fn java_type_declarations(source: &RustSource) -> Vec<(String, std::ops::Range<usize>)> {
+/// The package a Java file declares, or the app's root package when it
+/// declares none.
+fn java_package(source: &RustSource) -> String {
+    source
+        .structural()
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("package "))
+        .map(|package| package.trim().trim_end_matches(';').trim().to_owned())
+        .unwrap_or_else(|| PACKAGE.to_owned())
+}
+
+/// `(qualified name, body range)` of every class, interface and enum, the
+/// top-level ones in `package`.
+fn java_type_declarations(
+    source: &RustSource,
+    package: &str,
+) -> Vec<(String, std::ops::Range<usize>)> {
     let structural = source.structural();
     let bytes = structural.as_bytes();
     let mut declarations: Vec<(String, std::ops::Range<usize>)> = Vec::new();
@@ -313,7 +332,7 @@ fn java_type_declarations(source: &RustSource) -> Vec<(String, std::ops::Range<u
             .map(|(name, _)| name.clone());
         let name = match outer {
             Some(outer) => format!("{outer}.{simple}"),
-            None => format!("{PACKAGE}.{simple}"),
+            None => format!("{package}.{simple}"),
         };
         declarations.push((name, open + 1..close));
     }

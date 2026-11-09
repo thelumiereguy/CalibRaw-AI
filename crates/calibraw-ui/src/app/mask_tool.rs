@@ -511,7 +511,7 @@ const COLOR_SAMPLE_RADIUS: usize = 2;
 
 /// Sample the source colour around `uv`; `uv` lies inside the editable image.
 /// Averages in linear light and stores display-encoded sRGB.
-fn sample_color_range(geometry: &mut MaskGeometry, uv: [f32; 2]) -> bool {
+pub(in crate::app) fn sample_color_range(geometry: &mut MaskGeometry, uv: [f32; 2]) -> bool {
     let MaskGeometry::ColorRange {
         source: Some(source),
         sample,

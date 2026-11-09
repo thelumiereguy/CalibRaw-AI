@@ -102,8 +102,9 @@ pub(crate) struct UiState {
     pub(crate) thumbnail_cache_size: Option<Result<u64, String>>,
     pub(crate) thumbnail_cache_size_receiver: Option<mpsc::Receiver<Result<u64, String>>>,
     pub(crate) desktop_picker_receiver: Option<mpsc::Receiver<DesktopPickerEvent>>,
-    /// The platform was last asked for the soft keyboard's number layout.
-    pub(in crate::app) numeric_keyboard: bool,
+    /// The kind of field the platform was last told the soft keyboard types
+    /// into, and the widget it was for.
+    pub(in crate::app) soft_keyboard: (crate::platform::SoftKeyboard, Option<egui::Id>),
     /// The confirmation of the last rating or flag key, while it shows.
     pub(crate) review_feedback: Option<crate::ui::library::ReviewFeedback>,
 }

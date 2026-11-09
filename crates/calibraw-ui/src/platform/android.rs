@@ -1,10 +1,11 @@
 //! The Android backend: the JNI bridge in `calibraw-ffi`.
 
 use super::service::{
-    CameraProfileFolderResult, ExportPublishResult, ImportProgress, ImportedLibraryDocument,
-    LibraryDocument, LibraryFolder, LinkFolderResult, LinkedFolder, ListedSidecar, PickedDocument,
-    PickerResult, Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult,
-    TaskNotification, TriageHeadline,
+    AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel,
+    ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
+    LinkFolderResult, LinkedFolder, ListedSidecar, PickedDocument, PickerResult, Platform,
+    PublishedExport, ReplayVideoEncoder, SoftKeyboard, StagedFilesResult, TaskNotification,
+    TriageHeadline,
 };
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
@@ -102,8 +103,20 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::keyboard_inset_points(pixels_per_point)
     }
 
-    fn set_numeric_keyboard(&self, numeric: bool) -> Result<(), String> {
-        calibraw_ffi::set_numeric_keyboard(&self.app, numeric)
+    fn set_soft_keyboard(&self, field: SoftKeyboard) -> Result<(), String> {
+        let field = match field {
+            SoftKeyboard::None => calibraw_ffi::SoftKeyboard::None,
+            SoftKeyboard::Text => calibraw_ffi::SoftKeyboard::Text,
+            SoftKeyboard::Number => calibraw_ffi::SoftKeyboard::Number,
+        };
+        calibraw_ffi::set_soft_keyboard(&self.app, field)
+    }
+
+    fn take_typed_input(&self) -> Vec<eframe::egui::Event> {
+        calibraw_ffi::take_typed_input()
+            .into_iter()
+            .flat_map(typed_input_events)
+            .collect()
     }
 
     fn set_light_system_bars(&self, light: bool) -> Result<(), String> {
@@ -132,6 +145,14 @@ impl Platform for AndroidPlatform {
 
     fn clear_task_notification(&self) -> Result<(), String> {
         calibraw_ffi::clear_background_task_notification(&self.app)
+    }
+
+    fn end_after_gpu_loss(&self, message: &str) {
+        // The process ends without `on_exit`, which clears the notification.
+        if let Err(error) = self.clear_task_notification() {
+            log::warn!("{error}");
+        }
+        calibraw_ffi::end_after_gpu_loss(&self.app, message)
     }
 
     fn performance_settings_path(&self) -> Result<Option<PathBuf>, String> {
@@ -581,14 +602,64 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::thumbnail_cache_size_bytes(&self.app)
     }
 
-    fn gemma_triage(
+    fn select_ai_model(
+        &self,
+        model: AiEditorModel,
+        claude_model: &ClaudeModel,
+    ) -> Result<(), String> {
+        // The names AiModelRouter.Kind knows.
+        let name = match model {
+            AiEditorModel::Gemma => "gemma",
+            AiEditorModel::ClaudeCode => "claude",
+        };
+        calibraw_ffi::select_ai_model(&self.app, name, claude_model.as_str())
+    }
+
+    fn claude_code_status(&self) -> Result<ClaudeCodeStatus, String> {
+        // ClaudeSetup.Status's codes.
+        let code = calibraw_ffi::claude_code_status(&self.app)?;
+        Ok(match code.as_str() {
+            "no_termux" => ClaudeCodeStatus::NoTermux,
+            "no_run_command" => ClaudeCodeStatus::NoRunCommand,
+            "no_permission" => ClaudeCodeStatus::NoPermission,
+            "blocked" => ClaudeCodeStatus::Blocked,
+            "not_installed" => ClaudeCodeStatus::NotInstalled,
+            "signed_out" => ClaudeCodeStatus::SignedOut,
+            "ready" => ClaudeCodeStatus::Ready,
+            _ => ClaudeCodeStatus::Failed,
+        })
+    }
+
+    fn claude_code_setup(&self, step: ClaudeCodeSetup) -> Result<(), String> {
+        // The steps ClaudeSetup.Step knows.
+        let step = match step {
+            ClaudeCodeSetup::Permission => "permission",
+            ClaudeCodeSetup::Install => "install",
+            ClaudeCodeSetup::SignIn => "sign_in",
+        };
+        calibraw_ffi::claude_code_setup(&self.app, step)
+    }
+
+    fn internet_available(&self) -> Result<bool, String> {
+        calibraw_ffi::internet_available(&self.app)
+    }
+
+    fn ai_editor_shown(&self, shown: bool) -> Result<(), String> {
+        calibraw_ffi::ai_editor_shown(&self.app, shown)
+    }
+
+    fn end_stray_claude_processes(&self) -> Result<(), String> {
+        calibraw_ffi::end_stray_claude_processes(&self.app)
+    }
+
+    fn ai_triage(
         &self,
         image_path: &Path,
         hint: &str,
         request_id: u64,
         badge_px: u32,
     ) -> Result<String, String> {
-        calibraw_ffi::gemma_triage(&self.app, image_path, hint, request_id, badge_px)
+        calibraw_ffi::ai_triage(&self.app, image_path, hint, request_id, badge_px)
     }
 
     fn take_triage_headline(&self) -> Option<TriageHeadline> {
@@ -604,25 +675,25 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::render_emoji(&self.app, emoji, size_px)
     }
 
-    fn gemma_editor_prepare(&self, system_prompt: &str) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_prepare(&self.app, system_prompt)
+    fn ai_editor_prepare(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::ai_editor_prepare(&self.app, system_prompt)
     }
 
-    fn gemma_editor_start_request(&self, system_prompt: &str) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_start_request(&self.app, system_prompt)
+    fn ai_editor_start_request(&self, system_prompt: &str) -> Result<(), String> {
+        calibraw_ffi::ai_editor_start_request(&self.app, system_prompt)
     }
 
-    fn gemma_editor_send(
+    fn ai_editor_send(
         &self,
         request_id: u64,
         text: &str,
-        image_path: Option<&Path>,
+        images: &[&Path],
     ) -> Result<String, String> {
-        calibraw_ffi::gemma_editor_send(&self.app, request_id, text, image_path)
+        calibraw_ffi::ai_editor_send(&self.app, request_id, text, images)
     }
 
-    fn gemma_editor_close(&self) -> Result<(), String> {
-        calibraw_ffi::gemma_editor_close(&self.app)
+    fn ai_editor_close(&self) -> Result<(), String> {
+        calibraw_ffi::ai_editor_close(&self.app)
     }
 
     fn take_editor_text(&self) -> Option<(u64, String)> {
@@ -688,6 +759,27 @@ impl ReplayVideoEncoder for MediaCodecEncoder {
     fn finish(self: Box<Self>) -> Result<(), String> {
         self.0.finish()
     }
+}
+
+/// egui's events for one edit the soft keyboard typed: the text, or a key
+/// pressed and released.
+fn typed_input_events(input: calibraw_ffi::TypedInput) -> Vec<eframe::egui::Event> {
+    use eframe::egui::{Event, Key, Modifiers};
+    let key = match input {
+        calibraw_ffi::TypedInput::Text(text) => return vec![Event::Text(text)],
+        calibraw_ffi::TypedInput::Backspace => Key::Backspace,
+        calibraw_ffi::TypedInput::Delete => Key::Delete,
+        calibraw_ffi::TypedInput::Enter => Key::Enter,
+    };
+    [true, false]
+        .map(|pressed| Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        })
+        .to_vec()
 }
 
 fn library_folders(folders: Vec<calibraw_ffi::LibraryFolder>) -> Vec<LibraryFolder> {

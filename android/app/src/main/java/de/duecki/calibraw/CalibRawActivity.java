@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Process;
 import android.graphics.Insets;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -19,6 +20,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
 import android.util.Log;
 import android.window.OnBackInvokedDispatcher;
+
+import de.duecki.calibraw.ai.AiModels;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -44,18 +47,24 @@ public final class CalibRawActivity extends NativeActivity {
     // A launch with this extra set to true times GPU processing stages
     // (`cargo xtask android-bench`).
     private static final String EXTRA_GPU_STAGE_TIMING = "de.duecki.calibraw.GPU_STAGE_TIMING";
+    // How long the lost-GPU notice shows before the process ends: Toast.LENGTH_LONG.
+    private static final long GPU_LOSS_NOTICE_MILLIS = 3500;
 
     private StorageManager storageManager;
     private ProfileImporter profileImporter;
     private StagedFileImporter lutImporter;
     private StagedFileImporter watermarkImporter;
     private ExportPublisher exportPublisher;
-    private GemmaBridge gemmaBridge;
+    private AiModels aiModels;
     private TaskNotificationController taskNotificationController;
+    // The values calibraw_ffi::set_soft_keyboard sends; 0 is no field.
+    private static final int SOFT_KEYBOARD_TEXT = 1;
+    private static final int SOFT_KEYBOARD_NUMBER = 2;
     // Created on first use; UI thread only.
+    private TextInputView textInputView;
     private NumericInputView numericInputView;
-    // The view that had input focus before the number layout took it.
-    private View focusBeforeNumericInput;
+    // The view that had input focus before one of the two above took it.
+    private View focusBeforeKeyboardInput;
     private final ExecutorService startupMaintenanceExecutor =
             Executors.newSingleThreadExecutor(runnable ->
                     new Thread(runnable, "CalibRaw startup maintenance"));
@@ -140,8 +149,8 @@ public final class CalibRawActivity extends NativeActivity {
                 StagedFileImporter.WATERMARK,
                 CalibRawActivity::nativeOnWatermarkImagePicked);
         exportPublisher = new ExportPublisher(this, CalibRawActivity::nativeOnExportPublished);
-        gemmaBridge = new GemmaBridge(this);
-        gemmaBridge.preload();
+        // Rust selects the model from its settings once it starts (AiModels.select).
+        aiModels = new AiModels(this);
 
         configureSystemBarsAndInsets();
         scavengeTemporaryFilesAsync();
@@ -273,35 +282,60 @@ public final class CalibRawActivity extends NativeActivity {
         });
     }
 
-    // Shows the soft keyboard's number layout while the UI edits a number. Showing and hiding the
-    // keyboard stays with winit; this only moves input focus between NativeActivity's view, which
-    // gets the text layout, and NumericInputView.
-    public void setNumericKeyboard(int numericFlag) {
-        final boolean numeric = numericFlag != 0;
+    // Points the soft keyboard at the field the UI edits: TextInputView for text, so the keyboard
+    // offers swipe and voice typing, or NumericInputView for its number layout. Showing and hiding
+    // the keyboard stays with winit; this only moves input focus between NativeActivity's view,
+    // which has no input connection, and those two. A call for the view that already has focus
+    // means another field took it, so its input starts again without the last field's text.
+    public void setSoftKeyboard(int field) {
         runOnUiThread(() -> {
             InputMethodManager inputMethods = getSystemService(InputMethodManager.class);
-            if (numeric) {
-                if (numericInputView == null) {
-                    numericInputView = new NumericInputView(this);
-                    addContentView(numericInputView, new ViewGroup.LayoutParams(1, 1));
+            View focused = getWindow().getCurrentFocus();
+            boolean keyboardInputFocused = focused != null
+                    && (focused == textInputView || focused == numericInputView);
+            View target = keyboardInputView(field);
+            if (target == null) {
+                if (keyboardInputFocused) {
+                    View previous = focusBeforeKeyboardInput;
+                    focusBeforeKeyboardInput = null;
+                    if (previous != null && previous.requestFocus()) {
+                        inputMethods.restartInput(previous);
+                    } else {
+                        focused.clearFocus();
+                    }
                 }
-                if (numericInputView.hasFocus()) {
-                    return;
-                }
-                focusBeforeNumericInput = getWindow().getCurrentFocus();
-                numericInputView.requestFocus();
-                inputMethods.restartInput(numericInputView);
-                inputMethods.showSoftInput(numericInputView, 0);
-            } else if (numericInputView != null && numericInputView.hasFocus()) {
-                View previous = focusBeforeNumericInput;
-                focusBeforeNumericInput = null;
-                if (previous != null && previous.requestFocus()) {
-                    inputMethods.restartInput(previous);
-                } else {
-                    numericInputView.clearFocus();
-                }
+                return;
             }
+            if (target.hasFocus()) {
+                inputMethods.restartInput(target);
+                return;
+            }
+            if (!keyboardInputFocused) {
+                focusBeforeKeyboardInput = focused;
+            }
+            target.requestFocus();
+            inputMethods.restartInput(target);
+            inputMethods.showSoftInput(target, 0);
         });
+    }
+
+    // The view that takes the keyboard for `field`, added on first use; null for no field.
+    private View keyboardInputView(int field) {
+        if (field == SOFT_KEYBOARD_TEXT) {
+            if (textInputView == null) {
+                textInputView = new TextInputView(this);
+                addContentView(textInputView, new ViewGroup.LayoutParams(1, 1));
+            }
+            return textInputView;
+        }
+        if (field == SOFT_KEYBOARD_NUMBER) {
+            if (numericInputView == null) {
+                numericInputView = new NumericInputView(this);
+                addContentView(numericInputView, new ViewGroup.LayoutParams(1, 1));
+            }
+            return numericInputView;
+        }
+        return null;
     }
 
     @SuppressWarnings("deprecation")
@@ -436,6 +470,22 @@ public final class CalibRawActivity extends NativeActivity {
         });
     }
 
+    // Ends the process after the GPU device was lost, once `message` was on screen for a while.
+    // The Rust thread waits for this without drawing, and nothing finishes the activity first:
+    // NativeActivity's lifecycle callbacks wait for that thread. winit cannot start again in this
+    // process, so the person starts CalibRaw again.
+    public void endAfterGpuLoss(String message) {
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+        new Thread(() -> {
+            try {
+                Thread.sleep(GPU_LOSS_NOTICE_MILLIS);
+            } catch (InterruptedException ignored) {
+                // End at once.
+            }
+            Process.killProcess(Process.myPid());
+        }, "CalibRaw GPU loss").start();
+    }
+
     public String deviceDiagnostics() {
         return "manufacturer=" + Build.MANUFACTURER
                 + "\nbrand=" + Build.BRAND
@@ -510,6 +560,12 @@ public final class CalibRawActivity extends NativeActivity {
         startupMaintenanceExecutor.shutdownNow();
         if (taskNotificationController != null) {
             taskNotificationController.clear();
+        }
+        // Finishing, as when the task is swiped away, not recreated: end the AI model's work.
+        // A process Android kills runs no callback; the next process ends what it left
+        // (ClaudeSession.endEarlierRuns).
+        if (isFinishing() && aiModels != null) {
+            aiModels.releaseOnFinish();
         }
         super.onDestroy();
     }

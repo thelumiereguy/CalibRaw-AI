@@ -232,8 +232,14 @@ impl CalibRawApp {
                 object_pending_target: None,
                 object_cache: None,
                 people: PeopleState::default(),
+                editor_model: performance.ai_editor_model,
+                // Decided in `select_initial_ai_model`.
+                offline_fallback: false,
+                claude_model: performance.claude_model.clone(),
+                claude_setup: ClaudeSetupState::default(),
                 triage: TriageState::default(),
                 editor: EditorState::default(),
+                tab_seen: None,
                 denoise_resume_pending: false,
             },
             inpaint: InpaintState {
@@ -364,7 +370,7 @@ impl CalibRawApp {
                 version_check: Default::default(),
                 shortcuts_dialog_open: false,
                 settings_dialog: None,
-                numeric_keyboard: false,
+                soft_keyboard: (crate::platform::SoftKeyboard::None, None),
                 review_feedback: None,
             },
             library: if caps.has_media_library() {
@@ -441,10 +447,8 @@ impl CalibRawApp {
         if let Some(render_state) = cc.wgpu_render_state.as_ref() {
             calibraw_gpu::install_uncaptured_gpu_error_handler(&render_state.device);
             calibraw_gpu::stage_timing::install(&render_state.device, &render_state.queue);
-            // A lost device is recovered by restarting (`handle_gpu_device_loss`).
-            if caps.can_restart {
-                calibraw_gpu::install_gpu_device_lost_handler(&render_state.device);
-            }
+            // A lost device ends the session (`handle_gpu_device_loss`).
+            calibraw_gpu::install_gpu_device_lost_handler(&render_state.device);
             editor_gpu = Some(calibraw_ai::GpuIdentity::new(&render_state.device));
         }
         let repaint = cc.egui_ctx.clone();
@@ -561,6 +565,7 @@ impl CalibRawApp {
         if let Some(activity) = interrupted_gpu_ai {
             app.handle_interrupted_gpu_ai(&activity);
         }
+        app.select_initial_ai_model();
         app
     }
 }

@@ -596,6 +596,33 @@ The app supports 16 KB pages. Verify a built APK with:
 cargo xtask verify-android-16kb android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Claude Code in Termux
+
+The AI editor on Android runs on-device Gemma or Claude Code, chosen under
+Settings → AI editor → Model. Claude Code runs in
+[Termux](https://github.com/termux/termux-app) and uses the Claude account it is
+signed in with. Install Termux from its GitHub releases or F-Droid: the Google
+Play build cannot run commands for other apps. Once Claude Code is selected,
+Settings shows the first missing step:
+
+1. **Allow**: grant CalibRaw Termux's `RUN_COMMAND` permission.
+2. **Copy command**: paste it into Termux once, which sets
+   `allow-external-apps = true` in `~/.termux/termux.properties`. This lets
+   every app holding the `RUN_COMMAND` permission, not only CalibRaw, run
+   commands as Termux, with access to its files and Claude Code's sign-in.
+3. **Install Claude Code**: Termux runs `assets/claude/install.sh`, which
+   installs the official linux-arm64 binary of the release it pins, checked
+   against its npm SHA-512, and runs it through Termux's glibc (`glibc-runner`,
+   `patchelf`). It takes a few minutes.
+4. **Sign in**: Termux runs `claude auth login`.
+
+Tap **Check again** after each step. Every conversation runs `claude -p` with
+the Sonnet model and no tools, settings, MCP servers or nonessential traffic
+(`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`); the diagnostics log gives each
+triage's and editor turn's time and cost (`Claude triage took …`,
+`Claude editor turn took …`). A triage or editor turn waits up to 35 s for
+Claude Code to connect, then up to 120 s for its reply.
+
 ### Profiling on a device
 
 `./gradlew assembleProfiling` builds

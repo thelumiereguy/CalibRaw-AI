@@ -73,6 +73,33 @@ impl LensGeometryMap {
         ]
     }
 
+    /// The native source position of the lens-corrected position `corrected_uv`,
+    /// both as fractions of a `raster_width` by `raster_height` raster from the
+    /// first pixel's centre to the last one's. A position outside the corrected
+    /// frame is returned as it is.
+    pub fn source_uv_for_raster(
+        &self,
+        corrected_uv: [f32; 2],
+        raster_width: u32,
+        raster_height: u32,
+    ) -> [f32; 2] {
+        if corrected_uv
+            .iter()
+            .any(|value| *value < 0.0 || *value > 1.0)
+        {
+            return corrected_uv;
+        }
+        let width = raster_width.saturating_sub(1).max(1) as f32;
+        let height = raster_height.saturating_sub(1).max(1) as f32;
+        let source = self.source_position_for_raster(
+            corrected_uv[0] * width,
+            corrected_uv[1] * height,
+            raster_width,
+            raster_height,
+        );
+        [source[0] / width, source[1] / height]
+    }
+
     pub fn corrected_position_for_raster(
         &self,
         source_x: f32,

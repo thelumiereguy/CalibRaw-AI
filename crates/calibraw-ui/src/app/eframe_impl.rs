@@ -1,5 +1,6 @@
 use super::*;
 use crate::i18n::{tr, tr_fmt};
+use crate::platform::SoftKeyboard;
 
 fn set_develop_sidebar_panel_width(ctx: &egui::Context, panel_id: egui::Id, width: f32) {
     ctx.data_mut(|data| {
@@ -155,10 +156,23 @@ impl CalibRawApp {
             moduwu_design::set_long_press_duration(ui.ctx(), self.platform.long_press_duration());
         }
 
-        let numeric_keyboard = moduwu_design::numeric_keyboard_requested(ui.ctx());
-        if numeric_keyboard != self.ui.numeric_keyboard {
-            self.ui.numeric_keyboard = numeric_keyboard;
-            if let Err(error) = self.platform.set_numeric_keyboard(numeric_keyboard) {
+        // A value entry is a text field too, so its request is read first.
+        let soft_keyboard = if moduwu_design::numeric_keyboard_requested(ui.ctx()) {
+            SoftKeyboard::Number
+        } else if ui.ctx().text_edit_focused() {
+            SoftKeyboard::Text
+        } else {
+            SoftKeyboard::None
+        };
+        // The platform is told again when another field of the same kind
+        // takes the keyboard, so the keyboard starts afresh instead of
+        // editing what was typed into the last one.
+        let field = (soft_keyboard != SoftKeyboard::None)
+            .then(|| ui.ctx().memory(|memory| memory.focused()))
+            .flatten();
+        if (soft_keyboard, field) != self.ui.soft_keyboard {
+            self.ui.soft_keyboard = (soft_keyboard, field);
+            if let Err(error) = self.platform.set_soft_keyboard(soft_keyboard) {
                 log::warn!("{error}");
             }
         }
@@ -215,7 +229,10 @@ impl CalibRawApp {
         }
         self.poll_foreground_operation(frame);
         self.poll_people_composes();
-        if caps.on_device_gemma {
+        if caps.ai_editor {
+            self.sync_ai_editor_tab();
+            self.poll_claude_code_check();
+            self.start_waiting_photo_triage(frame);
             self.poll_photo_triage();
             self.poll_ai_editor(frame);
         }
@@ -316,9 +333,7 @@ impl CalibRawApp {
 impl eframe::App for CalibRawApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let caps = self.caps();
-        if caps.can_restart {
-            self.handle_gpu_device_loss(ui.ctx());
-        }
+        self.handle_gpu_device_loss(ui.ctx());
         self.handle_gpu_failures();
         self.release_retired_egui_textures(frame);
         self.poll_version_check();
@@ -510,6 +525,9 @@ impl eframe::App for CalibRawApp {
         }
 
         self.advance_background_work(ui.ctx(), frame);
+        // The preview work above is where a device is usually lost, and egui
+        // draws on it as soon as `ui` returns.
+        self.handle_gpu_device_loss(ui.ctx());
         if raw_drop_hovered {
             show_raw_drop_overlay(ui, self.library.folder());
         }
@@ -521,6 +539,12 @@ impl eframe::App for CalibRawApp {
         let handles_back =
             self.handles_back_navigation() || moduwu_design::menu_sheet_open(ui.ctx());
         self.platform.set_back_navigation_active(handles_back);
+    }
+
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // The soft keyboard's typing in a text field (Android), after the
+        // events winit delivered for this frame.
+        raw_input.events.extend(self.platform.take_typed_input());
     }
 
     fn on_exit(&mut self) {

@@ -43,9 +43,10 @@ pub(crate) use fonts::{chinese_font, hindi_font, SystemFont};
 pub(crate) use graphics::{PROCESSING_DRIVER_INSTALL_HINT, PROCESSING_GRAPHICS_API};
 pub(crate) use locale::preferred_languages;
 pub(crate) use service::{
-    CameraProfileFolderResult, ExportPublishResult, ImportProgress, ImportedLibraryDocument,
-    LibraryDocument, LibraryFolder, LinkFolderResult, LinkedFolder, ListedSidecar, PickerResult,
-    Platform, PublishedExport, ReplayVideoEncoder, StagedFilesResult, TaskNotification,
+    AiEditorModel, CameraProfileFolderResult, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel,
+    ExportPublishResult, ImportProgress, ImportedLibraryDocument, LibraryDocument, LibraryFolder,
+    LinkFolderResult, LinkedFolder, ListedSidecar, PickerResult, Platform, PublishedExport,
+    ReplayVideoEncoder, SoftKeyboard, StagedFilesResult, TaskNotification,
 };
 
 #[cfg(target_os = "android")]

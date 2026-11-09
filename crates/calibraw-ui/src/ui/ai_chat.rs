@@ -1,8 +1,10 @@
-//! The AI editor's chat with Gemma about the open photo, shown in place of
-//! the Develop tools while it is open (`EditorState::open`).
+//! The AI editor's chat with the selected model (Gemma or Claude) about the
+//! open photo, shown in place of the Develop tools while it is open
+//! (`EditorState::open`).
 
 use crate::app::{CalibRawApp, ChatRole, EditorState, TriageState};
 use crate::i18n::tr;
+use crate::platform::AiEditorModel;
 use eframe::egui::{self, Ui};
 
 /// What the photographer did in the chat.
@@ -10,9 +12,11 @@ enum ChatAction {
     None,
     Send,
     Close,
+    /// Triage the photo again after its triage failed.
+    RetryTriage,
 }
 
-/// The first emoji of Gemma's `emoji`, for the AI editor's badge: egui draws
+/// The first emoji of the triage card's `emoji`, for the AI editor's badge: egui draws
 /// emoji one glyph at a time and in monochrome, so presentation selectors
 /// and the rest of a joined sequence would draw as boxes.
 pub(crate) fn badge_glyph(emoji: &str) -> String {
@@ -35,16 +39,32 @@ pub(crate) fn show_badge(ui: &mut Ui, triage: &TriageState, emoji: &str, size: f
     }
 }
 
-pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp) {
-    let can_send = app.ai_editor_can_send();
-    match chat(ui, &app.ai.triage, &mut app.ai.editor, can_send) {
-        ChatAction::None => {}
-        ChatAction::Send => app.send_ai_editor_request(),
-        ChatAction::Close => app.set_ai_editor_open(false),
+/// The triage badge's tooltip while `model` looks at the photo.
+pub(crate) fn looking_at_photo(model: AiEditorModel) -> &'static str {
+    match model {
+        AiEditorModel::Gemma => tr("Gemma is looking at the photo…"),
+        AiEditorModel::ClaudeCode => tr("Claude is looking at the photo…"),
     }
 }
 
-fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: bool) -> ChatAction {
+pub(crate) fn show(ui: &mut Ui, app: &mut CalibRawApp) {
+    let can_send = app.ai_editor_can_send();
+    let model = app.ai.editor_model;
+    match chat(ui, model, &app.ai.triage, &mut app.ai.editor, can_send) {
+        ChatAction::None => {}
+        ChatAction::Send => app.send_ai_editor_request(),
+        ChatAction::Close => app.set_ai_editor_open(false),
+        ChatAction::RetryTriage => app.retry_photo_triage(),
+    }
+}
+
+fn chat(
+    ui: &mut Ui,
+    model: AiEditorModel,
+    triage: &TriageState,
+    editor: &mut EditorState,
+    can_send: bool,
+) -> ChatAction {
     let mut action = ChatAction::None;
     let margin = moduwu_design::SPACE_SM;
     let inner = ui.available_rect_before_wrap().shrink(margin);
@@ -52,7 +72,9 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
     let ui = &mut ui;
 
     ui.horizontal(|ui| {
-        triage_heading(ui, triage);
+        if triage_heading(ui, model, triage) {
+            action = ChatAction::RetryTriage;
+        }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if moduwu_design::ghost_icon_button(
                 ui,
@@ -75,12 +97,20 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
         .auto_shrink([false, false])
         .stick_to_bottom(true)
         .show(ui, |ui| {
+            // Why the triage failed, as a failed request says why in the chat.
+            if let Some(failure) = &triage.failure {
+                chat_message(ui, ChatRole::Failure, failure);
+            }
             for message in editor.messages() {
                 chat_message(ui, message.role, &message.text);
             }
         });
 
     ui.add_space(moduwu_design::SPACE_SM);
+    let hint = match model {
+        AiEditorModel::Gemma => tr("Message Gemma"),
+        AiEditorModel::ClaudeCode => tr("Message Claude"),
+    };
     ui.horizontal(|ui| {
         let send_width = moduwu_design::toolbar_icon_size().x;
         let field = ui.add_sized(
@@ -88,7 +118,7 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
                 (ui.available_width() - send_width - ui.spacing().item_spacing.x).max(1.0),
                 moduwu_design::CONTROL_HEIGHT,
             ],
-            moduwu_design::singleline_text_edit(&mut editor.draft).hint_text(tr("Message Gemma")),
+            moduwu_design::singleline_text_edit(&mut editor.draft).hint_text(hint),
         );
         let entered = field.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
         if editor.request_running() {
@@ -110,22 +140,39 @@ fn chat(ui: &mut Ui, triage: &TriageState, editor: &mut EditorState, can_send: b
     action
 }
 
-/// The photo's genre, opening its triage card, or what Gemma is doing
-/// before the card is done.
-fn triage_heading(ui: &mut Ui, triage: &TriageState) {
+/// The photo's genre, opening its triage card, or what `model` is doing
+/// before the card is done. Returns whether the photographer asked to triage
+/// the photo again after its triage failed.
+fn triage_heading(ui: &mut Ui, model: AiEditorModel, triage: &TriageState) -> bool {
     let Some((genre, emoji)) = triage.headline() else {
-        ui.label(if triage.running() {
-            tr("Gemma is looking at the photo…")
+        if triage.looking() {
+            ui.label(looking_at_photo(model));
+        } else if triage.failure.is_some() {
+            let failed = match model {
+                AiEditorModel::Gemma => tr("Gemma could not triage this photo."),
+                AiEditorModel::ClaudeCode => tr("Claude could not triage this photo."),
+            };
+            ui.colored_label(ui.visuals().error_fg_color, failed);
+            return moduwu_design::ghost_icon_button(
+                ui,
+                egui_phosphor::regular::ARROWS_CLOCKWISE,
+                moduwu_design::toolbar_icon_size(),
+                tr("Try again"),
+            )
+            .clicked();
         } else {
-            tr("Gemma has not triaged this photo.")
-        });
-        return;
+            ui.label(match model {
+                AiEditorModel::Gemma => tr("Gemma has not triaged this photo."),
+                AiEditorModel::ClaudeCode => tr("Claude has not triaged this photo."),
+            });
+        }
+        return false;
     };
     show_badge(ui, triage, emoji, 18.0);
     let Some(card) = &triage.card else {
         ui.label(egui::RichText::new(genre).strong());
         ui.add(egui::Spinner::new());
-        return;
+        return false;
     };
     egui::CollapsingHeader::new(egui::RichText::new(genre).strong())
         .id_salt("ai-editor-triage-card")
@@ -133,6 +180,7 @@ fn triage_heading(ui: &mut Ui, triage: &TriageState) {
         .show(ui, |ui| {
             ui.add(egui::Label::new(&card.role).wrap());
         });
+    false
 }
 
 fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
@@ -143,7 +191,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
             visuals.selection.bg_fill.gamma_multiply(0.35),
             egui::RichText::new(text),
         ),
-        ChatRole::Gemma => (
+        ChatRole::Model => (
             egui::Layout::left_to_right(egui::Align::Min),
             visuals.faint_bg_color,
             egui::RichText::new(text),
@@ -160,7 +208,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
         ),
     };
     if text.text().is_empty() {
-        // A reply Gemma has not started writing.
+        // A reply the model has not started writing.
         ui.with_layout(layout, |ui| ui.add(egui::Spinner::new()));
         return;
     }
@@ -168,7 +216,7 @@ fn chat_message(ui: &mut Ui, role: ChatRole, text: &str) {
     ui.with_layout(layout, |ui| {
         egui::Frame::new()
             .fill(fill)
-            .corner_radius(8.0)
+            .corner_radius(moduwu_design::CARD_RADIUS)
             .inner_margin(egui::Margin::symmetric(10, 6))
             .show(ui, |ui| {
                 ui.set_max_width(max_width);

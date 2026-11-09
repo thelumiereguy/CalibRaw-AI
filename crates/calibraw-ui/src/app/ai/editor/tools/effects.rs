@@ -1,13 +1,13 @@
-//! The finish effects Gemma's `set_effect` tool moves: the sliders of the
+//! The finish effects the `set_effect` tool moves: the sliders of the
 //! global Vignette, Grain, Glow and Halation, named `effect_setting` after
 //! each slider's label (Preserve highlights is `vignette_preserve_highlights`).
-//! The brief reader (brief.rs) moves only each effect's amount; Gemma, given
-//! the rest, left them at odd values, such as a vignette with no feather. The
-//! rest stay settable.
+//! The brief reader (chat/brief.rs) moves only each effect's amount; Gemma,
+//! given the rest, left them at odd values, such as a vignette with no
+//! feather. The rest stay settable.
 //! Colours, positions and pattern seeds are left to the photographer.
 
-use super::tools::{number, rounded, Limits, Outcome};
-use super::*;
+use super::super::*;
+use super::{number, rounded, Limits, Outcome};
 use crate::pipeline::effect_params::FloatParamSpec;
 use crate::pipeline::{
     EffectComponent, EffectControl, EffectControls, MaskEffect, MaskEffectSettings,
@@ -88,7 +88,7 @@ fn parse_name(name: &str) -> Option<(MaskEffect, &str)> {
 }
 
 /// Whether `name` is an effect's slider.
-pub(super) fn is_effect_value(name: &str) -> bool {
+pub(in crate::app::ai::editor) fn is_effect_value(name: &str) -> bool {
     parse_name(name).is_some_and(|(effect, setting)| {
         slider_value(&MaskEffectSettings::initial(effect), effect, setting).is_some()
     })
@@ -97,7 +97,10 @@ pub(super) fn is_effect_value(name: &str) -> bool {
 /// The effect value `name` as `set_effect` reads it in `effects`, or `None`
 /// for another name. An effect that is off shows nothing, so its amount is 0
 /// and its other sliders are where a new effect starts.
-pub(super) fn effect_current(effects: &[EffectComponent], name: &str) -> Option<f32> {
+pub(in crate::app::ai::editor) fn effect_current(
+    effects: &[EffectComponent],
+    name: &str,
+) -> Option<f32> {
     let (effect, setting) = parse_name(name)?;
     let shown = effects
         .iter()
@@ -112,8 +115,10 @@ pub(super) fn effect_current(effects: &[EffectComponent], name: &str) -> Option<
 }
 
 /// The enabled effects' amounts and their other sliders away from where a
-/// new effect starts, as Gemma reads them.
-pub(super) fn changed_effects(effects: &[EffectComponent]) -> Map<String, Value> {
+/// new effect starts, as the model reads them.
+pub(in crate::app::ai::editor) fn changed_effects(
+    effects: &[EffectComponent],
+) -> Map<String, Value> {
     let mut values = Map::new();
     for (effect, effect_name) in EFFECTS {
         let Some(component) = effects
@@ -137,7 +142,7 @@ impl CalibRawApp {
     /// adding (or turning on) an effect a value is set for. Each value stays
     /// within its slider's range. `baseline`, the effects when the reply
     /// came, or where a new effect starts, gives the values they were.
-    pub(super) fn apply_set_effect(
+    pub(in crate::app::ai::editor) fn apply_set_effect(
         &mut self,
         baseline: &[EffectComponent],
         arguments: &Value,

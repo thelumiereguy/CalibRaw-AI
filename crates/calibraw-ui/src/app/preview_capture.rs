@@ -1,5 +1,5 @@
 //! Capturing the edited preview once it shows the current edits, for the
-//! library's developed thumbnail and for what on-device Gemma sees.
+//! library's developed thumbnail and for what the AI editor's model sees.
 
 use super::CalibRawApp;
 use crate::pipeline::GpuOutputSnapshot;

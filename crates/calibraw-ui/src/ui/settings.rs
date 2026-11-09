@@ -3,6 +3,7 @@ use crate::app::OnnxRuntimeMode;
 use crate::app::{CalibRawApp, PreviewQuality, GITHUB_UPDATE_CHECKS_AVAILABLE, UPDATE_STORE_NAME};
 use crate::i18n::{tr, tr_fmt};
 use crate::pipeline::CameraProfileMode;
+use crate::platform::{AiEditorModel, ClaudeCodeSetup, ClaudeCodeStatus, ClaudeModel};
 use crate::ui::components::adjustment_slider::AdjustmentSlider;
 use crate::ui::library::maximum_thumbnail_worker_count;
 use eframe::egui::{self, Ui};
@@ -14,6 +15,126 @@ const PROJECT_REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const THIRD_PARTY_NOTICES: &str = include_str!("../../../../THIRD_PARTY_NOTICES.md");
 const RUST_DEPENDENCY_LICENSES: &str =
     include_str!(concat!(env!("OUT_DIR"), "/THIRD_PARTY_LICENSES.md"));
+/// Termux's own builds, which run commands for other apps; its Google Play
+/// build does not.
+const TERMUX_RELEASES: &str = "https://github.com/termux/termux-app/releases";
+/// Lets other apps run commands in Termux, typed into Termux once.
+const TERMUX_ALLOW_COMMAND: &str = "mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties && termux-reload-settings";
+
+/// The model's name in Settings.
+fn ai_editor_model_label(model: AiEditorModel) -> &'static str {
+    match model {
+        AiEditorModel::Gemma => tr("Gemma (on this phone)"),
+        AiEditorModel::ClaudeCode => tr("Claude Code (in Termux)"),
+    }
+}
+
+/// The name in Settings of one of [`ClaudeModel::ALIASES`].
+fn claude_alias_label(alias: &str) -> &str {
+    match alias {
+        "sonnet" => tr("Sonnet (default)"),
+        "opus" => "Opus",
+        "haiku" => "Haiku",
+        "best" => tr("Best available"),
+        other => other,
+    }
+}
+
+/// The model Claude Code runs: one of Claude Code's aliases, which follow
+/// the newest model of their kind, or another model's full name. The name
+/// is a draft until its field loses focus, since applying it ends the
+/// photo's chat and triages the photo again.
+fn claude_model_control(ui: &mut Ui, app: &mut CalibRawApp) {
+    let current = app.ai.claude_model.clone();
+    // Other stays picked while its name is still being typed and the
+    // model is still an alias.
+    let other_id = ui.make_persistent_id("settings-claude-model-other");
+    let draft_id = ui.make_persistent_id("settings-claude-model-draft");
+    let mut other =
+        !current.is_alias() || ui.data(|data| data.get_temp::<bool>(other_id)) == Some(true);
+    let selected = if !other {
+        claude_alias_label(current.as_str()).to_owned()
+    } else if current.is_alias() {
+        tr("Other").to_owned()
+    } else {
+        current.as_str().to_owned()
+    };
+    let mut picked = None;
+    let help = tr("Sonnet is the model the AI editor was tried with. Opus, Haiku and Best available always run the newest model of their kind. Other runs the model you name, such as claude-opus-5-5, and stays on that version. Changing the model ends the open photo's chat and triages the photo again.");
+    moduwu_design::form_row_with_help(ui, tr("Claude model"), 220.0, help, |ui, width| {
+        // Sized for the aliases and Other, so the list shows whole: a plain
+        // combo's list is shorter and hid Other below the fold.
+        moduwu_design::responsive_combo_box(
+            ui,
+            "settings-claude-model",
+            selected,
+            width,
+            ClaudeModel::ALIASES.len() + 1,
+            |ui| {
+                for alias in ClaudeModel::ALIASES {
+                    if ui
+                        .selectable_label(
+                            !other && current.as_str() == alias,
+                            claude_alias_label(alias),
+                        )
+                        .clicked()
+                    {
+                        picked = ClaudeModel::new(alias);
+                    }
+                }
+                if ui.selectable_label(other, tr("Other")).clicked() {
+                    other = true;
+                }
+            },
+        )
+        .response
+        .on_hover_text(help);
+    });
+    if let Some(model) = picked {
+        ui.data_mut(|data| {
+            data.remove::<bool>(other_id);
+            data.remove::<String>(draft_id);
+        });
+        app.set_claude_model(model);
+        return;
+    }
+    if !other {
+        return;
+    }
+    ui.data_mut(|data| data.insert_temp(other_id, true));
+
+    let mut draft = ui
+        .data(|data| data.get_temp::<String>(draft_id))
+        .unwrap_or_else(|| {
+            if current.is_alias() {
+                String::new()
+            } else {
+                current.as_str().to_owned()
+            }
+        });
+    let response = ui.add(
+        moduwu_design::singleline_text_edit(&mut draft)
+            .id_salt("settings-claude-model-name")
+            .char_limit(ClaudeModel::MAX_CHARS)
+            .desired_width(f32::INFINITY)
+            .hint_text("claude-opus-5-5"),
+    );
+    let model = ClaudeModel::new(&draft);
+    if !draft.trim().is_empty() && model.is_none() {
+        ui.colored_label(
+            ui.visuals().error_fg_color,
+            tr("A model name has no spaces."),
+        );
+    }
+    if response.lost_focus() {
+        if let Some(model) = model {
+            ui.data_mut(|data| data.remove::<String>(draft_id));
+            app.set_claude_model(model);
+            return;
+        }
+    }
+    ui.data_mut(|data| data.insert_temp(draft_id, draft));
+}
 
 mod card_order;
 mod lut_library;
@@ -390,6 +511,11 @@ impl Settings {
         if app.caps().configurable_ai_runtime {
             moduwu_design::card_gap(ui);
             moduwu_design::content_card(ui, |ui| Self::show_ai_models_card(ui, app));
+        }
+
+        if app.caps().ai_editor {
+            moduwu_design::card_gap(ui);
+            moduwu_design::content_card(ui, |ui| Self::show_ai_editor_card(ui, app));
         }
 
         moduwu_design::card_gap(ui);
@@ -1212,6 +1338,131 @@ impl Settings {
                     }
                 });
             }
+        }
+    }
+
+    /// The model behind the triage and the AI editor, and Claude Code's setup
+    /// one missing step at a time.
+    fn show_ai_editor_card(ui: &mut Ui, app: &mut CalibRawApp) {
+        moduwu_design::heading_with_help(
+            ui,
+            tr("AI editor"),
+            tr("Choose the model behind the AI editor. Gemma runs on this phone and triages each photo you open. Claude Code runs in the Termux app and needs a Claude account; a photo's preview is sent to Anthropic only once you open the AI editor's chat on it."),
+        );
+        let model = app.ai.editor_model;
+        // Any pick counts, the model in use too: Gemma, picked while it
+        // stands in for Claude Code after a start without internet, becomes
+        // the saved choice.
+        let mut picked = None;
+        moduwu_design::form_combo_with_help(
+            ui,
+            tr("Model"),
+            "settings-ai-editor-model",
+            ai_editor_model_label(model),
+            220.0,
+            tr("Changing the model ends the open photo's chat and triages the photo again."),
+            |ui| {
+                for option in [AiEditorModel::Gemma, AiEditorModel::ClaudeCode] {
+                    if ui
+                        .selectable_label(model == option, ai_editor_model_label(option))
+                        .clicked()
+                    {
+                        picked = Some(option);
+                    }
+                }
+            },
+        );
+        if let Some(model) = picked {
+            app.set_ai_editor_model(model);
+        }
+        if app.ai.offline_fallback {
+            ui.small(tr("There was no internet when CalibRaw opened, so it uses Gemma until it restarts or you choose Claude Code."));
+        }
+        if app.ai.editor_model != AiEditorModel::ClaudeCode {
+            return;
+        }
+        claude_model_control(ui, app);
+
+        moduwu_design::section_separator(ui);
+        moduwu_design::strong_with_help(
+            ui,
+            tr("Claude Code setup"),
+            tr("CalibRaw starts Claude Code in Termux for each photo. Each step below appears once the step before it is done."),
+        );
+        if app.ai.claude_setup.checking() {
+            ui.small(tr("Checking Claude Code…"));
+        } else {
+            match app.ai.claude_setup.status {
+                Some(ClaudeCodeStatus::NoTermux) => {
+                    ui.label(tr("Install Termux from GitHub or F-Droid."));
+                    ui.hyperlink_to(tr("Termux releases"), TERMUX_RELEASES);
+                }
+                Some(ClaudeCodeStatus::NoRunCommand) => {
+                    ui.label(tr("This Termux cannot run commands for other apps. Install Termux from GitHub or F-Droid instead of Google Play."));
+                    ui.hyperlink_to(tr("Termux releases"), TERMUX_RELEASES);
+                }
+                Some(ClaudeCodeStatus::NoPermission) => {
+                    ui.label(tr("Allow CalibRaw to run commands in Termux."));
+                    if moduwu_design::secondary_button(ui, tr("Allow")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::Permission);
+                    }
+                }
+                Some(ClaudeCodeStatus::Blocked) => {
+                    ui.label(tr("Termux does not accept commands from CalibRaw yet. Open Termux, paste this command and run it, then check again."));
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(TERMUX_ALLOW_COMMAND).monospace())
+                            .wrap(),
+                    );
+                    if moduwu_design::secondary_button(ui, tr("Copy command")).clicked() {
+                        match app.copy_text_to_clipboard("Termux command", TERMUX_ALLOW_COMMAND) {
+                            None => ui.ctx().copy_text(TERMUX_ALLOW_COMMAND.to_owned()),
+                            Some(Ok(())) => calibraw_core::diagnostics::record(
+                                "Termux command copied to Android clipboard",
+                            ),
+                            Some(Err(error)) => calibraw_core::diagnostics::record(format!(
+                                "Android Termux-command clipboard copy failed: {error}"
+                            )),
+                        }
+                    }
+                }
+                Some(ClaudeCodeStatus::NotInstalled) => {
+                    ui.label(tr("Install Claude Code in Termux. It takes a few minutes."));
+                    if moduwu_design::secondary_button(ui, tr("Install Claude Code")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::Install);
+                    }
+                }
+                Some(ClaudeCodeStatus::SignedOut) => {
+                    ui.label(tr(
+                        "Sign in to Claude Code with your Claude account in Termux.",
+                    ));
+                    if moduwu_design::secondary_button(ui, tr("Sign in")).clicked() {
+                        app.run_claude_code_setup(ClaudeCodeSetup::SignIn);
+                    }
+                }
+                Some(ClaudeCodeStatus::Ready) => {
+                    ui.label(tr("Claude Code is ready."));
+                }
+                Some(ClaudeCodeStatus::Failed) | None => {
+                    ui.label(tr(
+                        "Could not check Claude Code. The diagnostic log says why.",
+                    ));
+                }
+            }
+        }
+        if let Some(failure) = &app.ai.claude_setup.failure {
+            ui.colored_label(
+                ui.visuals().error_fg_color,
+                tr_fmt("Claude Code setup failed: {error}", &[("error", failure)]),
+            );
+        }
+        if moduwu_design::secondary_button_enabled(
+            ui,
+            !app.ai.claude_setup.checking(),
+            tr("Check again"),
+        )
+        .clicked()
+        {
+            app.check_claude_code();
         }
     }
 
