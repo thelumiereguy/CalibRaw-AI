@@ -10,13 +10,30 @@ use std::path::{Path, PathBuf};
 // Version 5 dropped the automatic runtime choice (`onnx_runtime_kind` and
 // `onnx_runtime_kind_chosen`), which unknown fields leave to be ignored.
 // Version 6 moved the Preview quality tiers of memory-constrained devices;
-// see `sanitized`.
-const SETTINGS_VERSION: u32 = 6;
+// version 7 moved the Calibration card above Lens Corrections. See `sanitized`.
+const SETTINGS_VERSION: u32 = 7;
 /// The desktop decoded-RAW cache default before version 2 raised it, so that
 /// Develop can prefetch both neighbours of the open photo.
 ///
 /// migration: remove in v2.0.0, with the version 2 step in `sanitized`.
 const DESKTOP_RAW_CACHE_FILES_BEFORE_V2: usize = 2;
+/// The Develop card order before version 7, which ended with Lens Corrections
+/// and Calibration.
+///
+/// migration: remove in v2.0.0, with the version 7 step in `sanitized`.
+const DEVELOP_CARD_ORDER_BEFORE_V7: [crate::app::DevelopCard; 11] = [
+    crate::app::DevelopCard::CameraProfile,
+    crate::app::DevelopCard::Light,
+    crate::app::DevelopCard::ToneCurve,
+    crate::app::DevelopCard::Lut,
+    crate::app::DevelopCard::Color,
+    crate::app::DevelopCard::ColorGrading,
+    crate::app::DevelopCard::Detail,
+    crate::app::DevelopCard::Effects,
+    crate::app::DevelopCard::ColorMixer,
+    crate::app::DevelopCard::LensCorrections,
+    crate::app::DevelopCard::Calibration,
+];
 const MAX_SETTINGS_BYTES: u64 = 64 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -31,8 +48,11 @@ pub(crate) struct PerformanceSettings {
     /// Size the thumbnail worker pool from the machine's cores and memory.
     /// Missing in files written before it existed, which therefore turn it on.
     pub thumbnail_workers_automatic: bool,
-    pub render_edited_thumbnails_during_indexing: bool,
     pub library_thumbnail_size: crate::ui::library::LibraryThumbnailSize,
+    /// Show the library as equal square tiles.
+    pub library_square_thumbnails: bool,
+    /// Show the photos of the selected folder's subfolders with its own.
+    pub library_include_subfolders: bool,
     pub library_sort_order: crate::ui::library::LibrarySortOrder,
     /// Show RAW+JPEG (or RAW+HEIC) pairs once, as the RAW.
     pub library_stack_raw_companions: bool,
@@ -68,6 +88,10 @@ pub(crate) struct PerformanceSettings {
     /// quality, so existing users are asked about it once where their device
     /// offers the choice; the choice itself is never reset by it.
     pub people_mask_quality_chosen: bool,
+    /// Missing in files written before the setup step offered the scene-depth
+    /// quality, so existing users are asked about it once where their device
+    /// offers the choice; the choice itself is never reset by it.
+    pub scene_depth_quality_chosen: bool,
     /// Show a feature's tip the first time it is used.
     pub tips_enabled: bool,
     /// `Tip::key`s of the tips already shown, including keys of tips other
@@ -289,8 +313,9 @@ impl Default for PerformanceSettings {
             raw_cache_files: crate::app::default_raw_cache_limit(),
             thumbnail_workers: crate::ui::library::default_thumbnail_worker_count(),
             thumbnail_workers_automatic: true,
-            render_edited_thumbnails_during_indexing: false,
             library_thumbnail_size: crate::ui::library::LibraryThumbnailSize::default(),
+            library_square_thumbnails: false,
+            library_include_subfolders: false,
             library_sort_order: crate::ui::library::LibrarySortOrder::default(),
             library_stack_raw_companions: true,
             preview_quality: crate::app::PreviewQuality::default(),
@@ -313,6 +338,7 @@ impl Default for PerformanceSettings {
             onboarding_completed: false,
             subject_mask_quality_chosen: false,
             people_mask_quality_chosen: false,
+            scene_depth_quality_chosen: false,
             tips_enabled: true,
             seen_tips: BTreeSet::new(),
             auto_check_updates: true,
@@ -407,6 +433,15 @@ impl PerformanceSettings {
                 self.preview_quality,
                 PlatformCaps::CURRENT.constrained_memory(),
             );
+        }
+        // Version 7: the Calibration card moved above Lens Corrections. Every
+        // save wrote the whole order, so an order equal to the old default
+        // becomes the new default.
+        // migration: remove in v2.0.0. Listed in `calibraw_core`'s `migrations`.
+        if self.version < 7
+            && self.develop_card_order.cards() == DEVELOP_CARD_ORDER_BEFORE_V7.as_slice()
+        {
+            self.develop_card_order = crate::app::DevelopCardOrder::default();
         }
         self.version = SETTINGS_VERSION;
         // Setup offers the default until the user has chosen; earlier builds

@@ -2,10 +2,8 @@ use crate::app::CalibRawApp;
 use crate::app::LibraryExportDestination;
 use crate::i18n::{tr, tr_fmt};
 use crate::pipeline::{
-    apply_lens_correction, build_proxy, is_supported_image_path, load_raw_display_metadata,
-    load_raw_file_with_profile_selection, load_raw_thumbnail,
-    load_raw_thumbnail_with_display_metadata, mask_atlas_edge, GpuParams, MaskRgbImage, MaskStack,
-    PipelineOptions, ProcessingQuality, ProxySpec, RawGpuPipeline, MAX_LOCAL_MASKS,
+    is_supported_image_path, load_raw_display_metadata, load_raw_thumbnail,
+    load_raw_thumbnail_with_display_metadata,
 };
 use crate::pipeline::{ExportFormat, ExportSettings, RawThumbnail};
 use crate::platform::{Platform, PlatformCaps};
@@ -18,7 +16,6 @@ use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::OnceLock;
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -73,7 +70,9 @@ use thumbnails::*;
 
 pub(crate) use actions::photo_actions_menu;
 pub(crate) use actions::{apply_library_action, show_library_action_overlays};
-pub(crate) use companions::{paint_format_badge, rendered_format_label};
+pub(crate) use companions::{
+    corner_inset_beside, paint_edit_badge, paint_format_badge, rendered_format_label, EditBadge,
+};
 pub(crate) use merge::{MergeKind, MergeOutcome};
 pub(crate) use thumbnails::{load_desktop_cached_thumbnail, load_desktop_reference_preview};
 pub(crate) use view::Library;
@@ -92,7 +91,6 @@ const ANDROID_DEVELOP_TEXTURE_CACHE_LIMIT: usize = 10;
 const THUMBNAIL_PAUSE_POLL_INTERVAL: Duration = Duration::from_millis(20);
 const THUMBNAIL_QUEUE_POLL_INTERVAL: Duration = Duration::from_millis(8);
 const THUMBNAIL_RETRY_MAX_DELAY: Duration = Duration::from_secs(30);
-const DEVELOPED_THUMBNAIL_PROXY_EDGE: u32 = 1024;
 /// The manual worker limit always allows at least this many on desktop, even
 /// on machines with fewer cores.
 pub(crate) const MIN_DESKTOP_THUMBNAIL_WORKER_LIMIT: usize = 8;
@@ -102,9 +100,9 @@ pub(crate) const MAX_ANDROID_THUMBNAIL_WORKERS: usize = 2;
 /// them read previews out of photos at once ([`ExtractionPermits`]); the rest
 /// serve cached previews, so a screenful of them arrives together.
 const MEDIA_LIBRARY_PREVIEW_WORKERS: usize = 4;
-/// Concurrent full RAW renders for thumbnails (files without an embedded
-/// preview, and edited thumbnails), whatever the worker count. Each one holds
-/// an unpacked sensor image, so this bounds the indexing memory peak.
+/// Concurrent full RAW renders for thumbnails of files without an embedded
+/// preview, whatever the worker count. Each one holds an unpacked sensor
+/// image, so this bounds the indexing memory peak.
 const MAX_RENDERED_THUMBNAIL_WORKERS: usize = 4;
 /// Peak memory one thumbnail job may need: a decoded full-size embedded JPEG
 /// or a half-size RAW fallback of a high-resolution sensor.
@@ -191,6 +189,18 @@ impl LibraryThumbnailSize {
     }
 }
 
+/// How the library shows the selected folder; each part persists with the
+/// settings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct LibraryView {
+    pub(crate) thumbnail_size: LibraryThumbnailSize,
+    /// Equal square tiles, each photo cropped to fill its tile, instead of
+    /// justified rows of photos in their own shapes.
+    pub(crate) square_thumbnails: bool,
+    /// Also show the photos of every folder below the selected one.
+    pub(crate) include_subfolders: bool,
+}
+
 /// The manual worker setting's initial and reset value.
 pub(crate) fn default_thumbnail_worker_count() -> usize {
     sources::default_thumbnail_worker_count()
@@ -213,6 +223,17 @@ pub(crate) enum LibraryAssetId {
     Android(String),
 }
 
+impl From<&crate::sidecar::SidecarTarget> for LibraryAssetId {
+    fn from(target: &crate::sidecar::SidecarTarget) -> Self {
+        match target {
+            crate::sidecar::SidecarTarget::Desktop { raw_path } => Self::Desktop(raw_path.clone()),
+            crate::sidecar::SidecarTarget::Android { raw_uri, .. } => {
+                Self::Android(raw_uri.clone())
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum LibraryLocator {
     Desktop(PathBuf),
@@ -222,6 +243,9 @@ pub(crate) enum LibraryLocator {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LibraryAssetMetadata {
     pub(crate) review: crate::sidecar::PhotoReview,
+    /// Whether the saved edits differ from the photo's start
+    /// ([`crate::sidecar::EditFingerprint`]).
+    pub(crate) edited: bool,
     pub(crate) bytes: u64,
     pub(crate) dimensions_hint: Option<[u32; 2]>,
     /// Capture settings read from folder photos; zero for media-library photos.
@@ -271,9 +295,9 @@ impl LibraryAsset {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
-        let review = crate::sidecar::load_photo_review(&path).unwrap_or_else(|error| {
+        let sidecar = crate::sidecar::load_sidecar_metadata(&path).unwrap_or_else(|error| {
             log::warn!("Could not read review for {}: {error}", path.display());
-            crate::sidecar::PhotoReview::default()
+            crate::sidecar::SidecarMetadata::default()
         });
         Self {
             id: LibraryAssetId::Desktop(path.clone()),
@@ -281,7 +305,8 @@ impl LibraryAsset {
             display_name,
             locator: LibraryLocator::Desktop(path),
             metadata: LibraryAssetMetadata {
-                review,
+                review: sidecar.review,
+                edited: sidecar.edited,
                 bytes,
                 dimensions_hint,
                 iso_speed: 0.0,
@@ -302,6 +327,7 @@ impl LibraryAsset {
             locator: LibraryLocator::Android { uri: document.uri },
             metadata: LibraryAssetMetadata {
                 review: crate::sidecar::PhotoReview::default(),
+                edited: false,
                 bytes: document.bytes,
                 dimensions_hint: None,
                 iso_speed: 0.0,
@@ -340,14 +366,46 @@ pub(crate) struct LibraryEntry {
     thumbnail_failures: u8,
     thumbnail_retry_after: Option<Instant>,
     thumbnail_queued: bool,
-    developed_thumbnail: bool,
-    developed_thumbnail_pending: bool,
+    edits: ThumbnailEdits,
     last_used: u64,
 }
 
 impl LibraryEntry {
     fn review(&self) -> crate::sidecar::PhotoReview {
         self.asset.metadata.review
+    }
+}
+
+/// What a tile's thumbnail shows of the photo's saved edits.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum ThumbnailEdits {
+    /// The photo has no edits that change it, or no thumbnail yet.
+    #[default]
+    Unedited,
+    /// A render of the saved edits.
+    Developed,
+    /// The camera's preview with the saved crop, or an earlier render, stands
+    /// in until the saved edits render, once the previews have loaded.
+    Rendering,
+    /// As `Rendering`, but the edits do not render: the platform does not.
+    Stale,
+    /// Rendering the saved edits failed with this error.
+    Failed(String),
+}
+
+impl ThumbnailEdits {
+    /// Whether the thumbnail does not show the saved edits.
+    fn is_stale(&self) -> bool {
+        matches!(self, Self::Rendering | Self::Stale | Self::Failed(_))
+    }
+}
+
+impl From<&crate::sidecar::SidecarSummary> for SidecarBadges {
+    fn from(summary: &crate::sidecar::SidecarSummary) -> Self {
+        Self {
+            review: summary.review,
+            edited: summary.edited,
+        }
     }
 }
 
@@ -360,21 +418,33 @@ pub(crate) struct FilmstripItem {
     pub(crate) developed_thumbnail_pending: bool,
 }
 
+/// What a tile's badges show from the photo's sidecar.
+#[derive(Clone, Copy, Debug)]
+struct SidecarBadges {
+    review: crate::sidecar::PhotoReview,
+    /// Whether the edits differ from the photo's start.
+    edited: bool,
+}
+
 struct LoadedLibraryThumbnail {
     thumbnail: RawThumbnail,
     resident_thumbnail: RawThumbnail,
-    review: Option<crate::sidecar::PhotoReview>,
-    developed: bool,
-    developed_thumbnail_stale: bool,
-    developed_render_pending: bool,
+    /// Read where loading the thumbnail reads the sidecar: in the media library.
+    badges: Option<SidecarBadges>,
+    edits: LoadedEdits,
     /// Display metadata the catalog scan deferred, read while loading this thumbnail.
     display_metadata: Option<crate::pipeline::RawDisplayMetadata>,
 }
 
+/// What a loaded thumbnail shows of the photo's saved edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ThumbnailLoadStage {
-    RawPreview,
-    DevelopedPreview,
+enum LoadedEdits {
+    /// The photo has no edits that change it.
+    Unedited,
+    /// The developed thumbnail saved for the current edits.
+    Developed,
+    /// The camera's preview with the saved crop: the edits are not rendered.
+    Stale,
 }
 
 #[derive(Clone)]
@@ -382,14 +452,12 @@ struct ThumbnailRequest {
     generation: u64,
     asset_id: LibraryAssetId,
     display_priority: bool,
-    stage: ThumbnailLoadStage,
 }
 
 struct ThumbnailWorkQueue {
     background: VecDeque<ThumbnailRequest>,
     in_flight: HashMap<LibraryAssetId, bool>,
     initial_completed: HashSet<LibraryAssetId>,
-    developed_queued: HashSet<LibraryAssetId>,
 }
 
 #[derive(Default)]
@@ -401,9 +469,19 @@ struct ThumbnailBackgroundProgress {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ThumbnailProgress {
+    pub(crate) stage: ThumbnailStage,
     pub(crate) completed: usize,
     pub(crate) total: usize,
     pub(crate) paused: bool,
+}
+
+/// What the library's background work is doing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ThumbnailStage {
+    /// Loading every photo's preview.
+    Previews,
+    /// Rendering the saved edits that previews do not show, after them.
+    Edits,
 }
 
 impl ThumbnailBackgroundProgress {
@@ -419,9 +497,15 @@ impl ThumbnailBackgroundProgress {
         }
     }
 
+    /// Whether every thumbnail of the folder has loaded or failed.
+    fn is_complete(&self) -> bool {
+        self.completed_assets.len() >= self.total
+    }
+
     fn snapshot(&self, paused: bool) -> Option<ThumbnailProgress> {
         let completed = self.completed_assets.len().min(self.total);
         (self.total > 0 && completed < self.total).then_some(ThumbnailProgress {
+            stage: ThumbnailStage::Previews,
             completed,
             total: self.total,
             paused,
@@ -438,20 +522,15 @@ impl ThumbnailWorkQueue {
                     generation,
                     asset_id: asset.id.clone(),
                     display_priority: false,
-                    stage: ThumbnailLoadStage::RawPreview,
                 })
                 .collect(),
             in_flight: HashMap::new(),
             initial_completed: HashSet::new(),
-            developed_queued: HashSet::new(),
         }
     }
 
     fn claim(&mut self, request: &ThumbnailRequest, initial_background: bool) -> bool {
-        if initial_background
-            && request.stage == ThumbnailLoadStage::RawPreview
-            && self.initial_completed.contains(&request.asset_id)
-        {
+        if initial_background && self.initial_completed.contains(&request.asset_id) {
             return false;
         }
         if let Some(display_priority) = self.in_flight.get_mut(&request.asset_id) {
@@ -464,23 +543,8 @@ impl ThumbnailWorkQueue {
     }
 
     fn finish(&mut self, request: &ThumbnailRequest) -> bool {
-        if request.stage == ThumbnailLoadStage::RawPreview {
-            self.initial_completed.insert(request.asset_id.clone());
-        } else {
-            self.developed_queued.remove(&request.asset_id);
-        }
+        self.initial_completed.insert(request.asset_id.clone());
         self.in_flight.remove(&request.asset_id).unwrap_or(false)
-    }
-
-    fn schedule_developed_preview(&mut self, generation: u64, asset_id: LibraryAssetId) {
-        if self.developed_queued.insert(asset_id.clone()) {
-            self.background.push_back(ThumbnailRequest {
-                generation,
-                asset_id,
-                display_priority: false,
-                stage: ThumbnailLoadStage::DevelopedPreview,
-            });
-        }
     }
 }
 
@@ -503,7 +567,6 @@ enum ScanEvent {
         generation: u64,
         asset_id: LibraryAssetId,
         display_priority: bool,
-        final_thumbnail: bool,
         result: Result<LoadedLibraryThumbnail, String>,
     },
     Failed {
@@ -566,6 +629,15 @@ struct LibraryExportDialog {
     settings: ExportSettings,
     format: ExportFormat,
     overrides: crate::app::ExportOverrideChoice,
+}
+
+/// Choosing which settings of `asset` Copy adjustments takes.
+struct LibraryAdjustmentCopyDialog {
+    asset: LibraryAsset,
+    /// The photo's edits when the dialog opened. The dialog is modal, so they
+    /// are what Copy installs.
+    edits: Box<crate::sidecar::EditState>,
+    selection: crate::sidecar::EditSelection,
 }
 
 #[derive(Clone)]
@@ -694,8 +766,9 @@ struct AndroidLibraryFolderNameDialog {
 struct MediaLibraryState {
     root_location: String,
     folder: String,
-    folders: Vec<crate::platform::LibraryFolder>,
-    expanded_folders: HashSet<String>,
+    /// The folders of every root the sidebar shows, by root key (empty for
+    /// the media library), kept while another root is shown.
+    trees: HashMap<String, FolderTree>,
     folder_name_dialog: Option<AndroidLibraryFolderNameDialog>,
     /// The linked folder shown; empty for the media library itself.
     root: String,
@@ -706,24 +779,48 @@ struct MediaLibraryState {
     unlink_dialog: Option<crate::platform::LinkedFolder>,
     /// A failure the app shows in its error dialog on the next frame.
     pending_error: Option<String>,
-    /// The walk of the shown linked folder's tree. It lists every file of
+    /// The walk of one root's tree. A linked folder's lists every file of
     /// every folder through the Storage Access Framework, so one runs at a
     /// time and selecting a folder within the tree does not start one.
-    tree_walk: Option<LinkedTreeWalk>,
-    /// A refresh asked for the linked folder's tree again; walked once no
-    /// walk runs.
+    tree_walk: Option<FolderTreeWalk>,
+    /// A refresh asked for the shown linked folder's tree again; walked once
+    /// no walk runs.
     tree_walk_due: bool,
 }
 
-struct LinkedTreeWalk {
-    /// The linked folder walked; its folders are shown only while it is.
+impl MediaLibraryState {
+    /// The tree of the root shown.
+    fn shown_tree_mut(&mut self) -> &mut FolderTree {
+        self.trees.entry(self.root.clone()).or_default()
+    }
+
+    /// Whether `key` still names a root: the media library or a linked folder.
+    fn has_root(&self, key: &str) -> bool {
+        key.is_empty() || self.linked_folders.iter().any(|folder| folder.key == key)
+    }
+}
+
+#[derive(Default)]
+struct FolderTree {
+    folders: Vec<crate::platform::LibraryFolder>,
+    /// Open rows by folder path; the empty path is the root's own row.
+    expanded: HashSet<String>,
+    /// Set once the folders were listed, even when that failed, so a root that
+    /// is not shown is walked once rather than on every frame.
+    listed: bool,
+}
+
+struct FolderTreeWalk {
     root: String,
     result: mpsc::Receiver<Result<Vec<crate::platform::LibraryFolder>, String>>,
 }
 
 enum AndroidLibraryFolderUiAction {
-    Select(String),
-    SelectRoot(String),
+    /// A folder of a root, which need not be the root shown.
+    Select {
+        root: String,
+        folder: String,
+    },
     New(String),
     Refresh,
     Link,
@@ -757,7 +854,8 @@ impl LibraryFolderNode {
 #[derive(Clone, Debug)]
 pub(crate) struct AdjustmentClipboard {
     pub(crate) edits: crate::sidecar::EditState,
-    /// The categories chosen in Settings when the adjustments were copied.
+    /// The categories chosen in Settings, or in the copy dialog, when the
+    /// adjustments were copied.
     pub(crate) selection: crate::sidecar::EditSelection,
 }
 
@@ -778,6 +876,10 @@ pub(crate) struct LibraryState {
     decoding_paused: Arc<AtomicBool>,
     decode_gate: Arc<RwLock<()>>,
     thumbnail_progress: ThumbnailBackgroundProgress,
+    /// Renders the saved edits of photos whose thumbnail does not show them.
+    developed: DevelopedRenders,
+    /// The editor's GPU device for those renders, once the app has one.
+    saved_edits_gpu: Option<crate::app::SavedEditsGpu>,
     scanning: bool,
     catalog_ready: bool,
     status: String,
@@ -785,9 +887,8 @@ pub(crate) struct LibraryState {
     /// The manual worker limit; see `automatic_thumbnail_workers`.
     thumbnail_workers: usize,
     automatic_thumbnail_workers: bool,
-    render_edited_thumbnails_during_indexing: bool,
     sort_order: LibrarySortOrder,
-    thumbnail_size: LibraryThumbnailSize,
+    view: LibraryView,
     search_query: String,
     review_filter: LibraryReviewFilter,
     /// Show RAW+JPEG pairs once, as the RAW. Rebuilt with the entry indices.
@@ -797,6 +898,9 @@ pub(crate) struct LibraryState {
     reviews: state::ReviewWriter,
     image_clipboard: Option<ImageClipboard>,
     pub(crate) adjustment_clipboard: Option<AdjustmentClipboard>,
+    /// The last selection confirmed in the copy dialog, which opens with it
+    /// again until CalibRaw quits.
+    chosen_copy_selection: Option<crate::sidecar::EditSelection>,
     asset_transfer_receiver: Option<mpsc::Receiver<AssetTransferCompletion>>,
     merge: Option<merge::MergeTask>,
     raw_import_receiver: Option<mpsc::Receiver<RawImportResult>>,
@@ -807,6 +911,7 @@ pub(crate) struct LibraryState {
     delete_originals_confirmation: Option<Vec<LibraryAsset>>,
     raw_name_dialog: Option<LibraryRawNameDialog>,
     export_dialog: Option<LibraryExportDialog>,
+    adjustment_copy_dialog: Option<LibraryAdjustmentCopyDialog>,
     adjustment_paste_dialog: Option<LibraryAdjustmentPasteDialog>,
     ai_mask_refresh_prompt: Option<LibraryAiMaskRefreshPrompt>,
 }

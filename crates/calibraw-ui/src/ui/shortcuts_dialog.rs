@@ -46,6 +46,7 @@ fn groups() -> Vec<Group> {
                 control(tr("Save edits now"), &[&with_command("S")]),
                 control(tr("Previous / next photo in Develop"), &["←", "→"]),
                 control(tr("Toggle shadow and highlight clipping"), &["J"]),
+                control(tr("Switch the preview background"), &["B"]),
             ],
         },
         Group {
@@ -90,6 +91,10 @@ fn groups() -> Vec<Group> {
                 control(tr("Stop selecting"), &["Esc"]),
                 control(tr("Photo menu"), &[tr("Right-click")]),
                 control(tr("Copy adjustments"), &[&with_command("Shift+C")]),
+                control(
+                    tr("Choose adjustments to copy…"),
+                    &[&with_command("Alt+Shift+C")],
+                ),
                 control(tr("Paste adjustments"), &[&with_command("Shift+V")]),
                 control(tr("Export"), &[&with_command("Shift+E")]),
                 control(tr("Delete"), &["Delete", "Backspace"]),

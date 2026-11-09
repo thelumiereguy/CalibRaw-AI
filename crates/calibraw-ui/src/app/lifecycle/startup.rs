@@ -80,11 +80,13 @@ impl CalibRawApp {
         let library_preferences = crate::ui::library::LibraryPreferences {
             thumbnail_workers: performance.thumbnail_workers,
             automatic_thumbnail_workers: performance.thumbnail_workers_automatic,
-            thumbnail_size: performance.library_thumbnail_size,
+            view: crate::ui::library::LibraryView {
+                thumbnail_size: performance.library_thumbnail_size,
+                square_thumbnails: performance.library_square_thumbnails,
+                include_subfolders: performance.library_include_subfolders,
+            },
             sort_order: performance.library_sort_order,
             stack_raw_companions: performance.library_stack_raw_companions,
-            render_edited_thumbnails_during_indexing: performance
-                .render_edited_thumbnails_during_indexing,
         };
         let app = Self {
             develop: DevelopState {
@@ -267,6 +269,7 @@ impl CalibRawApp {
             export: ExportState {
                 format: performance.export_format,
                 gpu_prewarm: None,
+                programs_compiled_for: None,
                 settings: ExportSettings::default(),
                 task: None,
                 batch: None,
@@ -280,6 +283,7 @@ impl CalibRawApp {
             },
             persistence: PersistenceState {
                 history: edit_history,
+                document_start: DocumentStart::Settled(crate::sidecar::SidecarStart::Keep),
                 lens_restore_masks: None,
                 sidecar_target: None,
                 document_generation: 0,
@@ -336,6 +340,7 @@ impl CalibRawApp {
                 onboarding_completed: performance.onboarding_completed,
                 subject_mask_quality_chosen: performance.subject_mask_quality_chosen,
                 people_mask_quality_chosen: performance.people_mask_quality_chosen,
+                scene_depth_quality_chosen: performance.scene_depth_quality_chosen,
                 tips: TipPreferences {
                     enabled: performance.tips_enabled,
                     seen: performance.seen_tips.clone(),
@@ -520,10 +525,12 @@ impl CalibRawApp {
             }
             prewarm_dcp_profile_folder(performance.camera_profile_folder.clone());
         }
+        let gpu_preview_prewarm = Arc::new(crate::pipeline::GpuProgramPrewarm::new());
         let gpu_export_prewarm = Arc::new(crate::pipeline::GpuProgramPrewarm::new());
         let gpu_preview_prewarm_receiver = spawn_gpu_preview_prewarm(
             cc,
             gpu_pipeline_cache_root,
+            Arc::clone(&gpu_preview_prewarm),
             Arc::clone(&gpu_export_prewarm),
             Arc::clone(&platform),
         );
@@ -535,6 +542,14 @@ impl CalibRawApp {
         );
         app.preview.gpu_prewarm_receiver = gpu_preview_prewarm_receiver;
         app.export.gpu_prewarm = Some(gpu_export_prewarm);
+        if let Some(render_state) = cc.wgpu_render_state.as_ref() {
+            app.library
+                .set_saved_edits_gpu(crate::app::SavedEditsGpu::new(
+                    render_state.device.clone(),
+                    render_state.queue.clone(),
+                    gpu_preview_prewarm,
+                ));
+        }
         if let Err(error) = crate::i18n::set_active(app.preferences.language.resolve()) {
             app.report_error(ErrorKind::Settings, error.to_string());
         }

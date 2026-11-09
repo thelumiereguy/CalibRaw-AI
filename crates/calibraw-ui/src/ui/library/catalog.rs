@@ -209,6 +209,35 @@ fn justified_thumbnail_layout_from_aspects(
     (placements, total_height)
 }
 
+/// Rectangles of `count` equal square tiles and the grid's height. Rows are
+/// as wide as the grid, with the fewest columns whose tiles are no larger than
+/// `target_edge`, like justified rows, which shrink to fit and never grow.
+pub(super) fn square_thumbnail_layout(
+    count: usize,
+    available_width: f32,
+    target_edge: f32,
+    gap: f32,
+) -> (Vec<egui::Rect>, f32) {
+    let available_width = available_width.max(1.0);
+    let gap = gap.max(0.0);
+    let pitch = target_edge.max(1.0) + gap;
+    // Saturates for an absurd width; the tiles then only get very small.
+    let columns = (((available_width + gap) / pitch).ceil() as usize).max(1);
+    let edge = ((available_width - gap * (columns - 1) as f32) / columns as f32).max(1.0);
+    let placements = (0..count)
+        .map(|position| {
+            let (row, column) = (position / columns, position % columns);
+            egui::Rect::from_min_size(
+                egui::pos2(column as f32 * (edge + gap), row as f32 * (edge + gap)),
+                egui::Vec2::splat(edge),
+            )
+        })
+        .collect();
+    let rows = count.div_ceil(columns);
+    let height = (rows as f32 * (edge + gap) - gap).max(0.0);
+    (placements, height)
+}
+
 /// A keyboard move through the thumbnail grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum GridStep {
@@ -363,6 +392,14 @@ pub(super) fn thumbnail_tile(
             egui::epaint::RectShape::filled(image_rect, THUMBNAIL_CARD_RADIUS, Color32::WHITE)
                 .with_texture(texture.id(), uv),
         );
+        // The thumbnail stays until the saved edits it lacks have rendered.
+        if entry.edits == ThumbnailEdits::Rendering {
+            crate::ui::components::loading_wave::paint_loading_wave(
+                ui,
+                image_rect,
+                THUMBNAIL_CARD_RADIUS,
+            );
+        }
     } else {
         painter.rect_filled(
             image_rect,
@@ -389,22 +426,16 @@ pub(super) fn thumbnail_tile(
         );
     }
 
-    let mut corner_inset = 0.0;
     let mut corner_badges_bottom = rect.top();
-    if entry.developed_thumbnail_pending {
-        let badge_edge = 25.0_f32.min(rect.width() * 0.32).min(rect.height() * 0.32);
-        let center = egui::pos2(
-            rect.right() - badge_edge * 0.5 - 6.0,
-            rect.top() + badge_edge * 0.5 + 6.0,
-        );
-        crate::ui::components::pending_indicator(
-            &painter,
-            center,
-            badge_edge * 0.5,
-            (badge_edge * 0.72).max(12.0),
-        );
-        corner_inset = badge_edge + 4.0;
-        corner_badges_bottom = center.y + badge_edge * 0.5;
+    let stale = entry.edits.is_stale();
+    let edit_badge = EditBadge {
+        edited: entry.asset.metadata.edited,
+        stale,
+    };
+    let mut corner_inset = 0.0;
+    if let Some(pill) = paint_edit_badge(ui, tile_rect, edit_badge) {
+        corner_inset = corner_inset_beside(tile_rect, pill);
+        corner_badges_bottom = pill.bottom();
     }
     if entry.texture.is_some() {
         if let Some(badge) = rendered_format_label(&entry.asset.display_name)

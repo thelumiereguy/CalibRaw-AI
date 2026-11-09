@@ -10,7 +10,8 @@ use super::service::{
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
 use crate::sidecar::{
-    EditState, LoadedSidecar, PhotoCompanion, PhotoReview, SidecarError, SidecarSummary,
+    EditState, LoadedSidecar, PhotoCompanion, PhotoReview, SavedSidecar, SidecarError,
+    SidecarMetadata, SidecarStart, SidecarSummary,
 };
 use calibraw_core::pipeline::RawDisplayMetadata;
 use calibraw_ffi::AndroidApp;
@@ -269,8 +270,11 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::library_location(&self.app)
     }
 
-    fn list_library_documents(&self) -> Result<Vec<LibraryDocument>, String> {
-        calibraw_ffi::list_library_documents(&self.app).map(|documents| {
+    fn list_library_documents(
+        &self,
+        include_subfolders: bool,
+    ) -> Result<Vec<LibraryDocument>, String> {
+        calibraw_ffi::list_library_documents(&self.app, include_subfolders).map(|documents| {
             documents
                 .into_iter()
                 .map(|document| LibraryDocument {
@@ -282,6 +286,7 @@ impl Platform for AndroidPlatform {
                     sidecar: document
                         .sidecar
                         .map_or(ListedSidecar::Absent, ListedSidecar::Present),
+                    subfolder: document.subfolder,
                 })
                 .collect()
         })
@@ -291,8 +296,8 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::list_library_folders(&self.app).map(library_folders)
     }
 
-    fn list_linked_folder_tree(&self, key: &str) -> Result<Vec<LibraryFolder>, String> {
-        calibraw_ffi::list_linked_folder_tree(&self.app, key).map(library_folders)
+    fn list_folder_tree(&self, key: &str) -> Result<Vec<LibraryFolder>, String> {
+        calibraw_ffi::list_folder_tree(&self.app, key).map(library_folders)
     }
 
     fn select_library_folder(&self, relative_path: &str) -> Result<(), String> {
@@ -393,12 +398,12 @@ impl Platform for AndroidPlatform {
         calibraw_ffi::load_android(&self.app, raw_uri, display_name)
     }
 
-    fn load_sidecar_review(
+    fn load_sidecar_metadata(
         &self,
         raw_uri: &str,
         display_name: &str,
-    ) -> Result<Option<PhotoReview>, SidecarError> {
-        calibraw_ffi::load_android_review(&self.app, raw_uri, display_name)
+    ) -> Result<Option<SidecarMetadata>, SidecarError> {
+        calibraw_ffi::load_android_sidecar_metadata(&self.app, raw_uri, display_name)
     }
 
     fn save_sidecar(
@@ -406,7 +411,7 @@ impl Platform for AndroidPlatform {
         raw_uri: &str,
         display_name: &str,
         edits: EditState,
-    ) -> Result<String, SidecarError> {
+    ) -> Result<SavedSidecar, SidecarError> {
         calibraw_ffi::save_android(&self.app, raw_uri, display_name, edits)
     }
 
@@ -417,7 +422,8 @@ impl Platform for AndroidPlatform {
         edits: EditState,
         review: PhotoReview,
         editing_time_ms: u64,
-    ) -> Result<String, SidecarError> {
+        start: SidecarStart,
+    ) -> Result<SavedSidecar, SidecarError> {
         calibraw_ffi::save_android_with_review_and_editing_time(
             &self.app,
             raw_uri,
@@ -425,6 +431,7 @@ impl Platform for AndroidPlatform {
             edits,
             review,
             editing_time_ms,
+            start,
         )
     }
 
@@ -552,6 +559,39 @@ impl Platform for AndroidPlatform {
         display_name: &str,
     ) -> Result<Option<SidecarSummary>, SidecarError> {
         calibraw_ffi::load_android_sidecar_summary(&self.app, raw_uri, display_name)
+    }
+
+    fn read_library_photo(
+        &self,
+        uri: &str,
+        display_name: &str,
+        read: &mut dyn FnMut(&Path) -> Result<(), String>,
+    ) -> Result<(), String> {
+        calibraw_ffi::read_library_photo(&self.app, uri, display_name, "photo", read)
+    }
+
+    fn load_sidecar_for_render(
+        &self,
+        raw_uri: &str,
+        display_name: &str,
+    ) -> Result<Option<(LoadedSidecar, u64)>, SidecarError> {
+        calibraw_ffi::load_android_sidecar_for_render(&self.app, raw_uri, display_name)
+    }
+
+    fn save_rendered_developed_thumbnail(
+        &self,
+        raw_uri: &str,
+        display_name: &str,
+        thumbnail: &RawThumbnail,
+        render_fingerprint: u64,
+    ) -> Result<bool, String> {
+        calibraw_ffi::save_rendered_developed_thumbnail(
+            &self.app,
+            raw_uri,
+            display_name,
+            thumbnail,
+            render_fingerprint,
+        )
     }
 
     fn load_current_developed_thumbnail(

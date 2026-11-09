@@ -2,29 +2,160 @@ use super::adjustments::{
     apply_local_adjustment_response, LocalAdjustmentTabs, LocalAdjustmentTarget,
 };
 use super::*;
-use crate::app::{apply_mask_property_actions, MaskPropertiesControls};
+use crate::app::{apply_mask_property_actions, MaskPropertiesControls, MaskPropertyChanges};
 use crate::i18n::tr;
 
-fn mask_creation_menu_button<R>(
+/// Open the kind picker from a creation button of the strip: beside a strip
+/// along the right edge, above or below one along the top, and as a sheet on
+/// touch layouts. `title` names what the pick creates, and `fill`, when set,
+/// gives the picker its button's tint. Returns the picked kind.
+fn kind_picker_from(
+    response: &egui::Response,
+    orientation: MaskStripOrientation,
+    title: &str,
+    fill: Option<egui::Color32>,
+) -> Option<MaskKind> {
+    let placement = match orientation {
+        MaskStripOrientation::Vertical => moduwu_design::PickerPlacement::Left,
+        MaskStripOrientation::Horizontal => moduwu_design::PickerPlacement::BelowOrAbove,
+    };
+    let mut picker =
+        moduwu_design::Picker::new(kind_picker::KIND_PICKER_MIN_WIDTH, placement).title(title);
+    if let Some(fill) = fill {
+        picker = picker.fill(fill);
+    }
+    picker.show_menu(response, kind_picker::mask_kind_tiles)
+}
+
+/// The opaque fill of a creation tile tinted `amount` of the way toward
+/// `accent`; an idle tile and its picker use [`IDLE_TINT`].
+fn tinted_fill(visuals: &egui::Visuals, accent: egui::Color32, amount: f32) -> egui::Color32 {
+    visuals.panel_fill.lerp_to_gamma(accent, amount)
+}
+
+const IDLE_TINT: f32 = 0.11;
+
+/// The icon of a creation tile.
+enum TileIcon {
+    /// A group of its own: a plus.
+    NewGroup,
+    /// A sub-mask combined this way: the mode's glyph.
+    Combine(MaskCombineMode),
+}
+
+/// A creation button of the strip: an icon beside its caption on a row in a
+/// strip along the right edge. In a strip along the top, where phones have
+/// little width, a combine tile shows only its glyph and the new-group tile
+/// puts its short caption under the plus. `label` is also the accessible
+/// name. `accent` tints the tile and colours the icon.
+fn creation_tile(
     ui: &mut Ui,
-    id_salt: impl egui::AsIdSalt,
-    icon: &str,
     size: egui::Vec2,
-    icon_size: f32,
-    tooltip: &str,
-    add_contents: impl FnOnce(&mut Ui) -> R,
+    orientation: MaskStripOrientation,
+    label: &str,
+    icon: TileIcon,
+    accent: egui::Color32,
 ) -> egui::Response {
-    let response = ui
-        .push_id(id_salt, |ui| {
-            ui.add_sized(
-                size,
-                egui::Button::new(egui::RichText::new(icon).size(icon_size).strong())
-                    .corner_radius(6.0),
-            )
-        })
-        .inner
-        .on_hover_text(tooltip);
-    moduwu_design::dropdown_menu(&response, add_contents);
+    use eframe::egui::{Align2, FontId, Stroke, StrokeKind};
+
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
+    if !ui.is_rect_visible(rect) {
+        return response;
+    }
+    let visuals = ui.visuals();
+    let (accent, text_color) = if enabled {
+        (accent, visuals.text_color())
+    } else {
+        (accent.gamma_multiply(0.4), visuals.weak_text_color())
+    };
+    let hovered = response.hovered() && enabled;
+    let tint = if response.is_pointer_button_down_on() {
+        0.30
+    } else if hovered {
+        0.20
+    } else {
+        IDLE_TINT
+    };
+    // The Subtract glyph cuts its square out with the fill, so it is opaque.
+    let fill = tinted_fill(visuals, accent, tint);
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 6.0, fill);
+    painter.rect_stroke(
+        rect,
+        6.0,
+        Stroke::new(1.0, accent.gamma_multiply(if hovered { 0.9 } else { 0.45 })),
+        StrokeKind::Inside,
+    );
+    if response.has_focus() {
+        painter.rect_stroke(rect, 6.0, visuals.selection.stroke, StrokeKind::Inside);
+    }
+
+    let captioned =
+        !(orientation == MaskStripOrientation::Horizontal && matches!(icon, TileIcon::Combine(_)));
+    let (icon_center, icon_width, text_anchor, text_align, text_width) = match orientation {
+        MaskStripOrientation::Horizontal if !captioned => (
+            rect.center(),
+            20.0,
+            rect.center(),
+            Align2::CENTER_CENTER,
+            0.0,
+        ),
+        MaskStripOrientation::Horizontal => (
+            egui::pos2(rect.center().x, rect.top() + rect.height() * 0.38),
+            22.0,
+            egui::pos2(rect.center().x, rect.bottom() - 12.0),
+            Align2::CENTER_CENTER,
+            rect.width() - 6.0,
+        ),
+        MaskStripOrientation::Vertical => (
+            egui::pos2(rect.left() + 13.0, rect.center().y),
+            15.0,
+            egui::pos2(rect.left() + 25.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            rect.width() - 28.0,
+        ),
+    };
+    match icon {
+        TileIcon::NewGroup => {
+            painter.text(
+                icon_center,
+                Align2::CENTER_CENTER,
+                mask_creation_icon(),
+                FontId::proportional(icon_width),
+                accent,
+            );
+        }
+        TileIcon::Combine(combine) => {
+            super::paint_combine_glyph(&painter, icon_center, icon_width, combine, accent, fill);
+        }
+    }
+    if !captioned {
+        return response;
+    }
+    // Long translations shrink to fit the tile instead of spilling over.
+    let font_size = 10.5;
+    let natural = painter
+        .layout_no_wrap(
+            label.to_owned(),
+            FontId::proportional(font_size),
+            text_color,
+        )
+        .size()
+        .x;
+    let font_size = if natural > text_width {
+        (font_size * text_width / natural).max(7.5)
+    } else {
+        font_size
+    };
+    painter.text(
+        text_anchor,
+        text_align,
+        label,
+        FontId::proportional(font_size),
+        text_color,
+    );
     response
 }
 
@@ -35,56 +166,82 @@ impl Sidebar {
         orientation: MaskStripOrientation,
     ) {
         let size = MaskCardSize::Group.create_button_size(orientation);
-        ui.allocate_ui_with_layout(
-            size,
-            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-            |ui| {
-                ui.spacing_mut().interact_size = size;
-                mask_creation_menu_button(
+        let accent = ui.visuals().text_color();
+        let response = ui
+            .push_id("mask-group-creation", |ui| {
+                creation_tile(
                     ui,
-                    "mask-group-creation",
-                    mask_creation_icon(),
                     size,
-                    20.0,
-                    tr("Create a new mask group"),
-                    |ui| {
-                        *new_mask = Self::mask_kind_menu(
-                            ui,
-                            tr("This mask type is planned but not implemented yet."),
-                        );
-                    },
-                );
-            },
-        );
+                    orientation,
+                    tr("Mask"),
+                    TileIcon::NewGroup,
+                    accent,
+                )
+            })
+            .inner
+            .on_hover_text(tr("Create a new mask group"));
+        *new_mask = kind_picker_from(&response, orientation, tr("Add mask"), None);
     }
 
+    /// One button per combine mode, each opening the kind picker for a
+    /// sub-mask combined that way: touch-sized tiles side by side in a strip
+    /// along the top, rows as wide as a group card in a strip along the
+    /// right edge.
     pub(super) fn create_submask_card(
         ui: &mut Ui,
         add_component: &mut Option<(MaskKind, MaskCombineMode)>,
         orientation: MaskStripOrientation,
     ) {
-        let size = MaskCardSize::Submask.create_button_size(orientation);
-        ui.allocate_ui_with_layout(
-            size,
-            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-            |ui| {
-                ui.spacing_mut().interact_size = size;
-                mask_creation_menu_button(
-                    ui,
-                    "mask-submask-creation",
-                    submask_creation_icon(),
-                    size,
-                    18.0,
-                    tr("Add, subtract or intersect a sub-mask in the selected group"),
-                    |ui| {
-                        *add_component = Self::submask_creation_menu(
+        const MODES: [MaskCombineMode; 3] = [
+            MaskCombineMode::Add,
+            MaskCombineMode::Subtract,
+            MaskCombineMode::Intersect,
+        ];
+        let (button_size, layout) = match orientation {
+            MaskStripOrientation::Horizontal => (
+                MaskCardSize::Submask.create_button_size(orientation),
+                egui::Layout::left_to_right(egui::Align::Center),
+            ),
+            MaskStripOrientation::Vertical => (
+                MaskCardSize::Group.create_button_size(orientation),
+                egui::Layout::top_down(egui::Align::Center),
+            ),
+        };
+        ui.with_layout(layout, |ui| {
+            ui.spacing_mut().item_spacing =
+                egui::vec2(moduwu_design::SPACE_XXS, moduwu_design::SPACE_XXS);
+            for combine in MODES {
+                let accent = crate::ui::theme::mask_combine_color(combine, ui.visuals().dark_mode);
+                let response = ui
+                    .push_id(("mask-submask-creation", combine.label()), |ui| {
+                        let response = creation_tile(
                             ui,
-                            tr("This sub-mask type is planned but not implemented yet."),
+                            button_size,
+                            orientation,
+                            tr(combine.label()),
+                            TileIcon::Combine(combine),
+                            accent,
                         );
-                    },
-                );
-            },
-        );
+                        // The top strip's tiles have no caption to read.
+                        match orientation {
+                            MaskStripOrientation::Horizontal => {
+                                response.on_hover_text(tr(combine.label()))
+                            }
+                            MaskStripOrientation::Vertical => response,
+                        }
+                    })
+                    .inner;
+                let title = match combine {
+                    MaskCombineMode::Add => tr("Add sub-mask"),
+                    MaskCombineMode::Subtract => tr("Subtract sub-mask"),
+                    MaskCombineMode::Intersect => tr("Intersect sub-mask"),
+                };
+                let fill = tinted_fill(ui.visuals(), accent, IDLE_TINT);
+                if let Some(kind) = kind_picker_from(&response, orientation, title, Some(fill)) {
+                    *add_component = Some((kind, combine));
+                }
+            }
+        });
     }
 
     pub(super) fn drop_placeholder(ui: &mut Ui, card_size: MaskCardSize) -> egui::Response {
@@ -143,22 +300,7 @@ impl Sidebar {
             );
         }
 
-        let (font_size, badge_height, horizontal_padding) = card_size.badge_metrics();
-        let badge_size = egui::vec2(
-            (drag.source_badge.chars().count() as f32 * font_size * 0.62 + horizontal_padding)
-                .max(badge_height + 2.0),
-            badge_height,
-        );
-        let badge_rect =
-            egui::Rect::from_min_size(image_rect.right_bottom() - badge_size, badge_size);
-        painter.rect_filled(badge_rect, 3.0, Color32::from_black_alpha(210));
-        painter.text(
-            badge_rect.center(),
-            Align2::CENTER_CENTER,
-            &drag.source_badge,
-            FontId::proportional(font_size),
-            Color32::WHITE,
-        );
+        paint_card_badge(&painter, visuals, image_rect, drag.source_badge, card_size);
 
         let display_label: String = drag
             .source_name
@@ -250,6 +392,39 @@ impl Sidebar {
             });
     }
 
+    /// The selected group's card and, below it, the selected sub-mask's,
+    /// with their edits and resets applied to `mask`. On portrait screens
+    /// the group card's footer reset also resets the sub-mask, whose card
+    /// has no actions there.
+    fn show_mask_property_cards(
+        ui: &mut Ui,
+        mask: &mut LocalMask,
+        component_index: usize,
+        controls: &mut MaskPropertiesControls,
+        people: &crate::app::PeopleChoices,
+        foldable: bool,
+    ) -> MaskPropertyChanges {
+        let mut group_actions = Vec::new();
+        let group_action = Self::mask_group_card(ui, foldable, |ui| {
+            group_actions = Self::show_mask_group_properties(ui, mask);
+        });
+        let mut submask_actions = Vec::new();
+        let submask_action = Self::submask_card(ui, foldable, |ui| {
+            submask_actions =
+                Self::show_submask_properties(ui, mask, component_index, controls, people);
+        });
+        group_actions.extend(submask_actions);
+        let mut changes =
+            apply_mask_property_actions(mask, component_index, controls, group_actions);
+        let footer_reset = Self::cards_use_footer(ui.ctx());
+        changes.geometry |= Self::reset_mask_group(mask, group_action);
+        if footer_reset {
+            changes.geometry |= Self::reset_submask(mask, component_index, group_action);
+        }
+        changes.geometry |= Self::reset_submask(mask, component_index, submask_action);
+        changes
+    }
+
     fn show_mask_details(
         ui: &mut Ui,
         app: &mut CalibRawApp,
@@ -320,24 +495,16 @@ impl Sidebar {
             }
             match orientation {
                 MaskStripOrientation::Horizontal => {
-                    let mut property_actions = Vec::new();
-                    let action = Self::mask_properties_card(ui, true, true, true, |ui| {
-                        property_actions = Self::show_vertical_mask_properties(
-                            ui,
-                            mask,
-                            component_index,
-                            &controls,
-                            &people,
-                        );
-                    });
-                    geometry_changed |= apply_mask_property_actions(
+                    let changes = Self::show_mask_property_cards(
+                        ui,
                         mask,
                         component_index,
                         &mut controls,
-                        property_actions,
+                        &people,
+                        true,
                     );
-                    geometry_changed |=
-                        Self::apply_mask_properties_action(mask, component_index, action);
+                    geometry_changed |= changes.geometry;
+                    adjustments_changed |= changes.adjustments;
 
                     edit_header_rect = Some(
                         Self::render_mask_edit_header(ui, || {
@@ -394,24 +561,16 @@ impl Sidebar {
                     };
                     match mask_section {
                         MaskSection::Properties => {
-                            let mut property_actions = Vec::new();
-                            let action = Self::mask_properties_card(ui, true, false, true, |ui| {
-                                property_actions = Self::show_vertical_mask_properties(
-                                    ui,
-                                    mask,
-                                    component_index,
-                                    &controls,
-                                    &people,
-                                );
-                            });
-                            geometry_changed |= apply_mask_property_actions(
+                            let changes = Self::show_mask_property_cards(
+                                ui,
                                 mask,
                                 component_index,
                                 &mut controls,
-                                property_actions,
+                                &people,
+                                false,
                             );
-                            geometry_changed |=
-                                Self::apply_mask_properties_action(mask, component_index, action);
+                            geometry_changed |= changes.geometry;
+                            adjustments_changed |= changes.adjustments;
                         }
                         MaskSection::Effects if app.develop_ui.mask_effect_component.is_some() => {
                             let fullscreen = Self::is_plain_fullscreen_mask(mask);

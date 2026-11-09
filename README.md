@@ -96,7 +96,7 @@ On Android, the AI editor uses Gemma on the phone unless you choose Claude Code,
 | Platform | Get it |
 | --- | --- |
 | **Linux** (x86_64 / ARM64) | [Flathub](https://flathub.org/en/apps/io.github.Duecki1.CalibRaw), or `.AppImage` or `.deb` (Debian 13+, Ubuntu 24.04+) from the [latest release](https://github.com/Duecki1/CalibRaw/releases/latest) |
-| **Android** (ARM64) | [F-Droid](https://f-droid.org/packages/de.duecki.calibraw/), or `.apk` from the [latest release](https://github.com/Duecki1/CalibRaw/releases/latest) |
+| **Android** (ARM64) | [Google Play](https://play.google.com/store/apps/details?id=de.duecki.calibraw), [F-Droid](https://f-droid.org/packages/de.duecki.calibraw/), or `.apk` from the [latest release](https://github.com/Duecki1/CalibRaw/releases/latest) |
 | **Windows** (x86_64 / ARM64) | Installer or portable `.zip` from the [latest release](https://github.com/Duecki1/CalibRaw/releases/latest) |
 | **macOS** (Apple Silicon / Intel) | `.zip` from the [latest release](https://github.com/Duecki1/CalibRaw/releases/latest) |
 

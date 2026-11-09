@@ -14,6 +14,8 @@ struct MaskData {
     grade_midtones: vec4<f32>,
     grade_highlights: vec4<f32>,
     grade_global: vec4<f32>,
+    // View node options (Rust `pack_view_options`): colour grading's blending
+    // and balance, hue rotation in degrees, Brightness (-100 to 100).
     grade_options: vec4<f32>,
     curves_red: array<vec4<f32>, 9>,
     curves_green: array<vec4<f32>, 9>,
@@ -151,6 +153,8 @@ struct SceneToneUniforms {
     grade_midtones: vec4<f32>,
     grade_highlights: vec4<f32>,
     grade_global: vec4<f32>,
+    // View node options (Rust `pack_view_options`): colour grading's blending
+    // and balance, hue rotation in degrees, Brightness (-100 to 100).
     grade_options: vec4<f32>,
     // WGSL uses a 16-byte vec3 matrix-column stride; Rust mirrors padded columns.
     rec2020_to_xyz: mat3x3<f32>,
@@ -223,6 +227,14 @@ const SRGB_TO_REC2020: mat3x3<f32> = mat3x3<f32>(
     vec3<f32>(0.3292830, 0.9195404, 0.0880133),
     vec3<f32>(0.0433131, 0.0113623, 0.8955953),
 );
+
+// Gains that white-balance the RAW stage's scene: the white balance for a
+// linear DNG, whose scene is camera RGB the camera demosaiced before saving,
+// and 1 for every other scene, which is balanced already. Packed with the
+// chromatic aberration amount (`chromatic_aberration.yzw`).
+fn scene_neutral_gains() -> vec3<f32> {
+    return max(camera_uniforms.chromatic_aberration.yzw, vec3<f32>(1e-6));
+}
 
 fn image_max() -> vec2<i32> {
     return vec2<i32>(i32(camera_uniforms.width) - 1, i32(camera_uniforms.height) - 1);

@@ -82,8 +82,8 @@ pub(crate) use effect_handles::{
 pub(crate) use export_state::*;
 pub(crate) use job_state::*;
 pub(crate) use mask_properties::{
-    apply_mask_property_actions, MaskPropertiesControls, MaskPropertyAction, PeopleChoices,
-    PeopleEdit, PersonThumbnail,
+    apply_mask_property_actions, MaskPropertiesControls, MaskPropertyAction, MaskPropertyChanges,
+    PeopleChoices, PeopleEdit, PersonThumbnail,
 };
 pub(crate) use mask_state::*;
 pub(crate) use mask_strip::{MaskStripActions, MaskStripCommand, MaskStripEdit};
@@ -340,15 +340,20 @@ mod tips;
 pub(crate) use tips::{ShownTip, TipPreferences};
 mod unsupported_gpu;
 pub(crate) use unsupported_gpu::create_app;
+mod saved_edits;
+pub(crate) use saved_edits::{
+    EditedPhoto, EditedRender, EditedRenderJob, SavedEditsGpu, SavedEditsSettings,
+};
 mod sidecar_persistence;
 #[cfg(test)]
 mod ui_review_tests;
 
 use ai::{AiUpdate, PeopleState};
 pub(crate) use ai::{ChatRole, ClaudeSetupState, EditorState, TriageState};
-use lifecycle::needs_canonical_mask_source;
-pub(crate) use lifecycle::{
-    install_missing_range_sources, masks_have_missing_range_sources, DocumentSource,
+pub(crate) use lifecycle::DocumentSource;
+use lifecycle::{
+    masks_have_missing_range_sources, needs_canonical_mask_source,
+    reconstruct_canonical_mask_source,
 };
 pub(crate) use lifecycle::{CameraProfileChoice, ProfileReload};
 use sidecar_persistence::sidecar_interaction_active;

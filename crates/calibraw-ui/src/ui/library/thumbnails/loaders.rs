@@ -3,31 +3,64 @@
 use super::*;
 use crate::i18n::{tr, tr_fmt};
 use calibraw_core::pipeline::RawDisplayMetadata;
-use std::ffi::OsStr;
 
+/// Develop's reference photo: its developed thumbnail when that is large
+/// enough, otherwise its saved edits rendered at `maximum_edge` with
+/// `renderer`, or the camera's preview when it has none or they cannot render.
 pub(crate) fn load_desktop_reference_preview(
     path: &Path,
     maximum_edge: u32,
+    renderer: Option<(&crate::app::SavedEditsGpu, &crate::app::SavedEditsSettings)>,
+    platform: &dyn Platform,
+    decode_gate: &RwLock<()>,
 ) -> Result<RawThumbnail, String> {
     if maximum_edge == 0 {
         return Err(tr("reference preview edge must be non-zero").to_owned());
     }
 
-    match render_uncached_developed_thumbnail(path, maximum_edge) {
-        Ok(Some(thumbnail)) => return Ok(thumbnail),
-        Ok(None) => {}
-        Err(error) => {
-            log::warn!(
-                "could not render developed reference preview for {}: {error}",
+    match crate::sidecar::load_developed_thumbnail_cache(path, maximum_edge) {
+        Ok(Some(thumbnail))
+            if maximum_edge <= THUMBNAIL_EDGE
+                || thumbnail.width.max(thumbnail.height) >= maximum_edge.saturating_mul(3) / 4 =>
+        {
+            return Ok(thumbnail);
+        }
+        Ok(_) => {}
+        Err(error) => log::warn!(
+            "could not use the developed thumbnail of {}: {error}",
+            path.display()
+        ),
+    }
+    if let Some((gpu, settings)) = renderer {
+        let photo = crate::app::EditedPhoto::File(path.to_owned());
+        let render = crate::app::EditedRenderJob {
+            photo: &photo,
+            maximum_edge,
+            lens_correction: true,
+            gpu,
+            settings,
+            platform,
+            decode_gate,
+            cancel: &AtomicBool::new(false),
+        }
+        .run();
+        match render {
+            Ok(crate::app::EditedRender::Rendered { thumbnail, .. }) => return Ok(thumbnail),
+            Ok(crate::app::EditedRender::Unedited | crate::app::EditedRender::Cancelled) => {}
+            Err(error) => log::warn!(
+                "could not render the edits of reference photo {}: {error}",
                 path.display()
-            );
+            ),
         }
     }
 
+    let _decoding = decode_gate
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     load_raw_thumbnail(path, maximum_edge).map_err(|error| {
         tr_fmt(
             "could not render reference preview: {error}",
-            &[("error", &format!("{:#}", error))],
+            &[("error", &format!("{error:#}"))],
         )
     })
 }
@@ -47,57 +80,36 @@ pub(crate) fn load_desktop_cached_thumbnail(
     calibraw_core::thumbnail_cache::load_desktop_raw_thumbnail(path, maximum_edge)
 }
 
+/// A desktop photo's thumbnail: the developed one while it matches the
+/// sidecar, otherwise the camera's preview with the sidecar's crop and
+/// rotation.
 pub(in crate::ui::library) fn load_desktop_library_thumbnail(
     asset: &LibraryAsset,
-    stage: ThumbnailLoadStage,
-    render_edited_thumbnails_during_indexing: bool,
     deferred_metadata: &DeferredFolderMetadata,
 ) -> Result<LoadedLibraryThumbnail, String> {
     let Some(path) = asset.desktop_path() else {
         return Err(tr("invalid desktop thumbnail request").to_owned());
     };
-    match stage {
-        ThumbnailLoadStage::RawPreview => {
-            match crate::sidecar::load_developed_thumbnail_cache(path, THUMBNAIL_EDGE) {
-                Ok(Some(thumbnail)) => {
-                    let mut loaded = loaded_library_thumbnail(thumbnail, true);
-                    loaded.display_metadata = deferred_metadata.read_pending(path);
-                    return Ok(loaded);
-                }
-                Ok(None) => {}
-                Err(error) => log::warn!(
-                    "could not use developed thumbnail cache for {}: {error}",
-                    path.display()
-                ),
-            }
-
-            let has_edits = crate::sidecar::sidecar_path_for_raw(path).is_file();
-            load_desktop_raw_library_thumbnail(
-                path,
-                has_edits,
-                render_edited_thumbnails_during_indexing,
-                deferred_metadata,
-            )
+    match crate::sidecar::load_developed_thumbnail_cache(path, THUMBNAIL_EDGE) {
+        Ok(Some(thumbnail)) => {
+            let mut loaded = loaded_library_thumbnail(thumbnail, LoadedEdits::Developed);
+            loaded.display_metadata = deferred_metadata.read_pending(&asset.id, path);
+            return Ok(loaded);
         }
-        ThumbnailLoadStage::DevelopedPreview => {
-            match render_uncached_developed_thumbnail(path, THUMBNAIL_EDGE) {
-                Ok(Some(thumbnail)) => Ok(loaded_library_thumbnail(thumbnail, true)),
-                Ok(None) => {
-                    load_desktop_raw_library_thumbnail(path, false, false, deferred_metadata)
-                }
-                Err(error) => Err(tr_fmt(
-                    "could not render the edited RAW thumbnail for {path}: {error}",
-                    &[("path", &path.display()), ("error", &error)],
-                )),
-            }
-        }
+        Ok(None) => {}
+        Err(error) => log::warn!(
+            "could not use developed thumbnail cache for {}: {error}",
+            path.display()
+        ),
     }
+    let has_edits = crate::sidecar::sidecar_path_for_raw(path).is_file();
+    load_desktop_raw_library_thumbnail(&asset.id, path, has_edits, deferred_metadata)
 }
 
 fn load_desktop_raw_library_thumbnail(
+    asset_id: &LibraryAssetId,
     path: &Path,
     has_edits: bool,
-    render_edited_thumbnails_during_indexing: bool,
     deferred_metadata: &DeferredFolderMetadata,
 ) -> Result<LoadedLibraryThumbnail, String> {
     let (geometry, has_edits) =
@@ -110,7 +122,7 @@ fn load_desktop_raw_library_thumbnail(
         });
     let (thumbnail, display_metadata) =
         match calibraw_core::thumbnail_cache::load_desktop_raw_thumbnail(path, THUMBNAIL_EDGE) {
-            Ok(Some(thumbnail)) => (thumbnail, deferred_metadata.read_pending(path)),
+            Ok(Some(thumbnail)) => (thumbnail, deferred_metadata.read_pending(asset_id, path)),
             cached => {
                 if let Err(error) = cached {
                     log::warn!(
@@ -118,8 +130,7 @@ fn load_desktop_raw_library_thumbnail(
                         path.display()
                     );
                 }
-                let file_name = path.file_name().unwrap_or_default();
-                let (thumbnail, display_metadata) = if deferred_metadata.is_pending(file_name) {
+                let (thumbnail, display_metadata) = if deferred_metadata.is_pending(asset_id) {
                     let (thumbnail, metadata) =
                         load_raw_thumbnail_with_display_metadata(path, THUMBNAIL_EDGE).map_err(
                             |error| {
@@ -129,7 +140,7 @@ fn load_desktop_raw_library_thumbnail(
                                 )
                             },
                         )?;
-                    (thumbnail, deferred_metadata.complete(file_name, metadata))
+                    (thumbnail, deferred_metadata.complete(asset_id, metadata))
                 } else {
                     let thumbnail = load_raw_thumbnail(path, THUMBNAIL_EDGE).map_err(|error| {
                         tr_fmt(
@@ -151,13 +162,12 @@ fn load_desktop_raw_library_thumbnail(
             }
         };
     let thumbnail = crate::pipeline::transform_thumbnail_geometry(&thumbnail, geometry);
-    let mut loaded = if has_edits && render_edited_thumbnails_during_indexing {
-        loaded_library_raw_preview_pending_development(thumbnail)
-    } else if has_edits {
-        loaded_library_raw_preview_with_stale_edits(thumbnail)
+    let edits = if has_edits {
+        LoadedEdits::Stale
     } else {
-        loaded_library_thumbnail(thumbnail, false)
+        LoadedEdits::Unedited
     };
+    let mut loaded = loaded_library_thumbnail(thumbnail, edits);
     loaded.display_metadata = display_metadata;
     Ok(loaded)
 }
@@ -181,11 +191,10 @@ pub(in crate::ui::library) fn load_media_library_thumbnail(
         extraction,
         asset,
         uri,
-        file_name: OsStr::new(&asset.display_name),
     };
     let written_since_listing =
         platform.sidecar_written_since(uri, folder.sidecar_writes_before_listing());
-    let sidecar = match folder.sidecar(photo.file_name) {
+    let sidecar = match folder.sidecar(&asset.id) {
         PhotoSidecar::Unlisted => return photo.load_unlisted(),
         // A rating, paste or edit since the listing: what it says is out of date.
         _ if written_since_listing => photo.read_sidecar_summary(false),
@@ -199,7 +208,7 @@ pub(in crate::ui::library) fn load_media_library_thumbnail(
             summary.render_fingerprint,
             THUMBNAIL_EDGE,
         ) {
-            Ok(Some(thumbnail)) => return Ok(photo.developed(thumbnail, Some(summary.review))),
+            Ok(Some(thumbnail)) => return Ok(photo.developed(thumbnail, Some(summary.into()))),
             Ok(None) => {}
             Err(error) => log::warn!(
                 "could not use Android developed-thumbnail cache for {}: {error}",
@@ -210,7 +219,7 @@ pub(in crate::ui::library) fn load_media_library_thumbnail(
     photo.camera_preview(
         sidecar.as_ref().map(|summary| summary.geometry),
         sidecar.as_ref().is_some_and(|summary| summary.has_edits),
-        sidecar.map(|summary| summary.review),
+        sidecar.as_ref().map(SidecarBadges::from),
     )
 }
 
@@ -221,7 +230,6 @@ struct MediaPhoto<'a> {
     extraction: &'a ExtractionPermits,
     asset: &'a LibraryAsset,
     uri: &'a str,
-    file_name: &'a OsStr,
 }
 
 impl MediaPhoto<'_> {
@@ -233,16 +241,20 @@ impl MediaPhoto<'_> {
             .load_developed_thumbnail_cache(self.uri, display_name, THUMBNAIL_EDGE)
         {
             Ok(Some(thumbnail)) => {
-                let review = self
+                let badges = self
                     .platform
-                    .load_sidecar_review(self.uri, display_name)
+                    .load_sidecar_metadata(self.uri, display_name)
                     .unwrap_or_else(|error| {
                         log::warn!(
                             "could not inspect Android review sidecar for {display_name}: {error}"
                         );
                         None
+                    })
+                    .map(|metadata| SidecarBadges {
+                        review: metadata.review,
+                        edited: metadata.edited,
                     });
-                return Ok(self.developed(thumbnail, review));
+                return Ok(self.developed(thumbnail, badges));
             }
             Ok(None) => {}
             Err(error) => log::warn!(
@@ -261,7 +273,10 @@ impl MediaPhoto<'_> {
             sidecar
                 .as_ref()
                 .is_some_and(|sidecar| crate::sidecar::edit_state_has_adjustments(&sidecar.edits)),
-            sidecar.map(|sidecar| sidecar.review),
+            sidecar.map(|sidecar| SidecarBadges {
+                review: sidecar.review,
+                edited: sidecar.edited,
+            }),
         )
     }
 
@@ -275,7 +290,7 @@ impl MediaPhoto<'_> {
         {
             Ok(Some(summary)) => {
                 if record {
-                    self.folder.record_sidecar(self.file_name, summary.clone());
+                    self.folder.record_sidecar(&self.asset.id, summary.clone());
                 }
                 Some(summary)
             }
@@ -294,10 +309,10 @@ impl MediaPhoto<'_> {
     fn developed(
         &self,
         thumbnail: RawThumbnail,
-        review: Option<crate::sidecar::PhotoReview>,
+        badges: Option<SidecarBadges>,
     ) -> LoadedLibraryThumbnail {
-        let mut loaded = loaded_library_thumbnail(thumbnail, true);
-        loaded.review = review;
+        let mut loaded = loaded_library_thumbnail(thumbnail, LoadedEdits::Developed);
+        loaded.badges = badges;
         loaded.display_metadata = self.pending_display_metadata();
         loaded
     }
@@ -307,19 +322,20 @@ impl MediaPhoto<'_> {
         &self,
         geometry: Option<crate::pipeline::GeometryTransform>,
         has_edits: bool,
-        review: Option<crate::sidecar::PhotoReview>,
+        badges: Option<SidecarBadges>,
     ) -> Result<LoadedLibraryThumbnail, String> {
         let (thumbnail, display_metadata) = self.embedded_preview()?;
         let thumbnail = match geometry {
             Some(geometry) => crate::pipeline::transform_thumbnail_geometry(&thumbnail, geometry),
             None => thumbnail,
         };
-        let mut loaded = if has_edits {
-            loaded_library_raw_preview_with_stale_edits(thumbnail)
+        let edits = if has_edits {
+            LoadedEdits::Stale
         } else {
-            loaded_library_thumbnail(thumbnail, false)
+            LoadedEdits::Unedited
         };
-        loaded.review = review;
+        let mut loaded = loaded_library_thumbnail(thumbnail, edits);
+        loaded.badges = badges;
         loaded.display_metadata = display_metadata;
         Ok(loaded)
     }
@@ -339,7 +355,7 @@ impl MediaPhoto<'_> {
                 self.asset.display_name
             ),
         }
-        let pending = self.folder.is_pending(self.file_name);
+        let pending = self.folder.is_pending(&self.asset.id);
         let (thumbnail, read) = {
             let _permit = self.extraction.acquire();
             self.platform.extract_library_preview(
@@ -352,7 +368,7 @@ impl MediaPhoto<'_> {
             )?
         };
         let display_metadata = if pending {
-            self.folder.complete(self.file_name, read)
+            self.folder.complete(&self.asset.id, read)
         } else {
             read
         };
@@ -365,7 +381,7 @@ impl MediaPhoto<'_> {
     /// Reads the display metadata the folder cache lacks, on its own; `None`
     /// when the cache has it.
     fn pending_display_metadata(&self) -> Option<RawDisplayMetadata> {
-        if !self.folder.is_pending(self.file_name) {
+        if !self.folder.is_pending(&self.asset.id) {
             return None;
         }
         let read = {
@@ -375,7 +391,7 @@ impl MediaPhoto<'_> {
         };
         let read = read.map_err(|error| log::warn!("{error}")).ok();
         self.folder
-            .complete(self.file_name, read)
+            .complete(&self.asset.id, read)
             .map(media_library_display_metadata)
     }
 }

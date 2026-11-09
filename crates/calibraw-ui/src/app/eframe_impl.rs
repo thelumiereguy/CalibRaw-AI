@@ -224,6 +224,7 @@ impl CalibRawApp {
             self.poll_library_batch_export_worker();
         }
         self.poll_export_worker(frame);
+        self.compile_export_programs_ahead(frame);
         if caps.has_media_library() {
             self.resume_android_library_batch_export_if_possible(frame);
         }
@@ -423,11 +424,11 @@ impl eframe::App for CalibRawApp {
                         })
                     });
 
-                if self.ui.sidebar_tab == SidebarTab::Masks && !self.ai.editor.open {
+                if Sidebar::shows_mask_strip(self) && !self.ai.editor.open {
                     egui::Panel::right(crate::ui::layout::DEVELOP_MASK_STRIP_ID)
                         .resizable(false)
                         .exact_size(Sidebar::HORIZONTAL_MASK_STRIP_WIDTH)
-                        .frame(moduwu_design::panel_frame(ui))
+                        .frame(Sidebar::horizontal_mask_strip_frame(ui))
                         .show(ui, |ui| {
                             crate::ui::layout::docked_panel_contents(ui, |ui| {
                                 Sidebar::show_horizontal_mask_strip(ui, self, frame)

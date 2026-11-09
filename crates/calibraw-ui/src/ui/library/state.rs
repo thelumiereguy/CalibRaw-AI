@@ -15,10 +15,9 @@ pub(crate) struct LibraryPreferences {
     /// The manual worker limit, used while `automatic_thumbnail_workers` is off.
     pub(crate) thumbnail_workers: usize,
     pub(crate) automatic_thumbnail_workers: bool,
-    pub(crate) thumbnail_size: LibraryThumbnailSize,
+    pub(crate) view: LibraryView,
     pub(crate) sort_order: LibrarySortOrder,
     pub(crate) stack_raw_companions: bool,
-    pub(crate) render_edited_thumbnails_during_indexing: bool,
 }
 
 impl LibraryPreferences {
@@ -117,8 +116,13 @@ impl LibraryState {
             MediaLibraryState {
                 root_location,
                 folder: selected_folder.clone(),
-                folders: Vec::new(),
-                expanded_folders: android_folder_ancestors(&selected_folder),
+                trees: HashMap::from([(
+                    root.clone(),
+                    FolderTree {
+                        expanded: android_folder_ancestors(&selected_folder),
+                        ..FolderTree::default()
+                    },
+                )]),
                 folder_name_dialog: None,
                 root,
                 linked_folders,
@@ -144,10 +148,9 @@ impl LibraryState {
         media: MediaLibraryState,
     ) -> Self {
         let LibraryPreferences {
-            thumbnail_size,
+            view,
             sort_order,
             stack_raw_companions,
-            render_edited_thumbnails_during_indexing,
             automatic_thumbnail_workers,
             ..
         } = preferences;
@@ -169,15 +172,16 @@ impl LibraryState {
             decoding_paused: Arc::new(AtomicBool::new(false)),
             decode_gate: Arc::new(RwLock::new(())),
             thumbnail_progress: ThumbnailBackgroundProgress::default(),
+            developed: DevelopedRenders::default(),
+            saved_edits_gpu: None,
             scanning: false,
             catalog_ready: false,
             status,
             usage_clock: 0,
             thumbnail_workers,
             automatic_thumbnail_workers,
-            render_edited_thumbnails_during_indexing,
             sort_order,
-            thumbnail_size,
+            view,
             search_query: String::new(),
             review_filter: LibraryReviewFilter::default(),
             stack_raw_companions,
@@ -186,6 +190,7 @@ impl LibraryState {
             reviews: ReviewWriter::default(),
             image_clipboard: None,
             adjustment_clipboard: None,
+            chosen_copy_selection: None,
             asset_transfer_receiver: None,
             merge: None,
             raw_import_receiver: None,
@@ -196,6 +201,7 @@ impl LibraryState {
             delete_originals_confirmation: None,
             raw_name_dialog: None,
             export_dialog: None,
+            adjustment_copy_dialog: None,
             adjustment_paste_dialog: None,
             ai_mask_refresh_prompt: None,
         }
@@ -217,6 +223,22 @@ impl LibraryState {
         self.adjustment_clipboard = Some(AdjustmentClipboard { edits, selection });
     }
 
+    /// Opens the dialog that chooses which of `edits`, the settings of
+    /// `asset`, to copy. It starts with the last choice made there, or with
+    /// `default` before the first.
+    pub(crate) fn open_adjustment_copy_dialog(
+        &mut self,
+        asset: LibraryAsset,
+        edits: crate::sidecar::EditState,
+        default: crate::sidecar::EditSelection,
+    ) {
+        self.adjustment_copy_dialog = Some(LibraryAdjustmentCopyDialog {
+            asset,
+            edits: Box::new(edits),
+            selection: self.chosen_copy_selection.unwrap_or(default),
+        });
+    }
+
     pub(crate) fn asset_transfer_in_progress(&self) -> bool {
         self.asset_transfer_receiver.is_some()
     }
@@ -225,6 +247,7 @@ impl LibraryState {
         let common = self.delete_originals_confirmation.is_some()
             || self.raw_name_dialog.is_some()
             || self.export_dialog.is_some()
+            || self.adjustment_copy_dialog.is_some()
             || self.adjustment_paste_dialog.is_some()
             || self.ai_mask_refresh_prompt.is_some();
         common
@@ -296,7 +319,7 @@ impl LibraryState {
             asset: entry.asset.clone(),
             texture: entry.texture.clone(),
             thumbnail_size: entry.thumbnail_size,
-            developed_thumbnail_pending: entry.developed_thumbnail_pending,
+            developed_thumbnail_pending: entry.edits.is_stale(),
         })
     }
 
@@ -360,37 +383,38 @@ impl LibraryState {
         self.scanning
     }
 
-    pub(crate) fn renders_edited_thumbnails_during_indexing(&self) -> bool {
-        self.render_edited_thumbnails_during_indexing
+    /// Gives the library the editor's GPU device for rendering saved edits.
+    pub(crate) fn set_saved_edits_gpu(&mut self, gpu: crate::app::SavedEditsGpu) {
+        self.saved_edits_gpu = Some(gpu);
     }
 
-    pub(crate) fn set_render_edited_thumbnails_during_indexing(
-        &mut self,
-        enabled: bool,
-        context: &egui::Context,
-    ) -> bool {
-        if self.render_edited_thumbnails_during_indexing == enabled {
-            return false;
-        }
-        self.render_edited_thumbnails_during_indexing = enabled;
-        self.refresh(context);
-        true
+    pub(crate) fn saved_edits_gpu(&self) -> Option<&crate::app::SavedEditsGpu> {
+        self.saved_edits_gpu.as_ref()
     }
 
+    /// The previews loading, or after them the saved edits rendering.
     pub(crate) fn thumbnail_background_progress(&self) -> Option<ThumbnailProgress> {
+        let paused = self.decoding_paused.load(Ordering::Acquire);
         self.thumbnail_progress
-            .snapshot(self.decoding_paused.load(Ordering::Acquire))
+            .snapshot(paused)
+            .or_else(|| self.developed_render_progress(paused))
     }
 
-    pub(crate) fn thumbnail_size(&self) -> LibraryThumbnailSize {
-        self.thumbnail_size
+    pub(crate) fn view(&self) -> LibraryView {
+        self.view
     }
 
-    pub(crate) fn set_thumbnail_size(&mut self, thumbnail_size: LibraryThumbnailSize) -> bool {
-        if self.thumbnail_size == thumbnail_size {
+    /// Returns whether the view changed. Showing or leaving out subfolders
+    /// scans the folder again; the grid keeps its photos until that arrives.
+    pub(crate) fn set_view(&mut self, view: LibraryView, context: &egui::Context) -> bool {
+        if self.view == view {
             return false;
         }
-        self.thumbnail_size = thumbnail_size;
+        let rescan = self.view.include_subfolders != view.include_subfolders;
+        self.view = view;
+        if rescan && self.location.is_some() {
+            self.rescan(context);
+        }
         true
     }
 
@@ -448,6 +472,13 @@ impl LibraryState {
         let changed = metadata.review != review;
         metadata.review = review;
         changed && self.sorts_by_review()
+    }
+
+    /// Shows whether the photo's saved edits now differ from its start.
+    pub(crate) fn show_saved_edit_state(&mut self, asset_id: &LibraryAssetId, edited: bool) {
+        if let Some(index) = self.entry_indices.get(asset_id).copied() {
+            self.entries[index].asset.metadata.edited = edited;
+        }
     }
 
     /// Shows a review saved outside the library, re-sorting when needed.
@@ -518,6 +549,8 @@ impl LibraryState {
 
     pub(crate) fn prepare_for_develop(&mut self) {
         self.decoding_paused.store(true, Ordering::Release);
+        // Its photo renders again when the library is shown.
+        self.developed.cancel();
         if self.platform.caps().constrained_memory() {
             self.evict_textures_to_limit(ANDROID_DEVELOP_TEXTURE_CACHE_LIMIT);
         }
@@ -529,6 +562,7 @@ impl LibraryState {
 
     pub(crate) fn prepare_for_thumbnail_cache_clear(&mut self) {
         self.generation.fetch_add(1, Ordering::AcqRel);
+        self.developed.cancel();
         self.event_receiver = None;
         self.request_sender = None;
         self.thumbnail_progress = ThumbnailBackgroundProgress::default();
@@ -543,8 +577,7 @@ impl LibraryState {
             entry.thumbnail_failures = 0;
             entry.thumbnail_retry_after = None;
             entry.thumbnail_queued = false;
-            entry.developed_thumbnail = false;
-            entry.developed_thumbnail_pending = false;
+            entry.edits = ThumbnailEdits::Unedited;
             entry.last_used = 0;
         }
     }

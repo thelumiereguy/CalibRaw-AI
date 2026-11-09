@@ -40,7 +40,8 @@ fn open_adjacent_photo(app: &mut CalibRawApp, forward: bool, frame: &eframe::Fra
 impl Develop {
     /// ← and → open the previous and next photo; rating and flag keys
     /// change the open photo, and with Shift also open the next one. J shows
-    /// or hides both clipping indicators.
+    /// or hides both clipping indicators, and B switches to the next preview
+    /// background.
     pub(crate) fn handle_shortcuts(
         context: &egui::Context,
         app: &mut CalibRawApp,
@@ -66,6 +67,12 @@ impl Develop {
             let show = !(state.shadows || state.highlights);
             state.shadows = show;
             state.highlights = show;
+            return;
+        }
+
+        let backdrop = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::B);
+        if context.input_mut(|input| input.consume_shortcut(&backdrop)) {
+            app.set_preview_backdrop(app.preferences.preview_backdrop.next());
             return;
         }
 
@@ -380,6 +387,9 @@ fn start_reference_preview_load(app: &mut CalibRawApp, context: &egui::Context) 
 
     let (sender, receiver) = mpsc::channel();
     let decode_gate = app.library.decode_gate();
+    let gpu = app.library.saved_edits_gpu().cloned();
+    let settings = app.saved_edits_settings();
+    let platform = std::sync::Arc::clone(&app.platform);
     let repaint = context.clone();
     let worker_path = path.clone();
     let spawn_result = std::thread::Builder::new()
@@ -389,12 +399,13 @@ fn start_reference_preview_load(app: &mut CalibRawApp, context: &egui::Context) 
             let _reference_guard = reference_serial
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let result = match decode_gate.read() {
-                Ok(_decode_guard) => {
-                    load_desktop_reference_preview(&worker_path, REFERENCE_PREVIEW_EDGE)
-                }
-                Err(_) => Err(tr("reference preview decode gate is poisoned").to_owned()),
-            };
+            let result = load_desktop_reference_preview(
+                &worker_path,
+                REFERENCE_PREVIEW_EDGE,
+                gpu.as_ref().map(|gpu| (gpu, &settings)),
+                &*platform,
+                &decode_gate,
+            );
             let _ = sender.send((worker_path, result));
             repaint.request_repaint();
         });
@@ -619,21 +630,22 @@ fn filmstrip_thumbnail(
     }
 
     filmstrip_name_hover_overlay(ui, &response, rect, &item.asset.display_name);
+    let edit_badge = crate::ui::library::paint_edit_badge(
+        ui,
+        rect,
+        crate::ui::library::EditBadge {
+            edited: item.asset.metadata.edited,
+            stale: item.developed_thumbnail_pending,
+        },
+    );
     if !response.hovered() {
         crate::ui::library::paint_review_badge(ui, rect, item.asset.metadata.review);
         if let Some(label) = format_label.filter(|_| item.texture.is_some()) {
-            let pending_inset = if item.developed_thumbnail_pending {
-                24.0
-            } else {
-                0.0
-            };
-            crate::ui::library::paint_format_badge(ui, rect, label, pending_inset);
+            let inset = edit_badge.map_or(0.0, |pill| {
+                crate::ui::library::corner_inset_beside(rect, pill)
+            });
+            crate::ui::library::paint_format_badge(ui, rect, label, inset);
         }
-    }
-
-    if item.developed_thumbnail_pending {
-        let center = rect.right_top() + egui::vec2(-13.0, 13.0);
-        crate::ui::components::pending_indicator(&painter, center, 10.0, 13.0);
     }
 
     if active {

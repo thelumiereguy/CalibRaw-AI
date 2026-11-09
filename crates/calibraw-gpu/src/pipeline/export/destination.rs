@@ -209,16 +209,6 @@ fn temporary_export_path(directory: &Path, name: &str) -> Result<PathBuf> {
     )))
 }
 
-/// Runs `action` with a staged intermediate file for `output`, which is
-/// removed afterwards whatever the outcome.
-pub(super) fn with_staging_file<T, F>(output: ExportOutput<'_>, action: F) -> Result<T>
-where
-    F: FnOnce(&Path) -> Result<T>,
-{
-    let staged = StagedFile::for_output(output)?;
-    action(staged.path())
-}
-
 fn cleanup_stale_export_parts(parent: &Path, destination_name: &str) {
     let prefix = format!(".{destination_name}.");
     let Ok(entries) = fs::read_dir(parent) else {
@@ -283,11 +273,11 @@ pub(super) fn publish_completed_export_to_free_name(
 }
 
 fn flush_completed_export(temporary: &Path) -> Result<()> {
-    OpenOptions::new()
+    let file = OpenOptions::new()
         .write(true)
         .open(temporary)
-        .with_context(|| format!("open completed export {}", temporary.display()))?
-        .sync_all()
+        .with_context(|| format!("open completed export {}", temporary.display()))?;
+    calibraw_core::file_ops::sync_file(&file)
         .with_context(|| format!("flush completed export {}", temporary.display()))
 }
 

@@ -190,6 +190,50 @@ impl PendingRgba32Readback {
     }
 }
 
+/// Scene texels being read back for an export's RAW-stage store
+/// ([`RawGpuPipeline::begin_scene_region_readback`]).
+pub struct PendingSceneReadback {
+    readback: wgpu::Buffer,
+    submission: wgpu::SubmissionIndex,
+    receiver: std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+    unpadded_bytes_per_row: u32,
+    padded_bytes_per_row: u32,
+    height: u32,
+}
+
+impl PendingSceneReadback {
+    /// Waits for the texels, then hands `row` each row's bytes, top first,
+    /// with its index in the region.
+    pub fn finish(
+        self,
+        device: &wgpu::Device,
+        wait: GpuWait<'_>,
+        mut row: impl FnMut(u32, &[u8]),
+    ) -> Result<()> {
+        wait_for_mapping(
+            device,
+            self.submission,
+            self.receiver,
+            "export RAW-stage store",
+            "export",
+            wait,
+        )?;
+        let mapped = self.readback.get_mapped_range(..);
+        let padded = self.padded_bytes_per_row as usize;
+        let unpadded = self.unpadded_bytes_per_row as usize;
+        for index in 0..self.height {
+            let start = index as usize * padded;
+            let texels = mapped
+                .get(start..start + unpadded)
+                .ok_or_else(|| anyhow!("GPU scene readback row is shorter than requested"))?;
+            row(index, texels);
+        }
+        drop(mapped);
+        self.readback.unmap();
+        Ok(())
+    }
+}
+
 pub(super) fn begin_rgba32_texture_region_rgb_readback(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -460,7 +504,7 @@ fn submit_texture_to_buffer_copy(
 
 /// Requests a read mapping of the whole `buffer`; the result arrives on the
 /// returned channel once the device is polled (see `wait_for_mapping`).
-fn map_read_async(
+pub(super) fn map_read_async(
     buffer: &wgpu::Buffer,
 ) -> std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>> {
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
@@ -470,7 +514,7 @@ fn map_read_async(
     receiver
 }
 
-fn wait_for_mapping(
+pub(super) fn wait_for_mapping(
     device: &wgpu::Device,
     submission: wgpu::SubmissionIndex,
     receiver: std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
@@ -605,6 +649,54 @@ impl RawGpuPipeline {
         self.upload_params(queue, params);
         render("calibraw restore point color preview");
         result
+    }
+
+    /// Starts reading the scene texels, in the scene format, of the region at
+    /// `origin` (pixels of this graph) of `extent`: what the last RAW stage
+    /// left there, for an export to render that region again without it
+    /// ([`Self::write_scene_region`]).
+    pub fn begin_scene_region_readback(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        origin: [u32; 2],
+        extent: [u32; 2],
+    ) -> Result<PendingSceneReadback> {
+        let region = TextureReadbackRegion {
+            origin,
+            extent,
+            texture_extent: [self.width, self.height],
+            label: "calibraw export RAW-stage store readback",
+        };
+        region.validate("scene")?;
+        let texel_bytes = self.scene_texel_bytes();
+        let (readback, unpadded_bytes_per_row, padded_bytes_per_row) = create_readback_buffer(
+            device,
+            extent[0],
+            extent[1],
+            texel_bytes,
+            "scene",
+            region.label,
+        )?;
+        let submission = submit_texture_to_buffer_copy(
+            device,
+            queue,
+            &self.scene_texture,
+            origin,
+            extent,
+            &readback,
+            padded_bytes_per_row,
+            region.label,
+        );
+        let receiver = map_read_async(&readback);
+        Ok(PendingSceneReadback {
+            readback,
+            submission,
+            receiver,
+            unpadded_bytes_per_row,
+            padded_bytes_per_row,
+            height: extent[1],
+        })
     }
 
     pub fn begin_display_linear_region_readback(

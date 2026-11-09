@@ -83,16 +83,6 @@ impl CalibRawApp {
         self.persist_performance_settings();
     }
 
-    pub(crate) fn set_render_edited_thumbnails_during_indexing(&mut self, enabled: bool) {
-        let context = self.egui_ctx.clone();
-        if self
-            .library
-            .set_render_edited_thumbnails_during_indexing(enabled, &context)
-        {
-            self.persist_performance_settings();
-        }
-    }
-
     pub(crate) fn set_ai_gpu_acceleration(&mut self, enabled: bool) {
         if self.ai.gpu_acceleration == enabled {
             return;
@@ -278,11 +268,8 @@ impl CalibRawApp {
         self.persist_performance_settings();
     }
 
-    pub(crate) fn set_library_thumbnail_size(
-        &mut self,
-        thumbnail_size: crate::ui::library::LibraryThumbnailSize,
-    ) {
-        if self.library.set_thumbnail_size(thumbnail_size) {
+    pub(crate) fn set_library_view(&mut self, view: crate::ui::library::LibraryView) {
+        if self.library.set_view(view, &self.egui_ctx) {
             self.persist_performance_settings();
             self.egui_ctx.request_repaint();
         }
@@ -315,8 +302,13 @@ impl CalibRawApp {
         }
     }
 
-    pub(crate) fn select_android_library_folder(&mut self, folder: String) {
-        if self.library.select_android_folder(folder, &self.egui_ctx) {
+    /// Shows `folder` of a linked folder, or of the media library for an empty
+    /// key, which need not be the one shown.
+    pub(crate) fn select_android_library_root_folder(&mut self, root: String, folder: String) {
+        if self
+            .library
+            .select_android_root_folder(root, folder, &self.egui_ctx)
+        {
             self.persist_performance_settings();
         }
     }
@@ -354,10 +346,9 @@ impl CalibRawApp {
             raw_cache_files: self.develop.decoded_raws.limit(),
             thumbnail_workers: self.library.thumbnail_worker_count(),
             thumbnail_workers_automatic: self.library.automatic_thumbnail_workers(),
-            render_edited_thumbnails_during_indexing: self
-                .library
-                .renders_edited_thumbnails_during_indexing(),
-            library_thumbnail_size: self.library.thumbnail_size(),
+            library_thumbnail_size: self.library.view().thumbnail_size,
+            library_square_thumbnails: self.library.view().square_thumbnails,
+            library_include_subfolders: self.library.view().include_subfolders,
             library_sort_order: self.library.sort_order(),
             library_stack_raw_companions: self.library.stacks_raw_companions(),
             preview_quality: self.preview.quality,
@@ -377,6 +368,7 @@ impl CalibRawApp {
             onboarding_completed: self.preferences.onboarding_completed,
             subject_mask_quality_chosen: self.preferences.subject_mask_quality_chosen,
             people_mask_quality_chosen: self.preferences.people_mask_quality_chosen,
+            scene_depth_quality_chosen: self.preferences.scene_depth_quality_chosen,
             tips_enabled: self.preferences.tips.enabled,
             seen_tips: self.preferences.tips.seen.clone(),
             auto_check_updates: self.preferences.auto_check_updates,

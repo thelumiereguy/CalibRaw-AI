@@ -1,7 +1,8 @@
 use super::PlatformCaps;
 use crate::pipeline::RawThumbnail;
 use crate::sidecar::{
-    EditState, LoadedSidecar, PhotoCompanion, PhotoReview, SidecarError, SidecarSummary,
+    EditState, LoadedSidecar, PhotoCompanion, PhotoReview, SavedSidecar, SidecarError,
+    SidecarMetadata, SidecarStart, SidecarSummary,
 };
 use calibraw_core::display_metadata_cache::FileStamp;
 use calibraw_core::pipeline::RawDisplayMetadata;
@@ -33,6 +34,9 @@ pub(crate) struct LibraryDocument {
     pub(crate) bytes: u64,
     pub(crate) modified_seconds: u64,
     pub(crate) sidecar: ListedSidecar,
+    /// The folder below the listed one that holds the photo, `/`-separated
+    /// and relative to it; empty for the listed folder itself.
+    pub(crate) subfolder: String,
 }
 
 /// What a media-library listing says about a photo's sidecar.
@@ -499,7 +503,12 @@ pub(crate) trait Platform: Send + Sync {
     fn library_location(&self) -> Result<String, String> {
         Err(unavailable("the media library"))
     }
-    fn list_library_documents(&self) -> Result<Vec<LibraryDocument>, String> {
+    /// The photos of the selected folder and, with `include_subfolders`, of
+    /// every folder below it.
+    fn list_library_documents(
+        &self,
+        _include_subfolders: bool,
+    ) -> Result<Vec<LibraryDocument>, String> {
         Err(unavailable("the media library"))
     }
     fn list_library_folders(&self) -> Result<Vec<LibraryFolder>, String> {
@@ -523,9 +532,10 @@ pub(crate) trait Platform: Send + Sync {
     fn unlink_folder(&self, _key: &str) -> Result<(), String> {
         Err(unavailable("linked folders"))
     }
-    /// The folders of the linked folder `key`, as [`Self::list_library_folders`]
-    /// lists them, whichever folder is selected.
-    fn list_linked_folder_tree(&self, _key: &str) -> Result<Vec<LibraryFolder>, String> {
+    /// The folders of the linked folder `key`, or of the media library for an
+    /// empty key, as [`Self::list_library_folders`] lists them, whichever
+    /// folder is selected.
+    fn list_folder_tree(&self, _key: &str) -> Result<Vec<LibraryFolder>, String> {
         Err(unavailable("linked folders"))
     }
     /// Lists from the top of a linked folder, or of the media library for an
@@ -593,19 +603,22 @@ pub(crate) trait Platform: Send + Sync {
     ) -> Result<Option<LoadedSidecar>, SidecarError> {
         Ok(None)
     }
-    fn load_sidecar_review(
+    /// The sidecar's review, editing time and start, without decoding its
+    /// edits; `None` when the photo has no sidecar.
+    fn load_sidecar_metadata(
         &self,
         _raw_uri: &str,
         _display_name: &str,
-    ) -> Result<Option<PhotoReview>, SidecarError> {
+    ) -> Result<Option<SidecarMetadata>, SidecarError> {
         Ok(None)
     }
+    /// Saves `edits`, keeping the sidecar's review, editing time and start.
     fn save_sidecar(
         &self,
         _raw_uri: &str,
         _display_name: &str,
         _edits: EditState,
-    ) -> Result<String, SidecarError> {
+    ) -> Result<SavedSidecar, SidecarError> {
         Err(SidecarError::Io(std::io::Error::other(unavailable(
             "media-library sidecars",
         ))))
@@ -617,7 +630,8 @@ pub(crate) trait Platform: Send + Sync {
         _edits: EditState,
         _review: PhotoReview,
         _editing_time_ms: u64,
-    ) -> Result<String, SidecarError> {
+        _start: SidecarStart,
+    ) -> Result<SavedSidecar, SidecarError> {
         Err(SidecarError::Io(std::io::Error::other(unavailable(
             "media-library sidecars",
         ))))
@@ -770,6 +784,38 @@ pub(crate) trait Platform: Send + Sync {
         _display_name: &str,
     ) -> Result<Option<SidecarSummary>, SidecarError> {
         Err(SidecarError::Platform(unavailable("sidecar summaries")))
+    }
+    /// Runs `read` with a readable path to a media-library photo, valid only
+    /// while `read` runs: the photo's descriptor, or a private copy when the
+    /// decoders cannot reopen that, so `read` may run twice.
+    fn read_library_photo(
+        &self,
+        _uri: &str,
+        _display_name: &str,
+        _read: &mut dyn FnMut(&Path) -> Result<(), String>,
+    ) -> Result<(), String> {
+        Err(unavailable("reading media-library photos"))
+    }
+    /// The photo's sidecar and its render fingerprint from one read, for
+    /// rendering its edits; `None` when it has none.
+    fn load_sidecar_for_render(
+        &self,
+        _raw_uri: &str,
+        _display_name: &str,
+    ) -> Result<Option<(LoadedSidecar, u64)>, SidecarError> {
+        Err(SidecarError::Platform(unavailable("rendering saved edits")))
+    }
+    /// Saves a developed thumbnail rendered from the photo's sidecar while it
+    /// had `render_fingerprint`. False, and nothing kept, when the sidecar no
+    /// longer has it.
+    fn save_rendered_developed_thumbnail(
+        &self,
+        _raw_uri: &str,
+        _display_name: &str,
+        _thumbnail: &RawThumbnail,
+        _render_fingerprint: u64,
+    ) -> Result<bool, String> {
+        Err(unavailable("media-library thumbnails"))
     }
     /// The developed thumbnail saved for the photo while its sidecar had
     /// `render_fingerprint`; `None` when there is none or it is out of date.

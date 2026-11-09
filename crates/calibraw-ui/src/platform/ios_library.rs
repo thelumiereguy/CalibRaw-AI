@@ -5,7 +5,10 @@ use super::{ImportedLibraryDocument, LibraryDocument, LibraryFolder, ListedSidec
 use calibraw_core::pipeline::{
     is_supported_image_path, load_raw_display_dimensions, load_raw_thumbnail, RawThumbnail,
 };
-use calibraw_core::sidecar::{self, EditState, LoadedSidecar, PhotoReview, SidecarError};
+use calibraw_core::sidecar::{
+    self, EditState, LoadedSidecar, PhotoReview, SavedSidecar, SidecarError, SidecarMetadata,
+    SidecarStart,
+};
 use calibraw_core::thumbnail_cache;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -141,10 +144,40 @@ impl IosLibrary {
         })
     }
 
-    pub(super) fn list_library_documents(&self) -> Result<Vec<LibraryDocument>, String> {
+    pub(super) fn list_library_documents(
+        &self,
+        include_subfolders: bool,
+    ) -> Result<Vec<LibraryDocument>, String> {
         let folder = self.state()?;
+        let mut folders = vec![(folder.clone(), String::new())];
+        if include_subfolders {
+            folders.extend(self.folders_below(&folder)?.into_iter().map(|child| {
+                let subfolder = child
+                    .path
+                    .strip_prefix(folder.as_str())
+                    .unwrap_or(&child.path)
+                    .trim_start_matches('/')
+                    .to_owned();
+                (child.path, subfolder)
+            }));
+        }
         let mut documents = Vec::new();
-        for entry in fs::read_dir(self.folder_path(&folder)?).map_err(|error| error.to_string())? {
+        for (path, subfolder) in folders {
+            self.append_documents(&path, &subfolder, &mut documents)?;
+        }
+        documents.sort_by(|left, right| left.uri.cmp(&right.uri));
+        Ok(documents)
+    }
+
+    /// The photos directly in `folder`, which lies `subfolder` below the
+    /// listed folder.
+    fn append_documents(
+        &self,
+        folder: &str,
+        subfolder: &str,
+        documents: &mut Vec<LibraryDocument>,
+    ) -> Result<(), String> {
+        for entry in fs::read_dir(self.folder_path(folder)?).map_err(|error| error.to_string())? {
             let entry = entry.map_err(|error| error.to_string())?;
             if !entry
                 .file_type()
@@ -160,7 +193,7 @@ impl IosLibrary {
             if validate_name(&name).is_err() {
                 continue;
             }
-            let uri = relative_child(&folder, &name);
+            let uri = relative_child(folder, &name);
             self.photo(&uri)?;
             let metadata = entry.metadata().map_err(|error| error.to_string())?;
             documents.push(LibraryDocument {
@@ -174,16 +207,22 @@ impl IosLibrary {
                     .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                     .map_or(0, |time| time.as_secs()),
                 sidecar: ListedSidecar::Unlisted,
+                subfolder: subfolder.to_owned(),
             });
         }
-        documents.sort_by(|left, right| left.uri.cmp(&right.uri));
-        Ok(documents)
+        Ok(())
     }
 
     pub(super) fn list_library_folders(&self) -> Result<Vec<LibraryFolder>, String> {
         let _state = self.state()?;
+        self.folders_below("")
+    }
+
+    /// Every folder below `top`, sorted by path. The caller holds the state
+    /// lock.
+    fn folders_below(&self, top: &str) -> Result<Vec<LibraryFolder>, String> {
         let mut folders = Vec::new();
-        let mut pending = vec![String::new()];
+        let mut pending = vec![top.to_owned()];
         while let Some(parent) = pending.pop() {
             for entry in
                 fs::read_dir(self.folder_path(&parent)?).map_err(|error| error.to_string())?
@@ -300,7 +339,7 @@ impl IosLibrary {
                 committed: false,
             };
             io::copy(&mut source, &mut destination).map_err(|error| error.to_string())?;
-            destination.sync_all().map_err(|error| error.to_string())?;
+            calibraw_core::file_ops::sync_file(&destination).map_err(|error| error.to_string())?;
             partial.committed = true;
             return Ok(ImportedLibraryDocument {
                 uri,
@@ -424,17 +463,17 @@ impl IosLibrary {
         sidecar::load_desktop(&self.photo(uri).map_err(sidecar_error)?)
     }
 
-    pub(super) fn load_sidecar_review(
+    pub(super) fn load_sidecar_metadata(
         &self,
         uri: &str,
         _display_name: &str,
-    ) -> Result<Option<PhotoReview>, SidecarError> {
+    ) -> Result<Option<SidecarMetadata>, SidecarError> {
         let _state = self.state().map_err(sidecar_error)?;
         let raw = self.photo(uri).map_err(sidecar_error)?;
         if !sidecar::sidecar_path_for_raw(&raw).exists() {
             return Ok(None);
         }
-        sidecar::load_photo_review(&raw).map(Some)
+        sidecar::load_sidecar_metadata(&raw).map(Some)
     }
 
     pub(super) fn save_sidecar(
@@ -442,11 +481,14 @@ impl IosLibrary {
         uri: &str,
         _display_name: &str,
         edits: EditState,
-    ) -> Result<String, SidecarError> {
+    ) -> Result<SavedSidecar, SidecarError> {
         let _state = self.state().map_err(sidecar_error)?;
-        sidecar::save_desktop(&self.photo(uri).map_err(sidecar_error)?, edits)?;
+        let saved = sidecar::save_desktop(&self.photo(uri).map_err(sidecar_error)?, edits)?;
         self.invalidate_developed(uri).map_err(sidecar_error)?;
-        Ok(format!("{uri}{}", sidecar::SIDECAR_SUFFIX))
+        Ok(SavedSidecar {
+            location: format!("{uri}{}", sidecar::SIDECAR_SUFFIX),
+            edited: saved.edited,
+        })
     }
 
     pub(super) fn save_sidecar_with_review_and_editing_time(
@@ -456,7 +498,8 @@ impl IosLibrary {
         edits: EditState,
         review: PhotoReview,
         editing_time_ms: u64,
-    ) -> Result<String, SidecarError> {
+        start: SidecarStart,
+    ) -> Result<SavedSidecar, SidecarError> {
         let _state = self.state().map_err(sidecar_error)?;
         let raw = self.photo(uri).map_err(sidecar_error)?;
         if review.rating > 5 {
@@ -464,12 +507,17 @@ impl IosLibrary {
                 "rating must be between 0 and 5".to_owned(),
             ));
         }
-        sidecar::load_sidecar_metadata(&raw)?;
+        let recorded = sidecar::load_sidecar_metadata(&raw)?.start;
         let uses_ai_denoise = edits.exposure.ai_denoise_enabled;
         let uses_people = sidecar::uses_people_analysis(&edits);
-        let bytes = sidecar::encode_with_review_and_editing_time(edits, review, editing_time_ms)?;
+        let encoded = sidecar::encode_with_review_and_editing_time(
+            edits,
+            review,
+            editing_time_ms,
+            start.fingerprint(recorded)?,
+        )?;
         calibraw_core::file_ops::write_atomically(&sidecar::sidecar_path_for_raw(&raw), |file| {
-            file.write_all(&bytes).map_err(SidecarError::Io)
+            file.write_all(&encoded.bytes).map_err(SidecarError::Io)
         })?;
         if !uses_ai_denoise {
             remove_optional(&sidecar::ai_denoise_path_for_raw(&raw)).map_err(sidecar_error)?;
@@ -478,7 +526,10 @@ impl IosLibrary {
             remove_optional(&sidecar::people_analysis_path_for_raw(&raw)).map_err(sidecar_error)?;
         }
         self.invalidate_developed(uri).map_err(sidecar_error)?;
-        Ok(format!("{uri}{}", sidecar::SIDECAR_SUFFIX))
+        Ok(SavedSidecar {
+            location: format!("{uri}{}", sidecar::SIDECAR_SUFFIX),
+            edited: encoded.edited,
+        })
     }
 
     pub(super) fn reset_adjustments(
@@ -494,8 +545,16 @@ impl IosLibrary {
         if metadata.review == PhotoReview::default() && time == 0 {
             remove_optional(&sidecar::sidecar_path_for_raw(&raw))?;
         } else {
-            sidecar::save_desktop_with_editing_time(&raw, sidecar::default_edit_state(), time)
-                .map_err(|error| error.to_string())?;
+            // Reset, the photo is back at a start: the defaults.
+            let start =
+                sidecar::EditFingerprint::of_defaults().map_err(|error| error.to_string())?;
+            sidecar::save_desktop_with_editing_time(
+                &raw,
+                sidecar::default_edit_state(),
+                time,
+                sidecar::SidecarStart::Set(start),
+            )
+            .map_err(|error| error.to_string())?;
         }
         remove_optional(&sidecar::ai_denoise_path_for_raw(&raw))?;
         remove_optional(&sidecar::people_analysis_path_for_raw(&raw))?;

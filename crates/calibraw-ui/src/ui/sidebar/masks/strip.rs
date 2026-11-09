@@ -16,7 +16,7 @@ impl Sidebar {
         Self::show_ai_update_card(ui, app, frame);
 
         if app.masks.stack.masks.is_empty() {
-            moduwu_design::section_card(ui, tr("No masks yet"), |_| {});
+            Self::show_first_mask_picker(ui, app, frame);
             return None;
         }
 
@@ -27,6 +27,50 @@ impl Sidebar {
             }
             ScreenLayout::Horizontal => Self::show_masks_horizontal_details(ui, app, frame),
         }
+    }
+
+    /// Without masks, the panel offers the kind tiles directly; a click
+    /// creates the first group as the strip's picker does.
+    fn show_first_mask_picker(ui: &mut Ui, app: &mut CalibRawApp, frame: &eframe::Frame) {
+        let picked = moduwu_design::section_card(ui, tr("No masks yet"), |ui| {
+            ui.add_space(moduwu_design::SPACE_XS);
+            super::kind_picker::mask_kind_tiles(ui)
+        })
+        .inner;
+        let Some(kind) = picked else {
+            return;
+        };
+        Self::requesting_new_content(app, frame, |app| {
+            let actions = MaskStripActions {
+                command: Some(MaskStripCommand::CreateGroup(kind)),
+                edits: Vec::new(),
+                open_group: None,
+            };
+            if app.apply_mask_strip_actions(ui.ctx(), frame, actions) {
+                Self::refresh_mask_thumbnails(ui, app);
+            }
+        });
+    }
+
+    /// Whether the Develop layout shows the mask card strip: on the Masks
+    /// tab once a mask exists. Without masks the panel's kind picker is the
+    /// only way to start one, so the strip would only hold its add card.
+    pub(crate) fn shows_mask_strip(app: &CalibRawApp) -> bool {
+        app.ui.sidebar_tab == SidebarTab::Masks && !app.masks.stack.masks.is_empty()
+    }
+
+    /// The panel frame of the strip along the right edge, with side margins
+    /// narrow enough for the open group's panel around a group card.
+    pub(crate) fn horizontal_mask_strip_frame(ui: &Ui) -> egui::Frame {
+        let mut frame = moduwu_design::panel_frame(ui);
+        let side = ((Self::HORIZONTAL_MASK_STRIP_WIDTH
+            - MaskCardSize::Group.card_size().x
+            - 2.0 * OPEN_GROUP_FRAME_MARGIN)
+            / 2.0)
+            .floor() as i8;
+        frame.inner_margin.left = side.min(frame.inner_margin.left);
+        frame.inner_margin.right = side.min(frame.inner_margin.right);
+        frame
     }
 
     pub(crate) fn show_vertical_mask_strip(
@@ -93,7 +137,11 @@ impl Sidebar {
                     .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        ui.horizontal(|ui| show_cards(ui));
+                        // Centre the cards across the strip's full height,
+                        // which the open group's taller panel needs.
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            show_cards(ui)
+                        });
                     });
             }
             MaskStripOrientation::Vertical => {
@@ -139,17 +187,73 @@ impl Sidebar {
             if dragged_group == Some(index) {
                 continue;
             }
-            Self::show_mask_group_card(ui, input, index, orientation, pointer, drag, requests);
             if dragged_group.is_none() && input.selected_mask == Some(index) {
-                ui.add_space(1.0);
-                Self::show_submask_cards(ui, input, index, orientation, pointer, drag, requests);
-                Self::create_submask_card(ui, &mut requests.add_component, orientation);
+                Self::open_group_frame(ui, orientation, |ui| {
+                    Self::show_mask_group_card(
+                        ui,
+                        input,
+                        index,
+                        orientation,
+                        pointer,
+                        drag,
+                        requests,
+                    );
+                    Self::show_submask_cards(
+                        ui,
+                        input,
+                        index,
+                        orientation,
+                        pointer,
+                        drag,
+                        requests,
+                    );
+                    Self::create_submask_card(ui, &mut requests.add_component, orientation);
+                });
                 ui.add_space(moduwu_design::SPACE_XXS);
+            } else {
+                Self::show_mask_group_card(ui, input, index, orientation, pointer, drag, requests);
             }
         }
         if drag.displayed_drop_target == Some(StripDropTarget::Group(0)) {
             Self::show_drop_placeholder(ui, pointer, drag, MaskCardSize::Group);
         }
+    }
+
+    /// Lay out the open group's card, its sub-masks and their creation
+    /// buttons on one tinted panel, so the sub-masks read as parts of that
+    /// group rather than as further groups.
+    fn open_group_frame(
+        ui: &mut Ui,
+        orientation: MaskStripOrientation,
+        add_contents: impl FnOnce(&mut Ui),
+    ) {
+        const STROKE: f32 = 1.0;
+        // The strip centres a child across its axis only when it knows the
+        // child's size first, so the panel claims its cross size up front.
+        let cross = MaskCardSize::Group.card_size()
+            + egui::Vec2::splat(2.0 * (OPEN_GROUP_FRAME_MARGIN + STROKE));
+        let (desired, inner_layout) = match orientation {
+            MaskStripOrientation::Horizontal => (
+                egui::vec2(ui.available_width(), cross.y),
+                egui::Layout::left_to_right(egui::Align::Center),
+            ),
+            MaskStripOrientation::Vertical => (
+                egui::vec2(cross.x, ui.available_height()),
+                egui::Layout::top_down(egui::Align::Center),
+            ),
+        };
+        let visuals = ui.visuals();
+        let accent = visuals.selection.bg_fill;
+        let frame = egui::Frame::new()
+            .fill(visuals.panel_fill.lerp_to_gamma(accent, 0.10))
+            .stroke(egui::Stroke::new(STROKE, accent.gamma_multiply(0.55)))
+            .corner_radius(8.0)
+            .inner_margin(egui::Margin::same(OPEN_GROUP_FRAME_MARGIN as i8));
+        ui.allocate_ui_with_layout(desired, egui::Layout::top_down(egui::Align::Min), |ui| {
+            frame.show(ui, |ui| {
+                ui.with_layout(inner_layout, add_contents);
+            });
+        });
     }
 
     /// Scroll toward the end of the strip a dragged card nears, because
@@ -194,13 +298,13 @@ impl Sidebar {
         requests: &mut MaskStripRequests,
     ) {
         let mask = &input.masks[index];
-        let badge = mask.components.len().to_string();
+        let badge = CardBadge::Count(mask.components.len());
         let response = Self::mask_thumbnail_card(
             ui,
             input.group_textures.get(index),
             &mask.name,
             input.selected_mask == Some(index),
-            Some(&badge),
+            badge,
             mask.enabled,
             MaskCardSize::Group,
         );
@@ -349,13 +453,13 @@ impl Sidebar {
     ) {
         let component_count = input.masks[mask_index].components.len();
         let component = &input.masks[mask_index].components[component_index];
-        let component_badge = mask_component_badge(component_index, component.combine);
+        let component_badge = CardBadge::of_component(component_index, component.combine);
         let response = Self::mask_thumbnail_card(
             ui,
             input.component_textures.get(component_index),
             &component.name,
             input.selected_component == Some(component_index),
-            Some(component_badge),
+            component_badge,
             component.enabled,
             MaskCardSize::Submask,
         );
@@ -388,7 +492,7 @@ impl Sidebar {
                 },
                 source_texture: input.component_textures.get(component_index).cloned(),
                 source_name: component.name.clone(),
-                source_badge: component_badge.to_owned(),
+                source_badge: component_badge,
                 source_enabled: component.enabled,
                 hover_group: None,
                 drop_target: Some(StripDropTarget::Component {
@@ -418,6 +522,9 @@ impl Sidebar {
         }
     }
 }
+
+/// Space between the open group's panel edge and its cards, in points.
+const OPEN_GROUP_FRAME_MARGIN: f32 = 4.0;
 
 /// The mask stack and thumbnails the strip shows.
 struct MaskStripInput<'a> {
