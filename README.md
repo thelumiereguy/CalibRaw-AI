@@ -43,6 +43,9 @@
 
 Edit RAW files with sliders, curves, color grading and masks. AI tools can select a subject or the sky, remove objects and denoise high-ISO photos. Everything runs **on your device**, without an account or subscription.
 
+> [!NOTE]
+> **This is CalibRaw AI, a modified version of [CalibRaw](https://github.com/Duecki1/CalibRaw) by Duecki and the CalibRaw contributors.** thelumiereguy has changed it since 5 November 2026, adding an AI editor on Android that edits a photo from a written request, with Gemma on the phone or [Claude Code](#claude-code-on-android) in Termux. The commit history records every change and its date. The download links and website below are the original CalibRaw's.
+
 ---
 
 ## References
@@ -318,3 +321,5 @@ CalibRaw's shaders and tools draw on work from these projects:
 ## License
 
 CalibRaw is free software licensed under the **GNU General Public License v3.0 or later** ([GPL-3.0-or-later](COPYING)).
+
+CalibRaw AI is a modified version of CalibRaw, released under the same license. Its changes, made since 5 November 2026, are Copyright (C) 2026 thelumiereguy.
