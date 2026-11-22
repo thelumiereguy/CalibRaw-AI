@@ -1,0 +1,65 @@
+android/app/src/main/assets/claude/connect.sh
+  s_8f74af7efeeba8::t_ffa402d1aaa35c 2,7-8,11-12
+  s_8f74af7efeeba8::t_7d04499dca53b0 20
+android/app/src/main/assets/claude/cleanup.sh
+  s_8f74af7efeeba8::t_ff2feb457b4ddc 1-24
+crates/calibraw-ui/src/app/ai/editor/triage.rs
+  s_8f74af7efeeba8::t_5cec8669879b3e 104-113
+crates/calibraw-ui/src/app/ai/editor/model.rs
+  s_8f74af7efeeba8::t_0a349cfa8f1808 125-157
+docs/ARCHITECTURE.md
+  s_8f74af7efeeba8::t_cc458338198127 145,148-151
+  s_8f74af7efeeba8::t_c9d76d1253fcc3 141-144,146-147
+crates/calibraw-ui/src/platform/service.rs
+  s_8f74af7efeeba8::t_d597be6f58b430 842-852
+crates/calibraw-ui/src/app/job_state.rs
+  s_8f74af7efeeba8::t_8108d100070928 179-181
+android/app/src/main/java/de/duecki/calibraw/AiModels.java
+  s_8f74af7efeeba8::t_a53378d79f1c51 47-48
+  s_8f74af7efeeba8::t_75ed8156caffa7 94,117-126,128-133
+  s_8f74af7efeeba8::t_61b9049b24aa4a 87-89,95-116,127
+android/app/src/main/java/de/duecki/calibraw/AiModel.java
+  s_8f74af7efeeba8::t_68e2bee5102e12 22-27
+  s_8f74af7efeeba8::t_a34e7ac9a45480 21
+crates/calibraw-ui/src/platform/android.rs
+  s_8f74af7efeeba8::t_65c693b85dfc6e 647-654
+crates/calibraw-ui/src/app/eframe_impl.rs
+  s_8f74af7efeeba8::t_2e8ca1534f5f04 233
+android/app/src/main/java/de/duecki/calibraw/ClaudeBridge.java
+  s_8f74af7efeeba8::t_e3268752af703d 228-231
+  s_8f74af7efeeba8::t_d5856297a78024 89-90
+  s_8f74af7efeeba8::t_18c49cd3595e87 104-107
+  s_8f74af7efeeba8::t_0f77f32e9403f1 132,145-160,162-166,169-211
+  s_8f74af7efeeba8::t_9997ab85aabe10 286
+  s_8f74af7efeeba8::t_cf5d97ec4b0bb6 47-49
+  s_8f74af7efeeba8::t_98db9e5304bff6 305
+  s_8f74af7efeeba8::t_e6bb056734bff9 344-345
+  s_8f74af7efeeba8::t_5d12ef708f972c 366
+  s_8f74af7efeeba8::t_edc7b0eff3830b 214,629-639
+  s_8f74af7efeeba8::t_e294d90b84ce0d 92-93,95
+  s_8f74af7efeeba8::t_6c60635198bef2 91,94
+  s_8f74af7efeeba8::t_ecf467c7c89bc4 212-213
+  s_8f74af7efeeba8::t_a1b050aa4a9509 688,694-695
+crates/calibraw-ui/src/app/lifecycle/startup.rs
+  s_8f74af7efeeba8::t_132046f79447cf 242
+crates/calibraw-ffi/src/android/ai_models.rs
+  s_8f74af7efeeba8::t_f6094b586009f0 251-281
+android/app/src/main/java/de/duecki/calibraw/CalibRawActivity.java
+  s_8f74af7efeeba8::t_977030bd5b7037 562-566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16b8bd18cb25b1cb4d29fc75463e0db0cc8193e1",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}

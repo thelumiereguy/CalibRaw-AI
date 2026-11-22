@@ -1,0 +1,21 @@
+android/app/src/main/assets/claude/editor_system.md
+  s_8f74af7efeeba8::t_5c903d8dab6901 22-33
+  s_8f74af7efeeba8::t_5fb22a2523fc12 20
+  s_8f74af7efeeba8::t_d19cd27d9e27e0 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b96108eb2c9bf9d0e5871dcdcb3a7e4bad4e602b",
+  "prompts": {},
+  "sessions": {
+    "s_8f74af7efeeba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e446894-c4f1-4143-b672-b18c658dc433",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}

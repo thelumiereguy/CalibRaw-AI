@@ -1,0 +1,23 @@
+THIRD_PARTY_NOTICES.md
+  s_bbb18fc73c573d::t_5bdf0903ab04fd 6-8
+  s_bbb18fc73c573d::t_632e58cd741bbc 239-244
+README.md
+  s_bbb18fc73c573d::t_a9ceed0f059a4f 324-325
+  s_bbb18fc73c573d::t_6308b440ef0042 46-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61e23f64e435ae9945c59cd8d9c48e1b43320cc9",
+  "prompts": {},
+  "sessions": {
+    "s_bbb18fc73c573d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "437fa829-cee4-4c82-84a2-0641e58e2c0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "thelumiereguy <piyushvp1@gmail.com>"
+    }
+  }
+}
