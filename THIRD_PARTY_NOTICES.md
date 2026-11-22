@@ -3,6 +3,9 @@
 CalibRaw
 Copyright (C) 2026 Duecki and CalibRaw contributors
 
+CalibRaw AI, a modified version of CalibRaw
+Changes since 5 November 2026 Copyright (C) 2026 thelumiereguy
+
 CalibRaw is licensed under GPL-3.0-or-later; see [COPYING](COPYING). Code adapted
 from darktable, Ansel, and GIMP retains the upstream authors' copyright and
 compatible GPL terms. This includes RAW reconstruction and view-transform
@@ -233,6 +236,12 @@ native components:
   GNU libiconv (LGPL-2.1), PCRE2 (BSD-3-Clause), libffi (MIT), and zlib
   (Zlib). Their versions and source hashes are pinned in
   `android/app/src/main/cpp/CMakeLists.txt` or its resolved GLib subprojects.
+- Android packages include
+  [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) 0.19.0
+  (`com.google.ai.edge.litertlm:litertlm-android`), Copyright Google LLC, under
+  the [Apache-2.0 license](https://www.apache.org/licenses/LICENSE-2.0). It runs
+  Gemma for the AI editor. The Gemma model is not included: the user places it on
+  the device, under Google's terms for that model.
 - Android packages include the Android NDK's `libc++_shared` runtime, licensed
   under Apache-2.0 with the LLVM exception. The NDK supplies the applicable
   notices in its `NOTICE` and `NOTICE.toolchain` files.
